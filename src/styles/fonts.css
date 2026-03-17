@@ -1,0 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Rye&family=Special+Elite&display=swap');
+
+:root {
+  --font-header: 'Oswald', sans-serif;
+  --font-western: 'Rye', cursive;
+  --font-body: 'Inter', sans-serif;
+  --font-typewriter: 'Special Elite', cursive;
+}
