@@ -1,0 +1,17 @@
+/node_modules
+/node_modules
+/node_modules
+/node_modules/@babel
+/node_modules/@babel/types
+/node_modules/@babel/types/lib
+/node_modules
+/node_modules/@emotion/babel-plugin/src/utils
+/node_modules/@emotion/babel-plugin/src/utils
+/node_modules/@emotion/is-prop-valid
+/node_modules/@babel/types/lib
+/node_modules/@babel
+*.js
+node_modules/@babel/types/lib/index.js
+node_modules/@babel/types/lib/index.js.flow
+/node_modules
+/node_modules/.bin
