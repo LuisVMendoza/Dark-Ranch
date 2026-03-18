@@ -304,6 +304,68 @@ CREATE TABLE dashboard_metrics (
 CREATE INDEX idx_dashboard_metrics_date ON dashboard_metrics(date DESC);
 
 -- =====================================================
+-- 14. TABLA: purchase_history (Historial de Compras)
+-- =====================================================
+CREATE TABLE purchase_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id VARCHAR(30) UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded')),
+  payment_status VARCHAR(20) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')),
+  total DECIMAL(10,2) NOT NULL CHECK (total >= 0),
+  purchased_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices para purchase_history
+CREATE INDEX idx_purchase_history_user ON purchase_history(user_id);
+CREATE INDEX idx_purchase_history_status ON purchase_history(status);
+CREATE INDEX idx_purchase_history_purchased_at ON purchase_history(purchased_at DESC);
+
+-- =====================================================
+-- 15. TABLA: cancelled_purchases (Compras Canceladas)
+-- =====================================================
+CREATE TABLE cancelled_purchases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  purchase_history_id UUID UNIQUE NOT NULL REFERENCES purchase_history(id) ON DELETE CASCADE,
+  order_id VARCHAR(30) UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  cancelled_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  cancel_reason TEXT,
+  cancel_source VARCHAR(20) DEFAULT 'customer' CHECK (cancel_source IN ('customer', 'admin', 'system')),
+  refund_amount DECIMAL(10,2) DEFAULT 0 CHECK (refund_amount >= 0),
+  cancelled_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices para cancelled_purchases
+CREATE INDEX idx_cancelled_purchases_order ON cancelled_purchases(order_id);
+CREATE INDEX idx_cancelled_purchases_cancelled_at ON cancelled_purchases(cancelled_at DESC);
+
+-- =====================================================
+-- 16. TABLA: purchase_reports (Reportes por Periodo)
+-- =====================================================
+CREATE TABLE purchase_reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('day', 'week', 'month', 'bimester', 'quarter', 'semester', 'year')),
+  period_label VARCHAR(60) NOT NULL,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  total_purchases INTEGER DEFAULT 0 CHECK (total_purchases >= 0),
+  cancelled_purchases INTEGER DEFAULT 0 CHECK (cancelled_purchases >= 0),
+  gross_sales DECIMAL(12,2) DEFAULT 0 CHECK (gross_sales >= 0),
+  refunded_total DECIMAL(12,2) DEFAULT 0 CHECK (refunded_total >= 0),
+  net_sales DECIMAL(12,2) DEFAULT 0 CHECK (net_sales >= 0),
+  generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE (period_type, period_start, period_end)
+);
+
+-- Índices para purchase_reports
+CREATE INDEX idx_purchase_reports_type_start ON purchase_reports(period_type, period_start DESC);
+CREATE INDEX idx_purchase_reports_label ON purchase_reports(period_label);
+
+-- =====================================================
 -- TRIGGERS PARA UPDATED_AT
 -- =====================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -439,6 +501,9 @@ ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cancelled_purchases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_reports ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para users (solo pueden ver/editar su propia info)
 CREATE POLICY "Users can view own profile" ON users
@@ -471,6 +536,9 @@ CREATE POLICY "Users can manage own cart" ON cart_items
 CREATE POLICY "Users can view own orders" ON orders
   FOR SELECT USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can view own purchase history" ON purchase_history
+  FOR SELECT USING (auth.uid() = user_id);
+
 CREATE POLICY "Admins can view all orders" ON orders
   FOR SELECT USING (
     EXISTS (
@@ -480,6 +548,32 @@ CREATE POLICY "Admins can view all orders" ON orders
     )
   );
 
+CREATE POLICY "Admins can view all purchase history" ON purchase_history
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM admin_users au
+      JOIN users u ON u.id = au.user_id
+      WHERE u.id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Admins can view cancelled purchases" ON cancelled_purchases
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM admin_users au
+      JOIN users u ON u.id = au.user_id
+      WHERE u.id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Admins can view purchase reports" ON purchase_reports
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM admin_users au
+      JOIN users u ON u.id = au.user_id
+      WHERE u.id = auth.uid()
+    )
+  );
 -- Políticas para activity_logs (solo admins)
 CREATE POLICY "Admins can view activity logs" ON activity_logs
   FOR SELECT USING (
@@ -506,7 +600,9 @@ COMMENT ON TABLE banners IS 'Banners promocionales editables desde admin';
 COMMENT ON TABLE store_settings IS 'Configuración global de la tienda';
 COMMENT ON TABLE product_reviews IS 'Reseñas y valoraciones de productos';
 COMMENT ON TABLE dashboard_metrics IS 'Métricas calculadas para el dashboard admin';
-
+COMMENT ON TABLE purchase_history IS 'Historial detallado de compras por orden';
+COMMENT ON TABLE cancelled_purchases IS 'Registro de compras canceladas y su motivo';
+COMMENT ON TABLE purchase_reports IS 'Reportes agregados de compras por día, semana, mes, bimestre, trimestre, semestre y año';
 -- =====================================================
 -- FIN DEL SCHEMA
 -- =====================================================

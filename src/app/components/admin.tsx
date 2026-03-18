@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Package, ShoppingBag, Users, TrendingUp, AlertCircle, Plus, Edit2, Trash2, Settings, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
-import { PRODUCTS, CATEGORIES, StoreSettings } from '../data';
+import { PRODUCTS, CATEGORIES, StoreSettings, PURCHASE_HISTORY, CANCELLED_PURCHASES, PURCHASE_REPORTS } from '../data';
 import { Button, SectionTitle, Badge, PaperCard, cn } from './ui';
 
 export const AdminDashboard = ({ 
@@ -10,7 +10,7 @@ export const AdminDashboard = ({
   settings: StoreSettings, 
   onUpdateSettings: (s: StoreSettings) => void 
 }) => {
-  const [activeTab, setActiveTab] = useState<'stats' | 'products' | 'storefront'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'products' | 'purchases' | 'storefront'>('stats');
   const [localSettings, setLocalSettings] = useState(settings);
 
   const stats = [
@@ -45,6 +45,12 @@ export const AdminDashboard = ({
               className={cn("px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors", activeTab === 'products' ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100")}
             >
               Inventario
+            </button>
+            <button 
+              onClick={() => setActiveTab('purchases')}
+              className={cn("px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors", activeTab === 'purchases' ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100")}
+            >
+              Compras
             </button>
             <button 
               onClick={() => setActiveTab('storefront')}
@@ -117,6 +123,103 @@ export const AdminDashboard = ({
             </div>
           </div>
         )}
+
+{activeTab === 'purchases' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div>
+              <h3 className="font-header font-bold uppercase tracking-tight text-xl mb-4">Historial de Compras</h3>
+              <div className="bg-white border-2 border-black overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
+                        <th className="px-6 py-4">Orden</th>
+                        <th className="px-6 py-4">Cliente</th>
+                        <th className="px-6 py-4">Estado</th>
+                        <th className="px-6 py-4">Pago</th>
+                        <th className="px-6 py-4">Total</th>
+                        <th className="px-6 py-4">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200">
+                      {PURCHASE_HISTORY.map((purchase) => (
+                        <tr key={purchase.id} className="hover:bg-neutral-50 transition-colors">
+                          <td className="px-6 py-4 font-header font-bold">{purchase.orderId}</td>
+                          <td className="px-6 py-4">{purchase.customer}</td>
+                          <td className="px-6 py-4 uppercase text-xs font-bold">{purchase.status}</td>
+                          <td className="px-6 py-4 uppercase text-xs">{purchase.paymentStatus}</td>
+                          <td className="px-6 py-4 font-header font-bold">${purchase.total.toFixed(2)}</td>
+                          <td className="px-6 py-4 text-sm">{new Date(purchase.purchasedAt).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-header font-bold uppercase tracking-tight text-xl mb-4">Compras Canceladas</h3>
+              <div className="bg-white border-2 border-black overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
+                        <th className="px-6 py-4">Orden</th>
+                        <th className="px-6 py-4">Cliente</th>
+                        <th className="px-6 py-4">Motivo</th>
+                        <th className="px-6 py-4">Reembolso</th>
+                        <th className="px-6 py-4">Fecha Cancelación</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200">
+                      {CANCELLED_PURCHASES.map((purchase) => (
+                        <tr key={purchase.id} className="hover:bg-neutral-50 transition-colors">
+                          <td className="px-6 py-4 font-header font-bold">{purchase.orderId}</td>
+                          <td className="px-6 py-4">{purchase.customer}</td>
+                          <td className="px-6 py-4">{purchase.reason}</td>
+                          <td className="px-6 py-4 font-header font-bold text-red-600">${purchase.refundAmount.toFixed(2)}</td>
+                          <td className="px-6 py-4 text-sm">{new Date(purchase.cancelledAt).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-header font-bold uppercase tracking-tight text-xl mb-4">Reportes de Compras</h3>
+              <div className="bg-white border-2 border-black overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
+                        <th className="px-6 py-4">Periodo</th>
+                        <th className="px-6 py-4">Compras</th>
+                        <th className="px-6 py-4">Canceladas</th>
+                        <th className="px-6 py-4">Venta Bruta</th>
+                        <th className="px-6 py-4">Venta Neta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200">
+                      {PURCHASE_REPORTS.map((report) => (
+                        <tr key={report.id} className="hover:bg-neutral-50 transition-colors">
+                          <td className="px-6 py-4 font-header font-bold">{report.periodLabel}</td>
+                          <td className="px-6 py-4">{report.totalPurchases}</td>
+                          <td className="px-6 py-4">{report.cancelledPurchases}</td>
+                          <td className="px-6 py-4">${report.grossSales.toFixed(2)}</td>
+                          <td className="px-6 py-4 font-header font-bold">${report.netSales.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {activeTab === 'storefront' && (
           <div className="space-y-8 animate-in fade-in duration-500">

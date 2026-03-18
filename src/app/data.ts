@@ -204,3 +204,54 @@ export const PRODUCTS: Product[] = [
     tags: ["Invierno", "Premium"]
   }
 ];
+
+export interface PurchaseHistoryItem {
+  id: string;
+  orderId: string;
+  customer: string;
+  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  total: number;
+  purchasedAt: string;
+}
+
+export interface CancelledPurchaseItem {
+  id: string;
+  orderId: string;
+  customer: string;
+  reason: string;
+  cancelledAt: string;
+  refundAmount: number;
+}
+
+export interface PurchaseReportItem {
+  id: string;
+  periodType: 'day' | 'week' | 'month' | 'bimester' | 'quarter' | 'semester' | 'year';
+  periodLabel: string;
+  totalPurchases: number;
+  cancelledPurchases: number;
+  grossSales: number;
+  netSales: number;
+}
+
+export const PURCHASE_HISTORY: PurchaseHistoryItem[] = [
+  { id: 'ph-001', orderId: 'DR-2026-00021', customer: 'María López', status: 'delivered', paymentStatus: 'paid', total: 189.99, purchasedAt: '2026-01-14T10:35:00Z' },
+  { id: 'ph-002', orderId: 'DR-2026-00022', customer: 'Javier Ruiz', status: 'shipped', paymentStatus: 'paid', total: 230.00, purchasedAt: '2026-01-15T13:10:00Z' },
+  { id: 'ph-003', orderId: 'DR-2026-00023', customer: 'Ana Torres', status: 'cancelled', paymentStatus: 'refunded', total: 145.00, purchasedAt: '2026-01-15T18:45:00Z' },
+  { id: 'ph-004', orderId: 'DR-2026-00024', customer: 'Ricardo Pérez', status: 'paid', paymentStatus: 'paid', total: 95.00, purchasedAt: '2026-01-16T09:05:00Z' }
+];
+
+export const CANCELLED_PURCHASES: CancelledPurchaseItem[] = [
+  { id: 'cp-001', orderId: 'DR-2026-00023', customer: 'Ana Torres', reason: 'Cambio de talla', cancelledAt: '2026-01-15T20:10:00Z', refundAmount: 145.00 },
+  { id: 'cp-002', orderId: 'DR-2026-00019', customer: 'Luis Mena', reason: 'Pago duplicado', cancelledAt: '2026-01-13T11:30:00Z', refundAmount: 89.00 }
+];
+
+export const PURCHASE_REPORTS: PurchaseReportItem[] = [
+  { id: 'pr-day', periodType: 'day', periodLabel: 'Día (Hoy)', totalPurchases: 24, cancelledPurchases: 1, grossSales: 3120.50, netSales: 2975.50 },
+  { id: 'pr-week', periodType: 'week', periodLabel: 'Semana actual', totalPurchases: 146, cancelledPurchases: 9, grossSales: 18640.20, netSales: 17310.20 },
+  { id: 'pr-month', periodType: 'month', periodLabel: 'Mes actual', totalPurchases: 512, cancelledPurchases: 21, grossSales: 64890.00, netSales: 62120.00 },
+  { id: 'pr-bimester', periodType: 'bimester', periodLabel: 'Bimestre actual', totalPurchases: 1004, cancelledPurchases: 39, grossSales: 127880.00, netSales: 122450.00 },
+  { id: 'pr-quarter', periodType: 'quarter', periodLabel: 'Trimestre actual', totalPurchases: 1588, cancelledPurchases: 61, grossSales: 201300.00, netSales: 193000.00 },
+  { id: 'pr-semester', periodType: 'semester', periodLabel: 'Semestre actual', totalPurchases: 3055, cancelledPurchases: 114, grossSales: 390420.00, netSales: 375760.00 },
+  { id: 'pr-year', periodType: 'year', periodLabel: 'Año actual', totalPurchases: 6124, cancelledPurchases: 208, grossSales: 781220.00, netSales: 754500.00 }
+];
