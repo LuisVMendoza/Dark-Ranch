@@ -316,6 +316,7 @@ const App = () => {
               settings: nextSnapshot.settings,
               dashboard: nextSnapshot.dashboard,
             })}
+            onExit={() => setCurrentView('home')}
           />
         ) : <LoginPage onLogin={handleLogin} />;
       default:

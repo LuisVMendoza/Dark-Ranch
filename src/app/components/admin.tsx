@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  ArrowLeft,
   Boxes,
   DollarSign,
   Package,
@@ -134,10 +135,12 @@ export const AdminDashboard = ({
   initialSnapshot,
   onSnapshotUpdated,
   currentAdminUser,
+  onExit,
 }: {
   initialSnapshot: AdminSnapshot;
   onSnapshotUpdated: (snapshot: AdminSnapshot) => void;
   currentAdminUser: AdminUser | null;
+  onExit: () => void;
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [snapshot, setSnapshot] = useState<AdminSnapshot>(initialSnapshot);
@@ -161,6 +164,8 @@ export const AdminDashboard = ({
 
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
+  const currentRole = currentAdminUser?.role || 'guest';
+  const canManageTeam = currentRole === 'admin';
 
   useEffect(() => {
     setSnapshot(initialSnapshot);
@@ -368,6 +373,16 @@ export const AdminDashboard = ({
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
+    if (deleteTarget.entityType === 'user') {
+      if (!canManageTeam) {
+        toast.error('Solo un admin puede eliminar cuentas del equipo.');
+        return;
+      }
+      if (currentAdminUser?.id === deleteTarget.entityId) {
+        toast.error('No puedes eliminar tu propia cuenta activa.');
+        return;
+      }
+    }
 
     setIsDeleting(true);
     try {
@@ -458,6 +473,9 @@ export const AdminDashboard = ({
               <Button className="mt-6 w-full justify-center" variant="secondary" onClick={() => refreshSnapshot('Panel sincronizado')} disabled={isRefreshing}>
                 {isRefreshing ? 'Sincronizando…' : 'Refrescar datos'}
               </Button>
+              <Button className="mt-3 w-full justify-center" variant="outline" onClick={onExit}>
+                <ArrowLeft size={16} className="mr-2" /> Volver a la tienda
+              </Button>
             </div>
 
             <div className="bg-white border-2 border-black p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-2">
@@ -478,6 +496,21 @@ export const AdminDashboard = ({
           </aside>
 
           <main className="flex-1 space-y-8">
+            <section className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <p className="font-header uppercase text-xs tracking-[0.25em] text-[#8c6844]">Sección de administración</p>
+                <h2 className="font-western uppercase text-4xl">Control total del rancho</h2>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" onClick={onExit}>
+                  <ArrowLeft size={16} className="mr-2" /> Regresar a página principal
+                </Button>
+                <Button onClick={() => refreshSnapshot('Panel sincronizado')} disabled={isRefreshing}>
+                  {isRefreshing ? 'Sincronizando…' : 'Actualizar panel'}
+                </Button>
+              </div>
+            </section>
+
             <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
               {[
                 { label: 'Ventas', value: currency.format(Number(snapshot.dashboard.stats.totalSales)), icon: DollarSign },
@@ -794,18 +827,48 @@ export const AdminDashboard = ({
                     </div>
                     <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
                   </div>
+                  <div className="mb-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="border-2 border-black bg-white p-4">
+                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500">Política de eliminación</p>
+                      <p className="mt-3 text-sm text-neutral-700 leading-relaxed">
+                        Se listan todas las cuentas con su rol. Solo las cuentas con rol <span className="font-header font-black uppercase">admin</span> pueden borrar otras cuentas, y nunca su propia sesión.
+                      </p>
+                    </div>
+                    <div className="border-2 border-black bg-[#1f130b] p-4 text-white">
+                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#d4c5b3]">Tu capacidad actual</p>
+                      <p className="mt-3 font-header font-black uppercase text-lg">{canManageTeam ? 'Puedes administrar y borrar otras cuentas' : 'Solo puedes consultar cuentas y roles'}</p>
+                    </div>
+                  </div>
                   <div className="space-y-4">
                     {snapshot.adminUsers.map((user) => (
                       <div key={user.id} className="border-2 border-black bg-white p-4 space-y-4">
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                          <div>
-                            <p className="font-header font-black uppercase text-lg">{user.name}</p>
-                            <p className="text-sm text-neutral-600">{user.email}</p>
-                            <p className="text-xs uppercase tracking-[0.2em] text-[#8c6844] mt-1">Rol actual: {user.role}</p>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="font-header font-black uppercase text-lg">{user.name}</p>
+                              <p className="text-sm text-neutral-600">{user.email}</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center border-2 border-black bg-[#fcf9f5] px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em]">
+                                Rol: {user.role}
+                              </span>
+                              {currentAdminUser?.id === user.id && (
+                                <span className="inline-flex items-center border-2 border-[#8c6844] bg-[#f4eadf] px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em] text-[#8c6844]">
+                                  Cuenta actual
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)}>Editar</Button>
-                            <Button size="sm" variant="outline" onClick={() => setDeleteTarget({ entityType: 'user', entityId: user.id, entityName: user.name })}>Eliminar</Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!canManageTeam || currentAdminUser?.id === user.id}
+                              onClick={() => setDeleteTarget({ entityType: 'user', entityId: user.id, entityName: user.name })}
+                            >
+                              Eliminar
+                            </Button>
                           </div>
                         </div>
                         <div>
@@ -840,6 +903,12 @@ export const AdminDashboard = ({
                     <div>
                       <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Rol</p>
                       <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.role || 'No disponible'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción de borrado</p>
+                      <p className="text-sm text-neutral-700 mt-1">
+                        {canManageTeam ? 'Puedes borrar otras cuentas listadas en el equipo.' : 'Tu rol no puede borrar cuentas; solo un admin puede hacerlo.'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-3">Permisos aplicados</p>
@@ -942,11 +1011,11 @@ export const AdminDashboard = ({
           </main>
 
           <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
-            <DialogContent className="max-w-5xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[92vh] overflow-hidden">
+            <DialogContent className="w-[min(96vw,88rem)] max-w-[88rem] border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[94vh] overflow-hidden">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
-                  <DialogDescription className="text-sm text-neutral-600">Ahora el modal incluye flags de nuevo, destacado, activo y el botón de guardar siempre visible.</DialogDescription>
+                  <DialogDescription className="text-sm text-neutral-600">Rediseñamos el modal para dar más espacio, ordenar mejor los bloques y dejar las acciones siempre visibles.</DialogDescription>
                 </DialogHeader>
               </div>
               <div className="overflow-y-auto p-8">
@@ -957,6 +1026,7 @@ export const AdminDashboard = ({
                   onChange={setProductForm}
                   onSubmit={handleProductSubmit}
                   submitLabel={editingProductId ? 'Guardar cambios' : 'Crear producto'}
+                  onCancel={closeProductModal}
                 />
               </div>
             </DialogContent>
@@ -1054,6 +1124,7 @@ const ProductFormFields = ({
   isEditing,
   onChange,
   onSubmit,
+  onCancel,
   submitLabel,
 }: {
   form: AdminProductPayload;
@@ -1061,39 +1132,93 @@ const ProductFormFields = ({
   isEditing: boolean;
   onChange: React.Dispatch<React.SetStateAction<AdminProductPayload>>;
   onSubmit: (event: React.FormEvent) => void;
+  onCancel: () => void;
   submitLabel: string;
 }) => (
   <form onSubmit={onSubmit} className="space-y-6">
-    <div className="grid md:grid-cols-2 gap-4">
-      <Field label="ID">
-        <input
-          value={isEditing ? form.id : 'Auto-generado al crear'}
-          disabled
-          className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
-        />
-      </Field>
-      <Field label="Slug"><input value={form.slug || ''} onChange={(e) => onChange((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
-      <Field label="Nombre" className="md:col-span-2"><input required value={form.name} onChange={(e) => onChange((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
-      <Field label="Descripción" className="md:col-span-2"><textarea value={form.description} onChange={(e) => onChange((current) => ({ ...current, description: e.target.value }))} className={`${INPUT_CLASS} min-h-[110px]`} /></Field>
-      <Field label="Precio"><input type="number" min="0" step="0.01" value={form.price} onChange={(e) => onChange((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
-      <Field label="Precio oferta"><input type="number" min="0" step="0.01" value={form.salePrice ?? ''} onChange={(e) => onChange((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
-      <Field label="Categoría"><select value={form.categoryId} onChange={(e) => onChange((current) => ({ ...current, categoryId: e.target.value }))} className={INPUT_CLASS}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
-      <Field label="Stock"><input type="number" min="0" value={form.stock} onChange={(e) => onChange((current) => ({ ...current, stock: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
-      <Field label="Imágenes (URL, una por línea)" className="md:col-span-2"><textarea value={form.images.join('\n')} onChange={(e) => onChange((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
-      <Field label="Tallas"><input value={serializeList(form.sizes)} onChange={(e) => onChange((current) => ({ ...current, sizes: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-      <Field label="Colores"><input value={serializeList(form.colors)} onChange={(e) => onChange((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-      <Field label="Tags" className="md:col-span-2"><input value={serializeList(form.tags)} onChange={(e) => onChange((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+    <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+      <div className="space-y-6">
+        <section className="border-2 border-black bg-white p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Información principal</p>
+            <h3 className="font-western uppercase text-2xl mt-2">Base del producto</h3>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="ID">
+              <input
+                value={isEditing ? form.id : 'Auto-generado al crear'}
+                disabled
+                className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
+              />
+            </Field>
+            <Field label="Slug"><input value={form.slug || ''} onChange={(e) => onChange((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
+            <Field label="Nombre" className="md:col-span-2"><input required value={form.name} onChange={(e) => onChange((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
+            <Field label="Descripción" className="md:col-span-2"><textarea value={form.description} onChange={(e) => onChange((current) => ({ ...current, description: e.target.value }))} className={`${INPUT_CLASS} min-h-[150px]`} /></Field>
+          </div>
+        </section>
+
+        <section className="border-2 border-black bg-white p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Venta e inventario</p>
+            <h3 className="font-western uppercase text-2xl mt-2">Precio, categoría y stock</h3>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Precio"><input type="number" min="0" step="0.01" value={form.price} onChange={(e) => onChange((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
+            <Field label="Precio oferta"><input type="number" min="0" step="0.01" value={form.salePrice ?? ''} onChange={(e) => onChange((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
+            <Field label="Categoría"><select value={form.categoryId} onChange={(e) => onChange((current) => ({ ...current, categoryId: e.target.value }))} className={INPUT_CLASS}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
+            <Field label="Stock"><input type="number" min="0" value={form.stock} onChange={(e) => onChange((current) => ({ ...current, stock: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
+          </div>
+        </section>
+
+        <section className="border-2 border-black bg-white p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Recursos visuales</p>
+            <h3 className="font-western uppercase text-2xl mt-2">Imágenes del catálogo</h3>
+          </div>
+          <Field label="Imágenes (URL, una por línea)">
+            <textarea value={form.images.join('\n')} onChange={(e) => onChange((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[180px]`} />
+          </Field>
+        </section>
+      </div>
+
+      <div className="space-y-6">
+        <section className="border-2 border-black bg-white p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Configuración comercial</p>
+            <h3 className="font-western uppercase text-2xl mt-2">Atributos del producto</h3>
+          </div>
+          <Field label="Tallas"><input value={serializeList(form.sizes)} onChange={(e) => onChange((current) => ({ ...current, sizes: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+          <Field label="Colores"><input value={serializeList(form.colors)} onChange={(e) => onChange((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+          <Field label="Tags"><input value={serializeList(form.tags)} onChange={(e) => onChange((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+        </section>
+
+        <section className="border-2 border-black bg-white p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Visibilidad</p>
+            <h3 className="font-western uppercase text-2xl mt-2">Estado del producto</h3>
+          </div>
+          <div className="grid gap-3 text-xs font-header uppercase font-black">
+            <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
+            <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
+            <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+          </div>
+        </section>
+      </div>
     </div>
-    <div className="border-2 border-black bg-white p-4 space-y-4 sticky bottom-0">
-      <div>
-        <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500 mb-3">Visibilidad del producto</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-header uppercase font-black">
-          <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
-          <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
-          <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+
+    <div className="sticky bottom-0 border-2 border-black bg-[#1f130b] p-4 text-white shadow-[0_-6px_0px_0px_rgba(0,0,0,0.08)]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#d4c5b3]">Acciones rápidas</p>
+          <p className="text-sm text-white/80 mt-1">El bloque inferior siempre permanece visible para que no se pierda el cierre del formulario.</p>
+        </div>
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
+          <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="justify-center"><Save size={16} className="mr-2" /> {submitLabel}</Button>
         </div>
       </div>
-      <Button type="submit" className="w-full justify-center"><Save size={16} className="mr-2" /> {submitLabel}</Button>
     </div>
   </form>
 );
