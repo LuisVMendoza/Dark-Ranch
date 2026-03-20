@@ -9,7 +9,7 @@ import { CheckoutPage } from './components/checkout';
 import { LoginPage } from './components/auth';
 import { AboutPage, ContactPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
-import { AdminUser, BootstrapData, StoreSettings } from './types';
+import { AdminSnapshot, AdminUser, BootstrapData, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
 import { ArrowRight, RefreshCw, Filter, Search, ShieldCheck, Truck } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'motion/react';
@@ -25,6 +25,7 @@ const App = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
+  const [adminSnapshot, setAdminSnapshot] = useState<AdminSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -33,6 +34,13 @@ const App = () => {
     try {
       const data = await getBootstrapData();
       setBootstrap(data);
+      setAdminSnapshot((current) => current ? {
+        ...current,
+        categories: data.categories,
+        products: data.products,
+        settings: data.settings,
+        dashboard: data.dashboard,
+      } : null);
       setLoadError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo cargar la tienda';
@@ -300,7 +308,7 @@ const App = () => {
       case 'admin':
         return isAdmin ? (
           <AdminDashboard
-            initialSnapshot={{
+            initialSnapshot={adminSnapshot ?? {
               categories: bootstrap.categories,
               products: bootstrap.products,
               orders: [],
@@ -310,12 +318,15 @@ const App = () => {
               dashboard: bootstrap.dashboard,
             }}
             currentAdminUser={adminUser}
-            onSnapshotUpdated={(nextSnapshot) => setBootstrap({
-              categories: nextSnapshot.categories,
-              products: nextSnapshot.products.filter((product) => product.isActive !== false),
-              settings: nextSnapshot.settings,
-              dashboard: nextSnapshot.dashboard,
-            })}
+            onSnapshotUpdated={(nextSnapshot) => {
+              setAdminSnapshot(nextSnapshot);
+              setBootstrap({
+                categories: nextSnapshot.categories,
+                products: nextSnapshot.products.filter((product) => product.isActive !== false),
+                settings: nextSnapshot.settings,
+                dashboard: nextSnapshot.dashboard,
+              });
+            }}
             onExit={() => setCurrentView('home')}
           />
         ) : <LoginPage onLogin={handleLogin} />;
