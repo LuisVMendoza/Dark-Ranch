@@ -14,6 +14,7 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { Button, PaperCard, cn } from './ui';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   AdminCategoryPayload,
   AdminOrder,
@@ -99,8 +100,10 @@ export const AdminDashboard = ({
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [productForm, setProductForm] = useState<AdminProductPayload>(EMPTY_PRODUCT);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [categoryForm, setCategoryForm] = useState<AdminCategoryPayload>(EMPTY_CATEGORY);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [userForm, setUserForm] = useState<AdminUserPayload>(EMPTY_USER);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
@@ -174,9 +177,29 @@ export const AdminDashboard = ({
     setProductForm({ ...EMPTY_PRODUCT, categoryId: snapshot.categories[0]?.id ?? '' });
   };
 
+  const openNewProductModal = () => {
+    resetProductForm();
+    setIsProductModalOpen(true);
+  };
+
+  const closeProductModal = () => {
+    setIsProductModalOpen(false);
+    resetProductForm();
+  };
+
   const resetCategoryForm = () => {
     setEditingCategoryId(null);
     setCategoryForm(EMPTY_CATEGORY);
+  };
+
+  const openNewCategoryModal = () => {
+    resetCategoryForm();
+    setIsCategoryModalOpen(true);
+  };
+
+  const closeCategoryModal = () => {
+    setIsCategoryModalOpen(false);
+    resetCategoryForm();
   };
 
   const resetUserForm = () => {
@@ -200,11 +223,12 @@ export const AdminDashboard = ({
       if (editingProductId) {
         await updateAdminProduct(editingProductId, payload);
         toast.success('Producto actualizado');
+        resetProductForm();
       } else {
         await createAdminProduct(payload);
         toast.success('Producto creado');
+        closeProductModal();
       }
-      resetProductForm();
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar el producto');
@@ -251,11 +275,12 @@ export const AdminDashboard = ({
       if (editingCategoryId) {
         await updateAdminCategory(editingCategoryId, categoryForm);
         toast.success('Categoría actualizada');
+        resetCategoryForm();
       } else {
         await createAdminCategory(categoryForm);
         toast.success('Categoría creada');
+        closeCategoryModal();
       }
-      resetCategoryForm();
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la categoría');
@@ -510,14 +535,14 @@ export const AdminDashboard = ({
             )}
 
             {activeTab === 'products' && (
-              <div className="grid grid-cols-1 2xl:grid-cols-[1.3fr_0.9fr] gap-8">
+              <div className={cn('grid grid-cols-1 gap-8', editingProductId && '2xl:grid-cols-[1.3fr_0.9fr]')}>
                 <PaperCard>
                   <div className="flex items-center justify-between gap-4 mb-6">
                     <div>
                       <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Catálogo</p>
                       <h2 className="font-western uppercase text-3xl">CRUD de productos</h2>
                     </div>
-                    <Button size="sm" onClick={resetProductForm}><Plus size={16} className="mr-2" /> Nuevo</Button>
+                    <Button size="sm" onClick={openNewProductModal}><Plus size={16} className="mr-2" /> Nuevo</Button>
                   </div>
                   <div className="overflow-x-auto border-2 border-black bg-white">
                     <table className="w-full text-left min-w-[860px]">
@@ -565,50 +590,38 @@ export const AdminDashboard = ({
                   </div>
                 </PaperCard>
 
-                <PaperCard>
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div>
-                      <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">{editingProductId ? 'Edición' : 'Alta'}</p>
-                      <h2 className="font-western uppercase text-3xl">{editingProductId ? 'Editar producto' : 'Nuevo producto'}</h2>
+                {editingProductId && (
+                  <PaperCard>
+                    <div className="flex items-center justify-between gap-4 mb-6">
+                      <div>
+                        <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Edición</p>
+                        <h2 className="font-western uppercase text-3xl">Editar producto</h2>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={resetProductForm}>Cancelar</Button>
                     </div>
-                    {editingProductId && <Button size="sm" variant="ghost" onClick={resetProductForm}>Cancelar</Button>}
-                  </div>
 
-                  <form onSubmit={handleProductSubmit} className="space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <Field label="ID"><input required value={productForm.id} disabled={Boolean(editingProductId)} onChange={(e) => setProductForm((current) => ({ ...current, id: e.target.value }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Slug"><input value={productForm.slug || ''} onChange={(e) => setProductForm((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Nombre" className="md:col-span-2"><input required value={productForm.name} onChange={(e) => setProductForm((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Descripción" className="md:col-span-2"><textarea value={productForm.description} onChange={(e) => setProductForm((current) => ({ ...current, description: e.target.value }))} className={`${INPUT_CLASS} min-h-[110px]`} /></Field>
-                      <Field label="Precio"><input type="number" min="0" step="0.01" value={productForm.price} onChange={(e) => setProductForm((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Precio oferta"><input type="number" min="0" step="0.01" value={productForm.salePrice ?? ''} onChange={(e) => setProductForm((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Categoría"><select value={productForm.categoryId} onChange={(e) => setProductForm((current) => ({ ...current, categoryId: e.target.value }))} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
-                      <Field label="Stock"><input type="number" min="0" value={productForm.stock} onChange={(e) => setProductForm((current) => ({ ...current, stock: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Imágenes (URL, una por línea)" className="md:col-span-2"><textarea value={productForm.images.join('\n')} onChange={(e) => setProductForm((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
-                      <Field label="Tallas"><input value={serializeList(productForm.sizes)} onChange={(e) => setProductForm((current) => ({ ...current, sizes: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Colores"><input value={serializeList(productForm.colors)} onChange={(e) => setProductForm((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-                      <Field label="Tags" className="md:col-span-2"><input value={serializeList(productForm.tags)} onChange={(e) => setProductForm((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3 text-xs font-header uppercase font-black">
-                      <Toggle label="Nuevo" checked={productForm.isNew} onChange={(checked) => setProductForm((current) => ({ ...current, isNew: checked }))} />
-                      <Toggle label="Destacado" checked={productForm.isFeatured} onChange={(checked) => setProductForm((current) => ({ ...current, isFeatured: checked }))} />
-                      <Toggle label="Activo" checked={productForm.isActive} onChange={(checked) => setProductForm((current) => ({ ...current, isActive: checked }))} />
-                    </div>
-                    <Button type="submit" className="w-full justify-center"><Save size={16} className="mr-2" /> {editingProductId ? 'Guardar cambios' : 'Crear producto'}</Button>
-                  </form>
-                </PaperCard>
+                    <ProductFormFields
+                      form={productForm}
+                      categories={snapshot.categories}
+                      isEditing
+                      onChange={setProductForm}
+                      onSubmit={handleProductSubmit}
+                      submitLabel="Guardar cambios"
+                    />
+                  </PaperCard>
+                )}
               </div>
             )}
 
             {activeTab === 'categories' && (
-              <div className="grid grid-cols-1 2xl:grid-cols-[1.2fr_0.8fr] gap-8">
+              <div className={cn('grid grid-cols-1 gap-8', editingCategoryId && '2xl:grid-cols-[1.2fr_0.8fr]')}>
                 <PaperCard>
                   <div className="flex items-center justify-between gap-4 mb-6">
                     <div>
                       <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Navegación</p>
                       <h2 className="font-western uppercase text-3xl">CRUD de categorías</h2>
                     </div>
-                    <Button size="sm" onClick={resetCategoryForm}><Plus size={16} className="mr-2" /> Nueva</Button>
+                    <Button size="sm" onClick={openNewCategoryModal}><Plus size={16} className="mr-2" /> Nueva</Button>
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     {snapshot.categories.map((category) => {
@@ -633,22 +646,24 @@ export const AdminDashboard = ({
                   </div>
                 </PaperCard>
 
-                <PaperCard>
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div>
-                      <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">{editingCategoryId ? 'Edición' : 'Alta'}</p>
-                      <h2 className="font-western uppercase text-3xl">{editingCategoryId ? 'Editar categoría' : 'Nueva categoría'}</h2>
+                {editingCategoryId && (
+                  <PaperCard>
+                    <div className="flex items-center justify-between gap-4 mb-6">
+                      <div>
+                        <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Edición</p>
+                        <h2 className="font-western uppercase text-3xl">Editar categoría</h2>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={resetCategoryForm}>Cancelar</Button>
                     </div>
-                    {editingCategoryId && <Button size="sm" variant="ghost" onClick={resetCategoryForm}>Cancelar</Button>}
-                  </div>
-                  <form onSubmit={handleCategorySubmit} className="space-y-4">
-                    <Field label="ID"><input required value={categoryForm.id} disabled={Boolean(editingCategoryId)} onChange={(e) => setCategoryForm((current) => ({ ...current, id: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Nombre"><input required value={categoryForm.name} onChange={(e) => setCategoryForm((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Slug"><input value={categoryForm.slug || ''} onChange={(e) => setCategoryForm((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Imagen URL"><input required value={categoryForm.imageUrl} onChange={(e) => setCategoryForm((current) => ({ ...current, imageUrl: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Button type="submit" className="w-full justify-center">{editingCategoryId ? 'Guardar categoría' : 'Crear categoría'}</Button>
-                  </form>
-                </PaperCard>
+                    <CategoryFormFields
+                      form={categoryForm}
+                      isEditing
+                      onChange={setCategoryForm}
+                      onSubmit={handleCategorySubmit}
+                      submitLabel="Guardar categoría"
+                    />
+                  </PaperCard>
+                )}
               </div>
             )}
 
@@ -805,11 +820,125 @@ export const AdminDashboard = ({
               </PaperCard>
             )}
           </main>
+
+          <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
+            <DialogContent className="max-w-5xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+              <div className="border-b-2 border-black bg-white px-8 py-6">
+                <DialogHeader className="text-left">
+                  <DialogTitle className="font-western uppercase text-3xl text-black">Nuevo producto</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-600">El ID se genera automáticamente al guardar para evitar conflictos con productos ya existentes.</DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="overflow-y-auto p-8">
+                <ProductFormFields
+                  form={productForm}
+                  categories={snapshot.categories}
+                  isEditing={false}
+                  onChange={setProductForm}
+                  onSubmit={handleProductSubmit}
+                  submitLabel="Crear producto"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isCategoryModalOpen} onOpenChange={(open) => { if (!open) closeCategoryModal(); }}>
+            <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+              <div className="border-b-2 border-black bg-white px-8 py-6">
+                <DialogHeader className="text-left">
+                  <DialogTitle className="font-western uppercase text-3xl text-black">Nueva categoría</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-600">El ID se genera automáticamente al guardar para evitar conflictos con categorías ya existentes.</DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="overflow-y-auto p-8">
+                <CategoryFormFields
+                  form={categoryForm}
+                  isEditing={false}
+                  onChange={setCategoryForm}
+                  onSubmit={handleCategorySubmit}
+                  submitLabel="Crear categoría"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>
   );
 };
+
+const ProductFormFields = ({
+  form,
+  categories,
+  isEditing,
+  onChange,
+  onSubmit,
+  submitLabel,
+}: {
+  form: AdminProductPayload;
+  categories: AdminSnapshot['categories'];
+  isEditing: boolean;
+  onChange: React.Dispatch<React.SetStateAction<AdminProductPayload>>;
+  onSubmit: (event: React.FormEvent) => void;
+  submitLabel: string;
+}) => (
+  <form onSubmit={onSubmit} className="space-y-4">
+    <div className="grid md:grid-cols-2 gap-4">
+      <Field label="ID">
+        <input
+          value={isEditing ? form.id : 'Auto-generado al crear'}
+          disabled
+          className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
+        />
+      </Field>
+      <Field label="Slug"><input value={form.slug || ''} onChange={(e) => onChange((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
+      <Field label="Nombre" className="md:col-span-2"><input required value={form.name} onChange={(e) => onChange((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
+      <Field label="Descripción" className="md:col-span-2"><textarea value={form.description} onChange={(e) => onChange((current) => ({ ...current, description: e.target.value }))} className={`${INPUT_CLASS} min-h-[110px]`} /></Field>
+      <Field label="Precio"><input type="number" min="0" step="0.01" value={form.price} onChange={(e) => onChange((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
+      <Field label="Precio oferta"><input type="number" min="0" step="0.01" value={form.salePrice ?? ''} onChange={(e) => onChange((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
+      <Field label="Categoría"><select value={form.categoryId} onChange={(e) => onChange((current) => ({ ...current, categoryId: e.target.value }))} className={INPUT_CLASS}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
+      <Field label="Stock"><input type="number" min="0" value={form.stock} onChange={(e) => onChange((current) => ({ ...current, stock: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
+      <Field label="Imágenes (URL, una por línea)" className="md:col-span-2"><textarea value={form.images.join('\n')} onChange={(e) => onChange((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
+      <Field label="Tallas"><input value={serializeList(form.sizes)} onChange={(e) => onChange((current) => ({ ...current, sizes: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+      <Field label="Colores"><input value={serializeList(form.colors)} onChange={(e) => onChange((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+      <Field label="Tags" className="md:col-span-2"><input value={serializeList(form.tags)} onChange={(e) => onChange((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+    </div>
+    <div className="grid grid-cols-3 gap-3 text-xs font-header uppercase font-black">
+      <Toggle label="Nuevo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
+      <Toggle label="Destacado" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
+      <Toggle label="Activo" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+    </div>
+    <Button type="submit" className="w-full justify-center"><Save size={16} className="mr-2" /> {submitLabel}</Button>
+  </form>
+);
+
+const CategoryFormFields = ({
+  form,
+  isEditing,
+  onChange,
+  onSubmit,
+  submitLabel,
+}: {
+  form: AdminCategoryPayload;
+  isEditing: boolean;
+  onChange: React.Dispatch<React.SetStateAction<AdminCategoryPayload>>;
+  onSubmit: (event: React.FormEvent) => void;
+  submitLabel: string;
+}) => (
+  <form onSubmit={onSubmit} className="space-y-4">
+    <Field label="ID">
+      <input
+        value={isEditing ? form.id : 'Auto-generado al crear'}
+        disabled
+        className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
+      />
+    </Field>
+    <Field label="Nombre"><input required value={form.name} onChange={(e) => onChange((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
+    <Field label="Slug"><input value={form.slug || ''} onChange={(e) => onChange((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
+    <Field label="Imagen URL"><input required value={form.imageUrl} onChange={(e) => onChange((current) => ({ ...current, imageUrl: e.target.value }))} className={INPUT_CLASS} /></Field>
+    <Button type="submit" className="w-full justify-center">{submitLabel}</Button>
+  </form>
+);
 
 const Field = ({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) => (
   <label className={cn('block space-y-2', className)}>

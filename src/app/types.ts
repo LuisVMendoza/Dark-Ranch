@@ -157,7 +157,7 @@ export interface AdminSnapshot {
 }
 
 export interface AdminProductPayload {
-  id: string;
+  id?: string;
   name: string;
   slug?: string;
   description: string;
@@ -175,7 +175,7 @@ export interface AdminProductPayload {
 }
 
 export interface AdminCategoryPayload {
-  id: string;
+  id?: string;
   name: string;
   slug?: string;
   imageUrl: string;
