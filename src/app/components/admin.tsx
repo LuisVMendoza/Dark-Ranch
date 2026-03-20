@@ -888,8 +888,8 @@ export const AdminDashboard = ({
 
                 <PaperCard>
                   <div>
-                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Cuenta activa</p>
-                    <h2 className="font-western uppercase text-3xl">Resumen de acceso</h2>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Cuentas</p>
+                    <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
                   </div>
                   <div className="mt-6 border-2 border-black bg-white p-5 space-y-4">
                     <div>
