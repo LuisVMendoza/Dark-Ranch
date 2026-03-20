@@ -6,7 +6,8 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { motion as Motion, AnimatePresence } from 'motion/react';
 
 export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, onClose: () => void, onCheckout: () => void }) => {
-  const { cart, removeFromCart, updateQuantity, cartTotal } = useCart();
+  const { cart, removeFromCart, updateQuantity } = useCart();
+  const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
 
   return (
     <AnimatePresence>
@@ -85,7 +86,7 @@ export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, o
                             <Plus size={12} />
                           </button>
                         </div>
-                        <p className="font-header font-bold">${(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="font-header font-bold">${((item.salePrice ?? item.price) * item.quantity).toFixed(2)}</p>
                       </div>
                     </div>
                   </div>

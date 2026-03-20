@@ -2,21 +2,38 @@ import React, { useState } from 'react';
 import { Button, LOGO_HORIZONTAL, LOGO_CIRCULAR } from './ui';
 import { Mail, Lock, ArrowRight, Github } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { loginAdmin } from '../lib/api';
+import { toast } from 'sonner';
 
 export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) => {
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@darkranch.com');
+  const [password, setPassword] = useState('admin123');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple logic for demo: "admin@darkranch.com" triggers admin panel
-    onLogin(email === 'admin@darkranch.com');
+
+    if (isRegister) {
+      toast.info('El registro público aún no está habilitado en esta fase local.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await loginAdmin(email, password);
+      toast.success('Sesión iniciada correctamente');
+      onLogin(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo iniciar sesión');
+      onLogin(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
-      {/* Left side - Visual */}
       <div className="hidden lg:block relative bg-black overflow-hidden">
         <ImageWithFallback 
           src="https://images.unsplash.com/photo-1520116468816-95b69f847357?q=80&w=1200&auto=format&fit=crop" 
@@ -33,7 +50,6 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
         </div>
       </div>
 
-      {/* Right side - Form */}
       <div className="flex items-center justify-center p-8 bg-[#fcf9f5]">
         <div className="w-full max-w-md space-y-10">
           <div className="text-center lg:text-left">
@@ -42,7 +58,7 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
               {isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
             </h1>
             <p className="text-neutral-500 font-medium">
-              {isRegister ? 'Forma parte de la leyenda de Dark Ranch.' : 'Bienvenido de vuelta al taller.'}
+              {isRegister ? 'Forma parte de la leyenda de Dark Ranch.' : 'Accede al panel conectado a la base local.'}
             </p>
           </div>
 
@@ -55,11 +71,11 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="vaquero@ejemplo.com"
+                placeholder="admin@darkranch.com"
                 className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
                 required
               />
-              <p className="text-[10px] text-neutral-400 italic mt-1">Tip: Usa admin@darkranch.com para ver el panel de administración.</p>
+              <p className="text-[10px] text-neutral-400 italic mt-1">Usuario local por defecto: admin@darkranch.com / admin123.</p>
             </div>
 
             <div className="space-y-2">
@@ -76,8 +92,8 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
               />
             </div>
 
-            <Button type="submit" className="w-full py-4 text-lg flex items-center justify-center gap-2 group">
-              {isRegister ? 'Registrarse' : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+            <Button type="submit" disabled={isSubmitting} className="w-full py-4 text-lg flex items-center justify-center gap-2 group">
+              {isSubmitting ? 'Validando...' : isRegister ? 'Registrarse' : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </Button>
           </form>
 
@@ -91,13 +107,13 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
           </div>
 
           <div className="grid grid-cols-1 gap-4">
-            <button className="flex items-center justify-center gap-2 border-2 border-neutral-300 p-3 font-header font-bold uppercase hover:bg-white transition-colors">
+            <button type="button" className="flex items-center justify-center gap-2 border-2 border-neutral-300 p-3 font-header font-bold uppercase hover:bg-white transition-colors">
               <Github size={20} /> Github
             </button>
           </div>
 
           <p className="text-center text-sm text-neutral-600 font-header uppercase">
-            {isRegister ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'} {' '}
+            {isRegister ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
             <button 
               onClick={() => setIsRegister(!isRegister)}
               className="text-black font-black hover:underline underline-offset-4"

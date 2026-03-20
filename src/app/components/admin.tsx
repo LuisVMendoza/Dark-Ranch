@@ -1,28 +1,49 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, Package, ShoppingBag, Users, TrendingUp, AlertCircle, Plus, Edit2, Trash2, Settings, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
-import { PRODUCTS, CATEGORIES, StoreSettings, PURCHASE_HISTORY, CANCELLED_PURCHASES, PURCHASE_REPORTS } from '../data';
-import { Button, SectionTitle, Badge, PaperCard, cn } from './ui';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Package, ShoppingBag, TrendingUp, AlertCircle, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
+import { Button, PaperCard, cn } from './ui';
+import { Category, DashboardData, Product, StoreSettings } from '../types';
+import { saveStoreSettings } from '../lib/api';
+import { toast } from 'sonner';
 
-export const AdminDashboard = ({ 
-  settings, 
-  onUpdateSettings 
-}: { 
-  settings: StoreSettings, 
-  onUpdateSettings: (s: StoreSettings) => void 
+export const AdminDashboard = ({
+  settings,
+  products,
+  categories,
+  dashboard,
+  onSettingsSaved,
+}: {
+  settings: StoreSettings;
+  products: Product[];
+  categories: Category[];
+  dashboard: DashboardData;
+  onSettingsSaved: (settings: StoreSettings) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<'stats' | 'products' | 'purchases' | 'storefront'>('stats');
   const [localSettings, setLocalSettings] = useState(settings);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const stats = [
-    { label: 'Ventas Totales', value: '$12,450', icon: TrendingUp, color: 'text-green-600' },
-    { label: 'Órdenes Hoy', value: '24', icon: ShoppingBag, color: 'text-blue-600' },
-    { label: 'Productos', value: PRODUCTS.length, icon: Package, color: 'text-purple-600' },
-    { label: 'Stock Bajo', value: '3', icon: AlertCircle, color: 'text-red-600' },
-  ];
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
-  const handleSaveSettings = () => {
-    onUpdateSettings(localSettings);
-    alert("¡Ajustes guardados con éxito!");
+  const stats = useMemo(() => [
+    { label: 'Ventas Totales', value: `$${dashboard.stats.totalSales}`, icon: TrendingUp, color: 'text-green-600' },
+    { label: 'Órdenes Hoy', value: String(dashboard.stats.ordersToday), icon: ShoppingBag, color: 'text-blue-600' },
+    { label: 'Productos', value: String(dashboard.stats.products), icon: Package, color: 'text-purple-600' },
+    { label: 'Stock Bajo', value: String(dashboard.stats.lowStock), icon: AlertCircle, color: 'text-red-600' },
+  ], [dashboard]);
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    try {
+      const response = await saveStoreSettings(localSettings);
+      onSettingsSaved(response.settings);
+      toast.success('Ajustes guardados en la base local');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar la configuración');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -31,43 +52,33 @@ export const AdminDashboard = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
           <div>
             <h1 className="text-4xl font-western uppercase tracking-tight">Comandancia</h1>
-            <p className="text-neutral-500 font-header uppercase tracking-widest text-xs font-bold mt-1">Panel de Control Dark Ranch</p>
+            <p className="text-neutral-500 font-header uppercase tracking-widest text-xs font-bold mt-1">Panel de Control Dark Ranch conectado a SQLite local</p>
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setActiveTab('stats')}
-              className={cn("px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors", activeTab === 'stats' ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100")}
-            >
-              Métricas
-            </button>
-            <button 
-              onClick={() => setActiveTab('products')}
-              className={cn("px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors", activeTab === 'products' ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100")}
-            >
-              Inventario
-            </button>
-            <button 
-              onClick={() => setActiveTab('purchases')}
-              className={cn("px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors", activeTab === 'purchases' ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100")}
-            >
-              Compras
-            </button>
-            <button 
-              onClick={() => setActiveTab('storefront')}
-              className={cn("px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors", activeTab === 'storefront' ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100")}
-            >
-              Fachada
-            </button>
+          <div className="flex gap-2 flex-wrap">
+            {[
+              ['stats', 'Métricas'],
+              ['products', 'Inventario'],
+              ['purchases', 'Compras'],
+              ['storefront', 'Fachada'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setActiveTab(value as typeof activeTab)}
+                className={cn('px-4 py-2 font-header uppercase text-xs font-bold border-2 border-black transition-colors', activeTab === value ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100')}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
         {activeTab === 'stats' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
-            {stats.map((stat, i) => (
-              <div key={i} className="bg-white p-6 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            {stats.map((stat) => (
+              <div key={stat.label} className="bg-white p-6 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="flex items-center justify-between mb-4">
                   <stat.icon className={stat.color} size={24} />
-                  <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Live</span>
+                  <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">DB</span>
                 </div>
                 <p className="text-neutral-500 text-sm font-header uppercase tracking-wider">{stat.label}</p>
                 <p className="text-3xl font-header font-black">{stat.value}</p>
@@ -79,8 +90,8 @@ export const AdminDashboard = ({
         {activeTab === 'products' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-header font-bold uppercase tracking-tight text-xl">Gestión de Stock</h3>
-              <Button size="sm" className="flex items-center gap-2"><Plus size={16} /> Añadir Mercancía</Button>
+              <h3 className="font-header font-bold uppercase tracking-tight text-xl">Inventario real en base local</h3>
+              <span className="text-xs font-header uppercase tracking-widest text-neutral-500">{products.length} registros</span>
             </div>
             <div className="bg-white border-2 border-black overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <div className="overflow-x-auto">
@@ -91,30 +102,29 @@ export const AdminDashboard = ({
                       <th className="px-6 py-4">Categoría</th>
                       <th className="px-6 py-4">Precio</th>
                       <th className="px-6 py-4">Stock</th>
-                      <th className="px-6 py-4">Acciones</th>
+                      <th className="px-6 py-4">Etiquetas</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200">
-                    {PRODUCTS.map((p) => (
-                      <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
+                    {products.map((product) => (
+                      <tr key={product.id} className="hover:bg-neutral-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <img src={p.images[0]} alt="" className="w-10 h-10 object-cover border border-black" />
+                            <img src={product.images[0]} alt="" className="w-10 h-10 object-cover border border-black" />
                             <div>
-                              <p className="font-header font-bold uppercase text-sm">{p.name}</p>
-                              <p className="text-[10px] text-neutral-400">{p.id}</p>
+                              <p className="font-header font-bold uppercase text-sm">{product.name}</p>
+                              <p className="text-[10px] text-neutral-400">{product.id}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-header text-xs uppercase font-bold text-neutral-500">{p.category}</td>
-                        <td className="px-6 py-4 font-header font-bold">${p.price}</td>
+                        <td className="px-6 py-4">{product.category}</td>
+                        <td className="px-6 py-4 font-header font-bold">${(product.salePrice ?? product.price).toFixed(2)}</td>
                         <td className="px-6 py-4">
-                          <span className={cn("font-bold font-header", p.stock < 5 ? "text-red-600" : "text-black")}>{p.stock}</span>
+                          <span className={cn('px-2 py-1 border text-xs font-header uppercase font-bold', product.stock <= 5 ? 'border-red-600 text-red-600 bg-red-50' : 'border-black')}>
+                            {product.stock} piezas
+                          </span>
                         </td>
-                        <td className="px-6 py-4 flex gap-2">
-                          <button className="p-2 hover:bg-neutral-200 border border-transparent hover:border-black transition-all"><Edit2 size={14} /></button>
-                          <button className="p-2 hover:bg-red-50 text-red-600 border border-transparent hover:border-red-600 transition-all"><Trash2 size={14} /></button>
-                        </td>
+                        <td className="px-6 py-4 text-sm text-neutral-600">{product.tags.join(', ')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -124,7 +134,7 @@ export const AdminDashboard = ({
           </div>
         )}
 
-{activeTab === 'purchases' && (
+        {activeTab === 'purchases' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div>
               <h3 className="font-header font-bold uppercase tracking-tight text-xl mb-4">Historial de Compras</h3>
@@ -142,7 +152,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {PURCHASE_HISTORY.map((purchase) => (
+                      {dashboard.purchaseHistory.map((purchase) => (
                         <tr key={purchase.id} className="hover:bg-neutral-50 transition-colors">
                           <td className="px-6 py-4 font-header font-bold">{purchase.orderId}</td>
                           <td className="px-6 py-4">{purchase.customer}</td>
@@ -173,7 +183,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {CANCELLED_PURCHASES.map((purchase) => (
+                      {dashboard.cancelledPurchases.map((purchase) => (
                         <tr key={purchase.id} className="hover:bg-neutral-50 transition-colors">
                           <td className="px-6 py-4 font-header font-bold">{purchase.orderId}</td>
                           <td className="px-6 py-4">{purchase.customer}</td>
@@ -203,7 +213,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {PURCHASE_REPORTS.map((report) => (
+                      {dashboard.purchaseReports.map((report) => (
                         <tr key={report.id} className="hover:bg-neutral-50 transition-colors">
                           <td className="px-6 py-4 font-header font-bold">{report.periodLabel}</td>
                           <td className="px-6 py-4">{report.totalPurchases}</td>
@@ -220,14 +230,11 @@ export const AdminDashboard = ({
           </div>
         )}
 
-
         {activeTab === 'storefront' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <PaperCard>
-              <h3 className="text-2xl font-western uppercase mb-8 border-b-2 border-[#d4c5b3] pb-4">Ajustes de Fachada (Hero & Banners)</h3>
-              
+              <h3 className="text-2xl font-western uppercase mb-8 border-b-2 border-[#d4c5b3] pb-4">Ajustes de Fachada persistidos en la base local</h3>
               <div className="space-y-12">
-                {/* Hero Settings */}
                 <div className="space-y-6">
                   <h4 className="font-header uppercase font-black text-sm tracking-widest text-[#C4A484] flex items-center gap-2">
                     <ImageIcon size={16} /> Cabecera Principal (Hero)
@@ -235,24 +242,19 @@ export const AdminDashboard = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-header uppercase font-bold">Título Principal</label>
-                      <input 
-                        className="w-full border-2 border-black p-3 font-header outline-none focus:bg-white"
-                        value={localSettings.hero.title}
-                        onChange={(e) => setLocalSettings({...localSettings, hero: {...localSettings.hero, title: e.target.value}})}
-                      />
+                      <input className="w-full border-2 border-black p-3 font-header outline-none focus:bg-white" value={localSettings.hero.title} onChange={(e) => setLocalSettings({ ...localSettings, hero: { ...localSettings.hero, title: e.target.value } })} />
                     </div>
                     <div className="space-y-2">
+                      <label className="text-xs font-header uppercase font-bold">Subtítulo</label>
+                      <input className="w-full border-2 border-black p-3 font-header outline-none focus:bg-white" value={localSettings.hero.subtitle} onChange={(e) => setLocalSettings({ ...localSettings, hero: { ...localSettings.hero, subtitle: e.target.value } })} />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
                       <label className="text-xs font-header uppercase font-bold">Imagen (URL)</label>
-                      <input 
-                        className="w-full border-2 border-black p-3 font-header outline-none focus:bg-white"
-                        value={localSettings.hero.imageUrl}
-                        onChange={(e) => setLocalSettings({...localSettings, hero: {...localSettings.hero, imageUrl: e.target.value}})}
-                      />
+                      <input className="w-full border-2 border-black p-3 font-header outline-none focus:bg-white" value={localSettings.hero.imageUrl} onChange={(e) => setLocalSettings({ ...localSettings, hero: { ...localSettings.hero, imageUrl: e.target.value } })} />
                     </div>
                   </div>
                 </div>
 
-                {/* Seasonal Banner */}
                 <div className="space-y-6">
                   <h4 className="font-header uppercase font-black text-sm tracking-widest text-[#C4A484] flex items-center gap-2">
                     <LinkIcon size={16} /> Banner de Temporada
@@ -262,51 +264,58 @@ export const AdminDashboard = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-xs font-header uppercase font-bold">Título del Banner</label>
-                          <input 
-                            className="w-full border-2 border-black p-3 font-header outline-none"
-                            value={banner.title}
-                            onChange={(e) => {
-                              const newBanners = [...localSettings.banners];
-                              newBanners[idx].title = e.target.value;
-                              setLocalSettings({...localSettings, banners: newBanners});
-                            }}
-                          />
+                          <input className="w-full border-2 border-black p-3 font-header outline-none" value={banner.title} onChange={(e) => {
+                            const newBanners = [...localSettings.banners];
+                            newBanners[idx] = { ...newBanners[idx], title: e.target.value };
+                            setLocalSettings({ ...localSettings, banners: newBanners });
+                          }} />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-header uppercase font-bold">Categoría Destacada</label>
-                          <select 
-                            className="w-full border-2 border-black p-3 font-header outline-none appearance-none"
-                            value={banner.categoryLink}
-                            onChange={(e) => {
-                              const newBanners = [...localSettings.banners];
-                              newBanners[idx].categoryLink = e.target.value;
-                              setLocalSettings({...localSettings, banners: newBanners});
-                            }}
-                          >
-                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          <select className="w-full border-2 border-black p-3 font-header outline-none appearance-none" value={banner.categoryLink} onChange={(e) => {
+                            const newBanners = [...localSettings.banners];
+                            newBanners[idx] = { ...newBanners[idx], categoryLink: e.target.value };
+                            setLocalSettings({ ...localSettings, banners: newBanners });
+                          }}>
+                            {categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
                           </select>
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="text-xs font-header uppercase font-bold">Imagen del Banner</label>
+                          <input className="w-full border-2 border-black p-3 font-header outline-none" value={banner.imageUrl} onChange={(e) => {
+                            const newBanners = [...localSettings.banners];
+                            newBanners[idx] = { ...newBanners[idx], imageUrl: e.target.value };
+                            setLocalSettings({ ...localSettings, banners: newBanners });
+                          }} />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-header uppercase font-bold">Descripción Corta</label>
-                        <textarea 
-                          className="w-full border-2 border-black p-3 font-header outline-none min-h-[100px]"
-                          value={banner.subtitle}
-                          onChange={(e) => {
-                            const newBanners = [...localSettings.banners];
-                            newBanners[idx].subtitle = e.target.value;
-                            setLocalSettings({...localSettings, banners: newBanners});
-                          }}
-                        />
+                        <textarea className="w-full border-2 border-black p-3 font-header outline-none min-h-[100px]" value={banner.subtitle} onChange={(e) => {
+                          const newBanners = [...localSettings.banners];
+                          newBanners[idx] = { ...newBanners[idx], subtitle: e.target.value };
+                          setLocalSettings({ ...localSettings, banners: newBanners });
+                        }} />
                       </div>
                     </div>
                   ))}
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-header uppercase font-bold">Texto Sobre Nosotros</label>
+                    <textarea className="w-full border-2 border-black p-3 font-header outline-none min-h-[140px]" value={localSettings.aboutText} onChange={(e) => setLocalSettings({ ...localSettings, aboutText: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-header uppercase font-bold">Email de Contacto</label>
+                    <input className="w-full border-2 border-black p-3 font-header outline-none focus:bg-white" value={localSettings.contactEmail} onChange={(e) => setLocalSettings({ ...localSettings, contactEmail: e.target.value })} />
+                  </div>
+                </div>
               </div>
 
               <div className="mt-12 pt-8 border-t-2 border-[#d4c5b3] flex justify-end">
-                <Button size="lg" onClick={handleSaveSettings} className="px-12">
-                  Publicar Cambios
+                <Button size="lg" onClick={handleSaveSettings} className="px-12" disabled={isSaving}>
+                  {isSaving ? 'Guardando...' : 'Publicar Cambios'}
                 </Button>
               </div>
             </PaperCard>

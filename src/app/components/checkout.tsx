@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useCart } from '../cart-context';
-import { Button, SectionTitle, cn } from './ui';
-import { CreditCard, Truck, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Button, cn } from './ui';
+import { CreditCard, Truck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { createOrder } from '../lib/api';
 
-export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
-  const { cart, cartTotal, clearCart } = useCart();
+export const CheckoutPage = ({ onBack, onOrderCreated }: { onBack: () => void; onOrderCreated?: () => void }) => {
+  const { cart, clearCart } = useCart();
+  const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
   const [step, setStep] = useState(1);
+  const [orderNumber, setOrderNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -16,18 +20,49 @@ export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
     zip: '',
     cardNumber: '',
     expiry: '',
-    cvc: ''
+    cvc: '',
   });
 
-  const handleNext = (e: React.FormEvent) => {
+  const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step < 3) setStep(step + 1);
-    else {
-      toast.success("¡Pedido realizado con éxito!");
+
+    if (step < 3) {
+      setStep(step + 1);
+      return;
+    }
+
+    if (!cart.length) {
+      toast.error('Tu carrito está vacío');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await createOrder({
+        ...formData,
+        items: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.salePrice ?? item.price,
+          quantity: item.quantity,
+          selectedSize: item.selectedSize,
+          selectedColor: item.selectedColor,
+        })),
+      });
+
+      setOrderNumber(response.order.orderNumber);
+      toast.success('¡Pedido realizado con éxito!');
       setStep(4);
-      setTimeout(() => {
-        clearCart();
-      }, 2000);
+      clearCart();
+      onOrderCreated?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo registrar el pedido');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -39,7 +74,7 @@ export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
             <CheckCircle size={48} />
           </div>
           <h1 className="text-4xl font-header font-black uppercase">¡Gracias por tu compra!</h1>
-          <p className="text-neutral-500 font-medium">Tu pedido #DR-2026-X89 se está preparando para el viaje al desierto. Recibirás un correo con los detalles del envío.</p>
+          <p className="text-neutral-500 font-medium">Tu pedido #{orderNumber} ya quedó guardado en la base local y se está preparando para envío.</p>
           <Button onClick={onBack} size="lg" className="w-full">Volver a la Tienda</Button>
         </div>
       </div>
@@ -54,18 +89,17 @@ export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          {/* Form Side */}
           <div className="lg:col-span-7 space-y-12">
             <div className="flex items-center gap-4 mb-8">
               {[1, 2, 3].map((s) => (
                 <div key={s} className="flex items-center gap-2">
                   <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center font-bold font-header transition-colors",
-                    step >= s ? "bg-black text-white" : "bg-neutral-200 text-neutral-500"
+                    'w-8 h-8 rounded-full flex items-center justify-center font-bold font-header transition-colors',
+                    step >= s ? 'bg-black text-white' : 'bg-neutral-200 text-neutral-500'
                   )}>{s}</div>
                   <span className={cn(
-                    "font-header uppercase text-xs tracking-widest hidden md:block",
-                    step === s ? "text-black font-bold" : "text-neutral-400"
+                    'font-header uppercase text-xs tracking-widest hidden md:block',
+                    step === s ? 'text-black font-bold' : 'text-neutral-400'
                   )}>
                     {s === 1 ? 'Envío' : s === 2 ? 'Pago' : 'Resumen'}
                   </span>
@@ -83,25 +117,29 @@ export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-header uppercase font-bold tracking-widest">Nombre</label>
-                      <input required className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                      <input required value={formData.firstName} onChange={(e) => handleChange('firstName', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-header uppercase font-bold tracking-widest">Apellido</label>
-                      <input required className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                      <input required value={formData.lastName} onChange={(e) => handleChange('lastName', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <label className="text-xs font-header uppercase font-bold tracking-widest">Email</label>
+                    <input required type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-xs font-header uppercase font-bold tracking-widest">Dirección</label>
-                    <input required className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                    <input required value={formData.address} onChange={(e) => handleChange('address', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="col-span-2 md:col-span-1 space-y-2">
                       <label className="text-xs font-header uppercase font-bold tracking-widest">Ciudad</label>
-                      <input required className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                      <input required value={formData.city} onChange={(e) => handleChange('city', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-header uppercase font-bold tracking-widest">Código Postal</label>
-                      <input required className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                      <input required value={formData.zip} onChange={(e) => handleChange('zip', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                     </div>
                   </div>
                 </div>
@@ -113,20 +151,20 @@ export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
                     <CreditCard size={24} /> Detalles de Pago
                   </h2>
                   <div className="bg-neutral-100 p-4 border-l-4 border-black mb-6">
-                    <p className="text-xs text-neutral-600 font-medium">Esta es una simulación de pago segura.</p>
+                    <p className="text-xs text-neutral-600 font-medium">El pedido sí se guarda en la BD local; el cobro sigue siendo una captura simulada.</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-header uppercase font-bold tracking-widest">Número de Tarjeta</label>
-                    <input required placeholder="0000 0000 0000 0000" className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                    <input required value={formData.cardNumber} onChange={(e) => handleChange('cardNumber', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-header uppercase font-bold tracking-widest">Vencimiento</label>
-                      <input required placeholder="MM/YY" className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                      <label className="text-xs font-header uppercase font-bold tracking-widest">Expiración</label>
+                      <input required value={formData.expiry} onChange={(e) => handleChange('expiry', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-header uppercase font-bold tracking-widest">CVC</label>
-                      <input required placeholder="123" className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
+                      <input required value={formData.cvc} onChange={(e) => handleChange('cvc', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
                     </div>
                   </div>
                 </div>
@@ -134,73 +172,43 @@ export const CheckoutPage = ({ onBack }: { onBack: () => void }) => {
 
               {step === 3 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                  <h2 className="text-2xl font-header font-black uppercase tracking-tight">Revisa tu Orden</h2>
+                  <h2 className="text-2xl font-header font-black uppercase tracking-tight">Resumen del Pedido</h2>
                   <div className="bg-white border-2 border-black p-6 space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-neutral-400 font-header uppercase font-bold">Enviar a:</p>
-                        <p className="font-header uppercase">Juan Pueblo, Calle Desierto 123, Ranch City, 55432</p>
+                    {cart.map((item) => (
+                      <div key={`${item.id}-${item.selectedSize || 'base'}`} className="flex items-center justify-between gap-4 border-b border-neutral-200 pb-4 last:border-b-0 last:pb-0">
+                        <div>
+                          <p className="font-header font-bold uppercase">{item.name}</p>
+                          <p className="text-xs text-neutral-500">{item.quantity} pieza(s) · {item.selectedSize || 'Talla única'}</p>
+                        </div>
+                        <p className="font-header font-black">${((item.salePrice ?? item.price) * item.quantity).toFixed(2)}</p>
                       </div>
-                      <button onClick={() => setStep(1)} className="text-[#C4A484] font-header uppercase text-xs font-black">Editar</button>
-                    </div>
-                    <div className="h-px bg-neutral-200"></div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-neutral-400 font-header uppercase font-bold">Pago:</p>
-                        <p className="font-header uppercase">Tarjeta terminada en **** 4242</p>
-                      </div>
-                      <button onClick={() => setStep(2)} className="text-[#C4A484] font-header uppercase text-xs font-black">Editar</button>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-4 pt-8">
-                {step > 1 && (
-                  <Button type="button" variant="outline" onClick={() => setStep(step - 1)} className="flex-1">
-                    Anterior
-                  </Button>
-                )}
-                <Button type="submit" className="flex-1 py-4 text-lg">
-                  {step === 3 ? 'Confirmar Pedido' : 'Continuar'}
+              <div className="flex justify-end">
+                <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting}>
+                  {step < 3 ? 'Continuar' : isSubmitting ? 'Guardando pedido...' : 'Confirmar compra'}
                 </Button>
               </div>
             </form>
           </div>
 
-          {/* Summary Side */}
           <div className="lg:col-span-5">
-            <div className="bg-white border-2 border-black p-8 sticky top-24 shadow-[12px_12px_0px_0px_rgba(196,164,132,1)]">
-              <h3 className="font-header text-2xl font-black uppercase mb-6 pb-4 border-b-2 border-neutral-100">Resumen del Pedido</h3>
-              <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-6 pr-2">
+            <div className="bg-white border-2 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] sticky top-28">
+              <h3 className="font-header font-black uppercase text-xl mb-6">Tu Orden</h3>
+              <div className="space-y-4 mb-6">
                 {cart.map((item) => (
-                  <div key={`${item.id}-${item.selectedSize}`} className="flex justify-between gap-4">
-                    <div className="flex gap-3">
-                      <div className="w-12 h-12 bg-neutral-100 border border-black/10">
-                        <img src={item.images[0]} alt="" className="w-full h-full object-cover" />
-                      </div>
-                      <div>
-                        <p className="font-header text-sm font-bold uppercase">{item.name}</p>
-                        <p className="text-[10px] text-neutral-500 uppercase">Cant: {item.quantity} | Talla: {item.selectedSize || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <p className="font-header font-bold text-sm">${(item.price * item.quantity).toFixed(2)}</p>
+                  <div key={`${item.id}-${item.selectedSize || 'base'}-summary`} className="flex justify-between gap-4 text-sm">
+                    <span>{item.name} × {item.quantity}</span>
+                    <span>${((item.salePrice ?? item.price) * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
-              <div className="space-y-3 pt-6 border-t-2 border-neutral-100">
-                <div className="flex justify-between text-sm text-neutral-600 font-header uppercase">
-                  <span>Subtotal</span>
-                  <span>${cartTotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-neutral-600 font-header uppercase">
-                  <span>Envío (Standard)</span>
-                  <span className="text-green-600 font-bold">GRATIS</span>
-                </div>
-                <div className="flex justify-between text-2xl font-header font-black uppercase pt-4 border-t-2 border-black">
-                  <span>Total</span>
-                  <span>${cartTotal.toFixed(2)}</span>
-                </div>
+              <div className="border-t-2 border-black pt-4 flex justify-between font-header font-black text-xl">
+                <span>Total</span>
+                <span>${cartTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>

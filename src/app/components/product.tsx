@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShoppingCart, Eye, Star } from 'lucide-react';
-import { Product } from '../data';
+import { Product } from '../types';
 import { useCart } from '../cart-context';
 import { Button, Badge, cn, LOGO_CIRCULAR } from './ui';
 import { ImageWithFallback } from './figma/ImageWithFallback';
