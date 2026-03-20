@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role');
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
@@ -108,6 +108,7 @@ function read_json_store(): array
     $payload['orders'] = $payload['orders'] ?? [];
     $payload['orderItems'] = $payload['orderItems'] ?? [];
     $payload['adminUsers'] = $payload['adminUsers'] ?? [];
+    $payload['activityLogs'] = $payload['activityLogs'] ?? [];
     $payload['settings'] = $payload['settings'] ?? [];
 
     return $payload;
@@ -285,6 +286,145 @@ function admin_user_to_client(array $user): array
         'name' => (string) $user['name'],
         'role' => (string) $user['role'],
     ];
+}
+
+function activity_log_to_client(array $log): array
+{
+    return [
+        'id' => $log['id'],
+        'actorId' => $log['actorId'] !== null ? (int) $log['actorId'] : null,
+        'actorName' => (string) $log['actorName'],
+        'actorEmail' => (string) $log['actorEmail'],
+        'actorRole' => (string) $log['actorRole'],
+        'action' => (string) $log['action'],
+        'entityType' => (string) $log['entityType'],
+        'entityId' => (string) $log['entityId'],
+        'entityName' => (string) $log['entityName'],
+        'details' => (string) $log['details'],
+        'createdAt' => (string) $log['createdAt'],
+    ];
+}
+
+function current_actor_from_request(): array
+{
+    return [
+        'id' => isset($_SERVER['HTTP_X_ADMIN_ACTOR_ID']) && $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] !== '' ? (int) $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] : null,
+        'name' => trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] ?? '')) ?: 'Sistema',
+        'email' => trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] ?? '')) ?: 'system@darkranch.local',
+        'role' => trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] ?? '')) ?: 'system',
+    ];
+}
+
+function next_activity_log_id_json(array $store): int
+{
+    return array_reduce($store['activityLogs'] ?? [], static fn (int $max, array $log): int => max($max, (int) ($log['id'] ?? 0)), 0) + 1;
+}
+
+function ensure_activity_log_table_mysql(): void
+{
+    static $ensured = false;
+
+    if ($ensured || database_mode() !== 'mysql') {
+        return;
+    }
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS admin_activity_logs (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            actor_id INT NULL,
+            actor_name VARCHAR(150) NOT NULL,
+            actor_email VARCHAR(150) NOT NULL,
+            actor_role VARCHAR(50) NOT NULL,
+            action VARCHAR(60) NOT NULL,
+            entity_type VARCHAR(60) NOT NULL,
+            entity_id VARCHAR(80) NOT NULL,
+            entity_name VARCHAR(180) NOT NULL,
+            details TEXT NOT NULL,
+            created_at VARCHAR(40) NOT NULL,
+            INDEX idx_admin_activity_created_at (created_at),
+            INDEX idx_admin_activity_actor (actor_email)
+        ) ENGINE=InnoDB'
+    );
+
+    $ensured = true;
+}
+
+function log_activity(string $action, string $entityType, string $entityId, string $entityName, string $details): void
+{
+    try {
+        $actor = current_actor_from_request();
+        $createdAt = (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
+
+        if (database_mode() === 'mysql') {
+            ensure_activity_log_table_mysql();
+
+            $insert = db()->prepare(
+                'INSERT INTO admin_activity_logs (actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, entity_name, details, created_at)
+                 VALUES (:actor_id, :actor_name, :actor_email, :actor_role, :action, :entity_type, :entity_id, :entity_name, :details, :created_at)'
+            );
+            $insert->execute([
+                'actor_id' => $actor['id'],
+                'actor_name' => $actor['name'],
+                'actor_email' => $actor['email'],
+                'actor_role' => $actor['role'],
+                'action' => $action,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'entity_name' => $entityName,
+                'details' => $details,
+                'created_at' => $createdAt,
+            ]);
+            return;
+        }
+
+        $store = read_json_store();
+        $store['activityLogs'][] = [
+            'id' => next_activity_log_id_json($store),
+            'actorId' => $actor['id'],
+            'actorName' => $actor['name'],
+            'actorEmail' => $actor['email'],
+            'actorRole' => $actor['role'],
+            'action' => $action,
+            'entityType' => $entityType,
+            'entityId' => $entityId,
+            'entityName' => $entityName,
+            'details' => $details,
+            'createdAt' => $createdAt,
+        ];
+        write_json_store($store);
+    } catch (Throwable $exception) {
+        error_log('[Dark Ranch] No se pudo registrar activity log: ' . $exception->getMessage());
+    }
+}
+
+function get_activity_logs(): array
+{
+    try {
+        if (database_mode() === 'mysql') {
+            ensure_activity_log_table_mysql();
+            $rows = db()->query('SELECT id, actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, entity_name, details, created_at FROM admin_activity_logs ORDER BY created_at DESC, id DESC')->fetchAll();
+            return array_map(static fn (array $row): array => activity_log_to_client([
+                'id' => (int) $row['id'],
+                'actorId' => $row['actor_id'] !== null ? (int) $row['actor_id'] : null,
+                'actorName' => $row['actor_name'],
+                'actorEmail' => $row['actor_email'],
+                'actorRole' => $row['actor_role'],
+                'action' => $row['action'],
+                'entityType' => $row['entity_type'],
+                'entityId' => $row['entity_id'],
+                'entityName' => $row['entity_name'],
+                'details' => $row['details'],
+                'createdAt' => $row['created_at'],
+            ]), $rows);
+        }
+
+        $logs = array_map('activity_log_to_client', read_json_store()['activityLogs']);
+        usort($logs, static fn (array $a, array $b): int => strcmp($b['createdAt'], $a['createdAt']));
+        return $logs;
+    } catch (Throwable $exception) {
+        error_log('[Dark Ranch] No se pudo leer activity logs: ' . $exception->getMessage());
+        return [];
+    }
 }
 
 function format_product_row(array $row): array
@@ -596,6 +736,7 @@ function get_admin_snapshot(): array
         'products' => get_admin_products(true),
         'orders' => get_admin_orders(),
         'adminUsers' => get_admin_users(),
+        'activityLogs' => get_activity_logs(),
         'settings' => get_settings(),
         'dashboard' => get_dashboard(),
     ];
@@ -703,6 +844,7 @@ function create_admin_product(array $payload): array
             'is_active' => (int) $record['isActive'],
             'created_at' => $record['createdAt'],
         ]);
+        log_activity('create', 'product', $record['id'], $record['name'], 'Producto creado desde administración.');
         return product_to_client($record);
     }
 
@@ -732,6 +874,7 @@ function create_admin_product(array $payload): array
         'createdAt' => $record['createdAt'],
     ];
     write_json_store($store);
+    log_activity('create', 'product', $record['id'], $record['name'], 'Producto creado desde administración.');
 
     return product_to_client($record);
 }
@@ -777,6 +920,7 @@ function update_admin_product(string $id, array $payload): array
             'is_featured' => (int) $record['isFeatured'],
             'is_active' => (int) $record['isActive'],
         ]);
+        log_activity('update', 'product', $record['id'], $record['name'], 'Producto actualizado desde administración.');
         return product_to_client($record);
     }
 
@@ -810,6 +954,7 @@ function update_admin_product(string $id, array $payload): array
                 'createdAt' => $record['createdAt'],
             ];
             write_json_store($store);
+            log_activity('update', 'product', $record['id'], $record['name'], 'Producto actualizado desde administración.');
             return product_to_client($record);
         }
     }
@@ -835,6 +980,7 @@ function delete_admin_product(string $id): void
         if ($delete->rowCount() === 0) {
             throw new RuntimeException('Producto no encontrado.');
         }
+        log_activity('delete', 'product', $id, $id, 'Producto eliminado desde administración.');
         return;
     }
 
@@ -851,6 +997,7 @@ function delete_admin_product(string $id): void
         throw new RuntimeException('Producto no encontrado.');
     }
     write_json_store($store);
+    log_activity('delete', 'product', $id, $id, 'Producto eliminado desde administración.');
 }
 
 function category_payload_to_record(array $payload, ?string $existingId = null): array
@@ -890,6 +1037,7 @@ function create_admin_category(array $payload): array
 
         $insert = db()->prepare('INSERT INTO categories (id, name, slug, image_url) VALUES (:id, :name, :slug, :image_url)');
         $insert->execute(['id' => $record['id'], 'name' => $record['name'], 'slug' => $record['slug'], 'image_url' => $record['imageUrl']]);
+        log_activity('create', 'category', $record['id'], $record['name'], 'Categoría creada desde administración.');
         return category_to_client($record);
     }
 
@@ -901,6 +1049,7 @@ function create_admin_category(array $payload): array
     }
     $store['categories'][] = $record;
     write_json_store($store);
+    log_activity('create', 'category', $record['id'], $record['name'], 'Categoría creada desde administración.');
     return category_to_client($record);
 }
 
@@ -927,6 +1076,7 @@ function update_admin_category(string $id, array $payload): array
         $products = db()->prepare('UPDATE products SET category_id = :category_id WHERE category_id = :category_id');
         $products->execute(['category_id' => $id]);
 
+        log_activity('update', 'category', $record['id'], $record['name'], 'Categoría actualizada desde administración.');
         return category_to_client($record);
     }
 
@@ -949,6 +1099,7 @@ function update_admin_category(string $id, array $payload): array
             }
             unset($product);
             write_json_store($store);
+            log_activity('update', 'category', $record['id'], $record['name'], 'Categoría actualizada desde administración.');
             return category_to_client($record);
         }
     }
@@ -974,6 +1125,7 @@ function delete_admin_category(string $id): void
         if ($delete->rowCount() === 0) {
             throw new RuntimeException('Categoría no encontrada.');
         }
+        log_activity('delete', 'category', $id, $id, 'Categoría eliminada desde administración.');
         return;
     }
 
@@ -995,6 +1147,7 @@ function delete_admin_category(string $id): void
     }
     $store['categories'] = array_values(array_filter($store['categories'], static fn (array $category): bool => ($category['id'] ?? '') !== $id));
     write_json_store($store);
+    log_activity('delete', 'category', $id, $categoryName, 'Categoría eliminada desde administración.');
 }
 
 function create_admin_user(array $payload): array
@@ -1017,7 +1170,9 @@ function create_admin_user(array $payload): array
 
         $insert = db()->prepare('INSERT INTO admin_users (email, password, name, role) VALUES (:email, :password, :name, :role)');
         $insert->execute(['email' => $email, 'password' => $password, 'name' => $name, 'role' => $role]);
-        return ['id' => (int) db()->lastInsertId(), 'email' => $email, 'name' => $name, 'role' => $role];
+        $newId = (int) db()->lastInsertId();
+        log_activity('create', 'user', (string) $newId, $name, 'Usuario administrador creado.');
+        return ['id' => $newId, 'email' => $email, 'name' => $name, 'role' => $role];
     }
 
     $store = read_json_store();
@@ -1029,6 +1184,7 @@ function create_admin_user(array $payload): array
     $nextId = array_reduce($store['adminUsers'], static fn (int $max, array $user): int => max($max, (int) ($user['id'] ?? 0)), 0) + 1;
     $store['adminUsers'][] = ['id' => $nextId, 'email' => $email, 'password' => $password, 'name' => $name, 'role' => $role];
     write_json_store($store);
+    log_activity('create', 'user', (string) $nextId, $name, 'Usuario administrador creado.');
     return ['id' => $nextId, 'email' => $email, 'name' => $name, 'role' => $role];
 }
 
@@ -1063,6 +1219,7 @@ function update_admin_user(int $id, array $payload): array
             $update = db()->prepare('UPDATE admin_users SET email = :email, name = :name, role = :role WHERE id = :id');
             $update->execute(['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role]);
         }
+        log_activity('update', 'user', (string) $id, $name, 'Usuario administrador actualizado.');
         return ['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role];
     }
 
@@ -1082,6 +1239,7 @@ function update_admin_user(int $id, array $payload): array
                 'role' => $role,
             ];
             write_json_store($store);
+            log_activity('update', 'user', (string) $id, $name, 'Usuario administrador actualizado.');
             return ['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role];
         }
     }
@@ -1101,6 +1259,7 @@ function delete_admin_user(int $id): void
         if ($delete->rowCount() === 0) {
             throw new RuntimeException('Administrador no encontrado.');
         }
+        log_activity('delete', 'user', (string) $id, (string) $id, 'Usuario administrador eliminado.');
         return;
     }
 
@@ -1114,6 +1273,7 @@ function delete_admin_user(int $id): void
         throw new RuntimeException('Debes conservar al menos un usuario administrador.');
     }
     write_json_store($store);
+    log_activity('delete', 'user', (string) $id, (string) $id, 'Usuario administrador eliminado.');
 }
 
 function update_admin_order(int $id, array $payload): array
@@ -1148,6 +1308,7 @@ function update_admin_order(int $id, array $payload): array
             'refund_amount' => $status === 'cancelled' ? $refundAmount : null,
             'cancelled_at' => $cancelledAt,
         ]);
+        log_activity('order_update', 'order', (string) $id, (string) $id, 'Orden actualizada a estado ' . $status . ' y pago ' . $paymentStatus . '.');
 
         foreach (get_admin_orders() as $order) {
             if ($order['id'] === $id) {
@@ -1165,6 +1326,7 @@ function update_admin_order(int $id, array $payload): array
             $store['orders'][$index]['refund_amount'] = $status === 'cancelled' ? $refundAmount : null;
             $store['orders'][$index]['cancelled_at'] = $cancelledAt;
             write_json_store($store);
+            log_activity('order_update', 'order', (string) $id, (string) ($order['order_number'] ?? $id), 'Orden actualizada a estado ' . $status . ' y pago ' . $paymentStatus . '.');
             foreach (get_admin_orders() as $updatedOrder) {
                 if ($updatedOrder['id'] === $id) {
                     return $updatedOrder;
@@ -1190,6 +1352,7 @@ function delete_admin_order(int $id): void
                 throw new RuntimeException('Orden no encontrada.');
             }
             $pdo->commit();
+            log_activity('order_delete', 'order', (string) $id, (string) $id, 'Orden eliminada desde administración.');
             return;
         } catch (Throwable $exception) {
             $pdo->rollBack();
@@ -1205,6 +1368,7 @@ function delete_admin_order(int $id): void
     }
     $store['orderItems'] = array_values(array_filter($store['orderItems'], static fn (array $item): bool => (int) ($item['orderId'] ?? 0) !== $id));
     write_json_store($store);
+    log_activity('order_delete', 'order', (string) $id, (string) $id, 'Orden eliminada desde administración.');
 }
 
 function create_order(array $payload): array
@@ -1255,6 +1419,7 @@ function create_order(array $payload): array
             }
 
             $pdo->commit();
+            log_activity('order_create', 'order', (string) $nextId, $orderNumber, 'Orden creada por checkout.');
             return ['orderNumber' => $orderNumber, 'total' => $total];
         } catch (Throwable $exception) {
             $pdo->rollBack();
@@ -1303,6 +1468,7 @@ function create_order(array $payload): array
     }
 
     write_json_store($store);
+    log_activity('order_create', 'order', (string) $nextId, $orderNumber, 'Orden creada por checkout.');
     return ['orderNumber' => $orderNumber, 'total' => $total];
 }
 
@@ -1363,6 +1529,7 @@ function save_store_settings(array $payload): array
             }
 
             $pdo->commit();
+            log_activity('settings_update', 'settings', 'storefront', 'Storefront', 'Configuración de storefront actualizada.');
             return get_settings();
         } catch (Throwable $exception) {
             $pdo->rollBack();
@@ -1389,6 +1556,7 @@ function save_store_settings(array $payload): array
         'contactEmail' => $payload['contactEmail'] ?? '',
     ];
     write_json_store($store);
+    log_activity('settings_update', 'settings', 'storefront', 'Storefront', 'Configuración de storefront actualizada.');
     return $store['settings'];
 }
 
@@ -1532,6 +1700,11 @@ try {
         if ($user === null) {
             json_response(401, ['message' => 'Credenciales inválidas']);
         }
+        $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] = (string) $user['id'];
+        $_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] = $user['name'];
+        $_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] = $user['email'];
+        $_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] = $user['role'];
+        log_activity('login', 'auth', (string) $user['id'], $user['name'], 'Inicio de sesión exitoso.');
         json_response(200, ['user' => $user]);
     }
 

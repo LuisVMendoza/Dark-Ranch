@@ -3,9 +3,10 @@ import { Button, LOGO_HORIZONTAL, LOGO_CIRCULAR } from './ui';
 import { Mail, Lock, ArrowRight, Github } from 'lucide-react';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { loginAdmin } from '../lib/api';
+import { AdminUser } from '../types';
 import { toast } from 'sonner';
 
-export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) => {
+export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => void }) => {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('admin@darkranch.com');
   const [password, setPassword] = useState('admin123');
@@ -21,12 +22,14 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
 
     setIsSubmitting(true);
     try {
-      await loginAdmin(email, password);
+      const response = await loginAdmin(email, password);
+      localStorage.setItem('dark-ranch-admin-user', JSON.stringify(response.user));
       toast.success('Sesión iniciada correctamente');
-      onLogin(true);
+      onLogin(response.user);
     } catch (error) {
+      localStorage.removeItem('dark-ranch-admin-user');
       toast.error(error instanceof Error ? error.message : 'No se pudo iniciar sesión');
-      onLogin(false);
+      onLogin(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -35,8 +38,8 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
       <div className="hidden lg:block relative bg-black overflow-hidden">
-        <ImageWithFallback 
-          src="https://images.unsplash.com/photo-1520116468816-95b69f847357?q=80&w=1200&auto=format&fit=crop" 
+        <ImageWithFallback
+          src="https://images.unsplash.com/photo-1520116468816-95b69f847357?q=80&w=1200&auto=format&fit=crop"
           alt="Dark Ranch Background"
           className="absolute inset-0 w-full h-full object-cover opacity-60"
         />
@@ -67,7 +70,7 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
               <label className="text-xs font-header uppercase font-bold tracking-widest flex items-center gap-2">
                 <Mail size={14} /> Email
               </label>
-              <input 
+              <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -82,7 +85,7 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
               <label className="text-xs font-header uppercase font-bold tracking-widest flex items-center gap-2">
                 <Lock size={14} /> Contraseña
               </label>
-              <input 
+              <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -114,7 +117,7 @@ export const LoginPage = ({ onLogin }: { onLogin: (isAdmin: boolean) => void }) 
 
           <p className="text-center text-sm text-neutral-600 font-header uppercase">
             {isRegister ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
-            <button 
+            <button
               onClick={() => setIsRegister(!isRegister)}
               className="text-black font-black hover:underline underline-offset-4"
             >

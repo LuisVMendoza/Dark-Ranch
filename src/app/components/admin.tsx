@@ -8,6 +8,7 @@ import {
   Plus,
   Save,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
   Users,
@@ -16,11 +17,13 @@ import {
 import { Button, PaperCard, cn } from './ui';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
+  AdminActivityLog,
   AdminCategoryPayload,
   AdminOrder,
   AdminOrderUpdatePayload,
   AdminProductPayload,
   AdminSnapshot,
+  AdminUser,
   AdminUserPayload,
   Product,
   StoreSettings,
@@ -44,7 +47,12 @@ import { toast } from 'sonner';
 
 const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' });
 
-type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'storefront';
+type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'storefront';
+type DeleteTarget =
+  | { entityType: 'product'; entityId: string; entityName: string }
+  | { entityType: 'category'; entityId: string; entityName: string }
+  | { entityType: 'user'; entityId: number; entityName: string }
+  | { entityType: 'order'; entityId: number; entityName: string };
 
 const EMPTY_PRODUCT: AdminProductPayload = {
   id: '',
@@ -81,31 +89,76 @@ const EMPTY_USER: AdminUserPayload = {
 const ORDER_STATUS_OPTIONS: AdminOrder['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
 const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid', 'failed', 'refunded'];
 
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: ['Productos y categorías', 'Órdenes y tienda', 'Usuarios y permisos', 'Bitácora completa'],
+  editor: ['Productos y categorías', 'Storefront', 'Lectura de bitácora'],
+  operations: ['Órdenes y postventa', 'Inventario', 'Lectura de bitácora'],
+};
+
 const parseTags = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 const serializeList = (list: string[]) => list.join(', ');
-
 const statCardClass = 'bg-white border-2 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]';
 const INPUT_CLASS = 'w-full border-2 border-black bg-white px-3 py-3 outline-none focus:bg-[#fffdfa]';
+
+const humanizeAction = (action: string) => {
+  const labels: Record<string, string> = {
+    login: 'Inicio de sesión',
+    create: 'Alta',
+    update: 'Edición',
+    delete: 'Eliminación',
+    settings_update: 'Ajustes',
+    order_update: 'Actualización de orden',
+    order_delete: 'Eliminación de orden',
+    order_create: 'Nueva orden',
+  };
+
+  return labels[action] || action;
+};
+
+const humanizeEntity = (entityType: string) => {
+  const labels: Record<string, string> = {
+    product: 'Producto',
+    category: 'Categoría',
+    user: 'Usuario admin',
+    order: 'Orden',
+    settings: 'Storefront',
+    auth: 'Acceso',
+  };
+
+  return labels[entityType] || entityType;
+};
+
+const getPermissionsForRole = (role: string) => ROLE_PERMISSIONS[role] || ['Acceso básico'];
 
 export const AdminDashboard = ({
   initialSnapshot,
   onSnapshotUpdated,
+  currentAdminUser,
 }: {
   initialSnapshot: AdminSnapshot;
   onSnapshotUpdated: (snapshot: AdminSnapshot) => void;
+  currentAdminUser: AdminUser | null;
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [snapshot, setSnapshot] = useState<AdminSnapshot>(initialSnapshot);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
   const [productForm, setProductForm] = useState<AdminProductPayload>(EMPTY_PRODUCT);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+
   const [categoryForm, setCategoryForm] = useState<AdminCategoryPayload>(EMPTY_CATEGORY);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
   const [userForm, setUserForm] = useState<AdminUserPayload>(EMPTY_USER);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
 
@@ -118,6 +171,12 @@ export const AdminDashboard = ({
     void refreshSnapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!productForm.categoryId && snapshot.categories[0]) {
+      setProductForm((current) => ({ ...current, categoryId: snapshot.categories[0].id }));
+    }
+  }, [snapshot.categories, productForm.categoryId]);
 
   const refreshSnapshot = async (successMessage?: string) => {
     setIsRefreshing(true);
@@ -182,59 +241,6 @@ export const AdminDashboard = ({
     setIsProductModalOpen(true);
   };
 
-  const closeProductModal = () => {
-    setIsProductModalOpen(false);
-    resetProductForm();
-  };
-
-  const resetCategoryForm = () => {
-    setEditingCategoryId(null);
-    setCategoryForm(EMPTY_CATEGORY);
-  };
-
-  const openNewCategoryModal = () => {
-    resetCategoryForm();
-    setIsCategoryModalOpen(true);
-  };
-
-  const closeCategoryModal = () => {
-    setIsCategoryModalOpen(false);
-    resetCategoryForm();
-  };
-
-  const resetUserForm = () => {
-    setEditingUserId(null);
-    setUserForm(EMPTY_USER);
-  };
-
-  useEffect(() => {
-    if (!productForm.categoryId && snapshot.categories[0]) {
-      setProductForm((current) => ({ ...current, categoryId: snapshot.categories[0].id }));
-    }
-  }, [snapshot.categories, productForm.categoryId]);
-
-  const handleProductSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      const payload: AdminProductPayload = {
-        ...productForm,
-        images: productForm.images.filter(Boolean),
-      };
-      if (editingProductId) {
-        await updateAdminProduct(editingProductId, payload);
-        toast.success('Producto actualizado');
-        resetProductForm();
-      } else {
-        await createAdminProduct(payload);
-        toast.success('Producto creado');
-        closeProductModal();
-      }
-      await refreshSnapshot();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo guardar el producto');
-    }
-  };
-
   const handleEditProduct = (product: Product) => {
     setActiveTab('products');
     setEditingProductId(product.id);
@@ -255,17 +261,74 @@ export const AdminDashboard = ({
       isFeatured: Boolean(product.isFeatured),
       isActive: product.isActive !== false,
     });
+    setIsProductModalOpen(true);
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!window.confirm('¿Eliminar este producto?')) return;
+  const closeProductModal = () => {
+    setIsProductModalOpen(false);
+    resetProductForm();
+  };
+
+  const resetCategoryForm = () => {
+    setEditingCategoryId(null);
+    setCategoryForm(EMPTY_CATEGORY);
+  };
+
+  const openNewCategoryModal = () => {
+    resetCategoryForm();
+    setIsCategoryModalOpen(true);
+  };
+
+  const openEditCategoryModal = (category: AdminSnapshot['categories'][number]) => {
+    setEditingCategoryId(category.id);
+    setCategoryForm(category);
+    setIsCategoryModalOpen(true);
+  };
+
+  const closeCategoryModal = () => {
+    setIsCategoryModalOpen(false);
+    resetCategoryForm();
+  };
+
+  const resetUserForm = () => {
+    setEditingUserId(null);
+    setUserForm(EMPTY_USER);
+  };
+
+  const openNewUserModal = () => {
+    resetUserForm();
+    setIsUserModalOpen(true);
+  };
+
+  const openEditUserModal = (user: AdminUser) => {
+    setEditingUserId(user.id);
+    setUserForm({ email: user.email, name: user.name, role: user.role, password: '' });
+    setIsUserModalOpen(true);
+  };
+
+  const closeUserModal = () => {
+    setIsUserModalOpen(false);
+    resetUserForm();
+  };
+
+  const handleProductSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     try {
-      await deleteAdminProduct(id);
-      toast.success('Producto eliminado');
-      if (editingProductId === id) resetProductForm();
+      const payload: AdminProductPayload = {
+        ...productForm,
+        images: productForm.images.filter(Boolean),
+      };
+      if (editingProductId) {
+        await updateAdminProduct(editingProductId, payload);
+        toast.success('Producto actualizado');
+      } else {
+        await createAdminProduct(payload);
+        toast.success('Producto creado');
+      }
+      closeProductModal();
       await refreshSnapshot();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el producto');
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar el producto');
     }
   };
 
@@ -275,27 +338,14 @@ export const AdminDashboard = ({
       if (editingCategoryId) {
         await updateAdminCategory(editingCategoryId, categoryForm);
         toast.success('Categoría actualizada');
-        resetCategoryForm();
       } else {
         await createAdminCategory(categoryForm);
         toast.success('Categoría creada');
-        closeCategoryModal();
       }
+      closeCategoryModal();
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la categoría');
-    }
-  };
-
-  const handleDeleteCategory = async (id: string) => {
-    if (!window.confirm('¿Eliminar esta categoría?')) return;
-    try {
-      await deleteAdminCategory(id);
-      toast.success('Categoría eliminada');
-      if (editingCategoryId === id) resetCategoryForm();
-      await refreshSnapshot();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar la categoría');
     }
   };
 
@@ -309,22 +359,47 @@ export const AdminDashboard = ({
         await createAdminUser(userForm);
         toast.success('Administrador creado');
       }
-      resetUserForm();
+      closeUserModal();
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar el administrador');
     }
   };
 
-  const handleDeleteUser = async (id: number) => {
-    if (!window.confirm('¿Eliminar este acceso administrativo?')) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    setIsDeleting(true);
     try {
-      await deleteAdminUser(id);
-      toast.success('Administrador eliminado');
-      if (editingUserId === id) resetUserForm();
+      if (deleteTarget.entityType === 'product') {
+        await deleteAdminProduct(deleteTarget.entityId);
+        if (editingProductId === deleteTarget.entityId) resetProductForm();
+        toast.success('Producto eliminado');
+      }
+
+      if (deleteTarget.entityType === 'category') {
+        await deleteAdminCategory(deleteTarget.entityId);
+        if (editingCategoryId === deleteTarget.entityId) resetCategoryForm();
+        toast.success('Categoría eliminada');
+      }
+
+      if (deleteTarget.entityType === 'user') {
+        await deleteAdminUser(deleteTarget.entityId);
+        if (editingUserId === deleteTarget.entityId) resetUserForm();
+        toast.success('Administrador eliminado');
+      }
+
+      if (deleteTarget.entityType === 'order') {
+        await deleteAdminOrder(deleteTarget.entityId);
+        toast.success('Orden eliminada');
+      }
+
+      setDeleteTarget(null);
       await refreshSnapshot();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el administrador');
+      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el registro');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -337,17 +412,6 @@ export const AdminDashboard = ({
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la orden');
-    }
-  };
-
-  const removeOrder = async (orderId: number) => {
-    if (!window.confirm('¿Eliminar esta orden y sus items?')) return;
-    try {
-      await deleteAdminOrder(orderId);
-      toast.success('Orden eliminada');
-      await refreshSnapshot();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar la orden');
     }
   };
 
@@ -371,6 +435,7 @@ export const AdminDashboard = ({
     { key: 'categories', label: 'Categorías', icon: Boxes },
     { key: 'orders', label: 'Órdenes', icon: ShoppingBag },
     { key: 'team', label: 'Admin', icon: Users },
+    { key: 'activity', label: 'Bitácora', icon: ShieldCheck },
     { key: 'storefront', label: 'Storefront', icon: Settings },
   ];
 
@@ -382,7 +447,14 @@ export const AdminDashboard = ({
             <div className="bg-[#1f130b] text-white border-2 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <p className="font-header uppercase text-xs tracking-[0.3em] text-[#d4c5b3]">Dark Ranch Admin</p>
               <h1 className="font-western text-4xl uppercase mt-3">Centro de mando</h1>
-              <p className="text-sm text-white/70 mt-4 leading-relaxed">CRUD completo, operaciones rápidas y visibilidad del negocio en una sola vista.</p>
+              <p className="text-sm text-white/70 mt-4 leading-relaxed">CRUD completo, modales consistentes, permisos visibles y bitácora por cuenta.</p>
+              {currentAdminUser && (
+                <div className="mt-5 border border-white/20 bg-white/5 p-3 text-xs uppercase tracking-[0.15em]">
+                  <p className="text-[#d4c5b3]">Sesión activa</p>
+                  <p className="mt-2 font-header font-black text-sm text-white">{currentAdminUser.name}</p>
+                  <p className="mt-1 normal-case tracking-normal text-white/70">{currentAdminUser.email}</p>
+                </div>
+              )}
               <Button className="mt-6 w-full justify-center" variant="secondary" onClick={() => refreshSnapshot('Panel sincronizado')} disabled={isRefreshing}>
                 {isRefreshing ? 'Sincronizando…' : 'Refrescar datos'}
               </Button>
@@ -445,8 +517,8 @@ export const AdminDashboard = ({
                         <p className="text-3xl font-header font-black mt-2">{productMetrics.pendingOrders}</p>
                       </div>
                       <div className="border-2 border-black bg-white p-4">
-                        <p className="text-xs font-header uppercase text-neutral-500">Categorías activas</p>
-                        <p className="text-3xl font-header font-black mt-2">{productMetrics.categories}</p>
+                        <p className="text-xs font-header uppercase text-neutral-500">Productos destacados</p>
+                        <p className="text-3xl font-header font-black mt-2">{productMetrics.featured}</p>
                       </div>
                     </div>
                   </PaperCard>
@@ -508,23 +580,21 @@ export const AdminDashboard = ({
                   <PaperCard>
                     <div className="flex items-center justify-between gap-4 mb-6">
                       <div>
-                        <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Últimas ventas</p>
-                        <h2 className="font-western uppercase text-3xl">Órdenes recientes</h2>
+                        <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Últimos movimientos</p>
+                        <h2 className="font-western uppercase text-3xl">Bitácora reciente</h2>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => setActiveTab('orders')}>Gestionar</Button>
+                      <Button size="sm" variant="outline" onClick={() => setActiveTab('activity')}>Abrir bitácora</Button>
                     </div>
                     <div className="space-y-3">
-                      {recentOrders.map((order) => (
-                        <div key={order.id} className="border-2 border-black bg-white p-4">
-                          <div className="flex items-center justify-between gap-3">
+                      {snapshot.activityLogs.slice(0, 5).map((item) => (
+                        <div key={String(item.id)} className="border-2 border-black bg-white p-4">
+                          <div className="flex items-start justify-between gap-4">
                             <div>
-                              <p className="font-header font-black">{order.orderNumber}</p>
-                              <p className="text-sm text-neutral-600">{order.customerName}</p>
+                              <p className="font-header font-black uppercase text-sm">{item.actorName}</p>
+                              <p className="text-sm text-neutral-600">{humanizeAction(item.action)} · {humanizeEntity(item.entityType)}</p>
+                              <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mt-2">{item.entityName}</p>
                             </div>
-                            <div className="text-right">
-                              <p className="font-header font-black">{currency.format(order.total)}</p>
-                              <p className="text-xs uppercase text-neutral-500">{order.status}</p>
-                            </div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">{new Date(item.createdAt).toLocaleString()}</p>
                           </div>
                         </div>
                       ))}
@@ -535,136 +605,105 @@ export const AdminDashboard = ({
             )}
 
             {activeTab === 'products' && (
-              <div className={cn('grid grid-cols-1 gap-8', editingProductId && '2xl:grid-cols-[1.3fr_0.9fr]')}>
-                <PaperCard>
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div>
-                      <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Catálogo</p>
-                      <h2 className="font-western uppercase text-3xl">CRUD de productos</h2>
-                    </div>
-                    <Button size="sm" onClick={openNewProductModal}><Plus size={16} className="mr-2" /> Nuevo</Button>
+              <PaperCard>
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <div>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Catálogo</p>
+                    <h2 className="font-western uppercase text-3xl">CRUD de productos</h2>
                   </div>
-                  <div className="overflow-x-auto border-2 border-black bg-white">
-                    <table className="w-full text-left min-w-[860px]">
-                      <thead className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
-                        <tr>
-                          <th className="px-4 py-3">Producto</th>
-                          <th className="px-4 py-3">Categoría</th>
-                          <th className="px-4 py-3">Precio</th>
-                          <th className="px-4 py-3">Stock</th>
-                          <th className="px-4 py-3">Estado</th>
-                          <th className="px-4 py-3">Acciones</th>
+                  <Button size="sm" onClick={openNewProductModal}><Plus size={16} className="mr-2" /> Nuevo</Button>
+                </div>
+                <div className="overflow-x-auto border-2 border-black bg-white">
+                  <table className="w-full text-left min-w-[940px]">
+                    <thead className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
+                      <tr>
+                        <th className="px-4 py-3">Producto</th>
+                        <th className="px-4 py-3">Categoría</th>
+                        <th className="px-4 py-3">Precio</th>
+                        <th className="px-4 py-3">Stock</th>
+                        <th className="px-4 py-3">Flags</th>
+                        <th className="px-4 py-3">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200">
+                      {snapshot.products.map((product) => (
+                        <tr key={product.id}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <img src={product.images[0]} alt={product.name} className="h-12 w-12 object-cover border border-black bg-neutral-100" />
+                              <div>
+                                <p className="font-header font-black uppercase text-sm">{product.name}</p>
+                                <p className="text-[11px] text-neutral-500">{product.id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">{product.category}</td>
+                          <td className="px-4 py-3">{currency.format(product.salePrice ?? product.price)}</td>
+                          <td className="px-4 py-3">{product.stock}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <FlagBadge label={product.isNew ? 'Nuevo' : 'No nuevo'} active={Boolean(product.isNew)} />
+                              <FlagBadge label={product.isFeatured ? 'Destacado' : 'No destacado'} active={Boolean(product.isFeatured)} />
+                              <FlagBadge label={product.isActive !== false ? 'Activo' : 'Oculto'} active={product.isActive !== false} />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => handleEditProduct(product)}><Pencil size={14} className="mr-2" /> Editar</Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setDeleteTarget({ entityType: 'product', entityId: product.id, entityName: product.name })}
+                              >
+                                <Trash2 size={14} className="mr-2" /> Eliminar
+                              </Button>
+                            </div>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-200">
-                        {snapshot.products.map((product) => (
-                          <tr key={product.id}>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <img src={product.images[0]} alt={product.name} className="h-12 w-12 object-cover border border-black bg-neutral-100" />
-                                <div>
-                                  <p className="font-header font-black uppercase text-sm">{product.name}</p>
-                                  <p className="text-[11px] text-neutral-500">{product.id}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">{product.category}</td>
-                            <td className="px-4 py-3">{currency.format(product.salePrice ?? product.price)}</td>
-                            <td className="px-4 py-3">{product.stock}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-2">
-                                <span className={cn('px-2 py-1 text-[10px] uppercase border font-black', product.isActive !== false ? 'border-emerald-600 text-emerald-700' : 'border-neutral-400 text-neutral-500')}>{product.isActive !== false ? 'Activo' : 'Oculto'}</span>
-                                {product.isFeatured && <span className="px-2 py-1 text-[10px] uppercase border border-[#C4A484] text-[#8c6844] font-black">Destacado</span>}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => handleEditProduct(product)}><Pencil size={14} /></Button>
-                                <Button size="sm" variant="outline" onClick={() => handleDeleteProduct(product.id)}><Trash2 size={14} /></Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </PaperCard>
-
-                {editingProductId && (
-                  <PaperCard>
-                    <div className="flex items-center justify-between gap-4 mb-6">
-                      <div>
-                        <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Edición</p>
-                        <h2 className="font-western uppercase text-3xl">Editar producto</h2>
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={resetProductForm}>Cancelar</Button>
-                    </div>
-
-                    <ProductFormFields
-                      form={productForm}
-                      categories={snapshot.categories}
-                      isEditing
-                      onChange={setProductForm}
-                      onSubmit={handleProductSubmit}
-                      submitLabel="Guardar cambios"
-                    />
-                  </PaperCard>
-                )}
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </PaperCard>
             )}
 
             {activeTab === 'categories' && (
-              <div className={cn('grid grid-cols-1 gap-8', editingCategoryId && '2xl:grid-cols-[1.2fr_0.8fr]')}>
-                <PaperCard>
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div>
-                      <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Navegación</p>
-                      <h2 className="font-western uppercase text-3xl">CRUD de categorías</h2>
-                    </div>
-                    <Button size="sm" onClick={openNewCategoryModal}><Plus size={16} className="mr-2" /> Nueva</Button>
+              <PaperCard>
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <div>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Navegación</p>
+                    <h2 className="font-western uppercase text-3xl">CRUD de categorías</h2>
                   </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {snapshot.categories.map((category) => {
-                      const productsInCategory = snapshot.products.filter((product) => product.categoryId === category.id || product.category === category.name).length;
-                      return (
-                        <div key={category.id} className="border-2 border-black bg-white overflow-hidden">
-                          <img src={category.imageUrl} alt={category.name} className="h-40 w-full object-cover border-b-2 border-black" />
-                          <div className="p-4 space-y-3">
-                            <div>
-                              <p className="font-header font-black uppercase text-lg">{category.name}</p>
-                              <p className="text-xs text-neutral-500 uppercase tracking-[0.2em]">{category.id} · {category.slug}</p>
-                            </div>
-                            <p className="text-sm text-neutral-600">{productsInCategory} producto(s) asociados.</p>
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="outline" onClick={() => { setEditingCategoryId(category.id); setCategoryForm(category); }}>Editar</Button>
-                              <Button size="sm" variant="outline" onClick={() => handleDeleteCategory(category.id)}>Eliminar</Button>
-                            </div>
+                  <Button size="sm" onClick={openNewCategoryModal}><Plus size={16} className="mr-2" /> Nueva</Button>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {snapshot.categories.map((category) => {
+                    const productsInCategory = snapshot.products.filter((product) => product.categoryId === category.id || product.category === category.name).length;
+                    return (
+                      <div key={category.id} className="border-2 border-black bg-white overflow-hidden">
+                        <img src={category.imageUrl} alt={category.name} className="h-40 w-full object-cover border-b-2 border-black" />
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <p className="font-header font-black uppercase text-lg">{category.name}</p>
+                            <p className="text-xs text-neutral-500 uppercase tracking-[0.2em]">{category.id} · {category.slug}</p>
+                          </div>
+                          <p className="text-sm text-neutral-600">{productsInCategory} producto(s) asociados.</p>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => openEditCategoryModal(category)}>Editar</Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDeleteTarget({ entityType: 'category', entityId: category.id, entityName: category.name })}
+                            >
+                              Eliminar
+                            </Button>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </PaperCard>
-
-                {editingCategoryId && (
-                  <PaperCard>
-                    <div className="flex items-center justify-between gap-4 mb-6">
-                      <div>
-                        <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Edición</p>
-                        <h2 className="font-western uppercase text-3xl">Editar categoría</h2>
                       </div>
-                      <Button size="sm" variant="ghost" onClick={resetCategoryForm}>Cancelar</Button>
-                    </div>
-                    <CategoryFormFields
-                      form={categoryForm}
-                      isEditing
-                      onChange={setCategoryForm}
-                      onSubmit={handleCategorySubmit}
-                      submitLabel="Guardar categoría"
-                    />
-                  </PaperCard>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              </PaperCard>
             )}
 
             {activeTab === 'orders' && (
@@ -729,7 +768,13 @@ export const AdminDashboard = ({
                         </div>
 
                         <div className="flex flex-wrap gap-3 justify-end">
-                          <Button size="sm" variant="outline" onClick={() => removeOrder(order.id)}><Trash2 size={14} className="mr-2" /> Eliminar</Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeleteTarget({ entityType: 'order', entityId: order.id, entityName: order.orderNumber })}
+                          >
+                            <Trash2 size={14} className="mr-2" /> Eliminar
+                          </Button>
                           <Button size="sm" onClick={() => saveOrder(order.id)}><Save size={14} className="mr-2" /> Guardar</Button>
                         </div>
                       </div>
@@ -740,26 +785,38 @@ export const AdminDashboard = ({
             )}
 
             {activeTab === 'team' && (
-              <div className="grid grid-cols-1 2xl:grid-cols-[1.15fr_0.85fr] gap-8">
+              <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8">
                 <PaperCard>
                   <div className="flex items-center justify-between gap-4 mb-6">
                     <div>
                       <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Permisos</p>
                       <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
                     </div>
-                    <Button size="sm" onClick={resetUserForm}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
+                    <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
                   </div>
                   <div className="space-y-4">
                     {snapshot.adminUsers.map((user) => (
-                      <div key={user.id} className="border-2 border-black bg-white p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                          <p className="font-header font-black uppercase text-lg">{user.name}</p>
-                          <p className="text-sm text-neutral-600">{user.email}</p>
-                          <p className="text-xs uppercase tracking-[0.2em] text-[#8c6844] mt-1">{user.role}</p>
+                      <div key={user.id} className="border-2 border-black bg-white p-4 space-y-4">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                          <div>
+                            <p className="font-header font-black uppercase text-lg">{user.name}</p>
+                            <p className="text-sm text-neutral-600">{user.email}</p>
+                            <p className="text-xs uppercase tracking-[0.2em] text-[#8c6844] mt-1">Rol actual: {user.role}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)}>Editar</Button>
+                            <Button size="sm" variant="outline" onClick={() => setDeleteTarget({ entityType: 'user', entityId: user.id, entityName: user.name })}>Eliminar</Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => { setEditingUserId(user.id); setUserForm({ email: user.email, name: user.name, role: user.role, password: '' }); }}>Editar</Button>
-                          <Button size="sm" variant="outline" onClick={() => handleDeleteUser(user.id)}>Eliminar</Button>
+                        <div>
+                          <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500 mb-3">Permisos actuales</p>
+                          <div className="flex flex-wrap gap-2">
+                            {getPermissionsForRole(user.role).map((permission) => (
+                              <span key={`${user.id}-${permission}`} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
+                                {permission}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -767,22 +824,85 @@ export const AdminDashboard = ({
                 </PaperCard>
 
                 <PaperCard>
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div>
-                      <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">{editingUserId ? 'Edición' : 'Alta'}</p>
-                      <h2 className="font-western uppercase text-3xl">{editingUserId ? 'Editar acceso' : 'Nuevo acceso'}</h2>
-                    </div>
-                    {editingUserId && <Button size="sm" variant="ghost" onClick={resetUserForm}>Cancelar</Button>}
+                  <div>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Cuenta activa</p>
+                    <h2 className="font-western uppercase text-3xl">Resumen de acceso</h2>
                   </div>
-                  <form onSubmit={handleUserSubmit} className="space-y-4">
-                    <Field label="Nombre"><input required value={userForm.name} onChange={(e) => setUserForm((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Correo"><input required type="email" value={userForm.email} onChange={(e) => setUserForm((current) => ({ ...current, email: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Rol"><select value={userForm.role} onChange={(e) => setUserForm((current) => ({ ...current, role: e.target.value }))} className={INPUT_CLASS}><option value="admin">admin</option><option value="editor">editor</option><option value="operations">operations</option></select></Field>
-                    <Field label={editingUserId ? 'Nueva contraseña (opcional)' : 'Contraseña'}><input type="password" value={userForm.password || ''} onChange={(e) => setUserForm((current) => ({ ...current, password: e.target.value }))} className={INPUT_CLASS} /></Field>
-                    <Button type="submit" className="w-full justify-center">{editingUserId ? 'Guardar acceso' : 'Crear acceso'}</Button>
-                  </form>
+                  <div className="mt-6 border-2 border-black bg-white p-5 space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Nombre</p>
+                      <p className="font-header font-black text-xl mt-1">{currentAdminUser?.name || 'Sin sesión'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Correo</p>
+                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.email || 'No disponible'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Rol</p>
+                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.role || 'No disponible'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-3">Permisos aplicados</p>
+                      <div className="flex flex-wrap gap-2">
+                        {getPermissionsForRole(currentAdminUser?.role || 'guest').map((permission) => (
+                          <span key={permission} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
+                            {permission}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </PaperCard>
               </div>
+            )}
+
+            {activeTab === 'activity' && (
+              <PaperCard>
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <div>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Auditoría</p>
+                    <h2 className="font-western uppercase text-3xl">Bitácora de movimientos</h2>
+                  </div>
+                  <div className="text-right text-sm text-neutral-500">
+                    <p>{snapshot.activityLogs.length} movimiento(s) registrados</p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border-2 border-black bg-white">
+                  <table className="w-full min-w-[980px] text-left">
+                    <thead className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
+                      <tr>
+                        <th className="px-4 py-3">Fecha</th>
+                        <th className="px-4 py-3">Cuenta</th>
+                        <th className="px-4 py-3">Acción</th>
+                        <th className="px-4 py-3">Entidad</th>
+                        <th className="px-4 py-3">Registro</th>
+                        <th className="px-4 py-3">Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200">
+                      {snapshot.activityLogs.map((item: AdminActivityLog) => (
+                        <tr key={String(item.id)}>
+                          <td className="px-4 py-3 text-sm">{new Date(item.createdAt).toLocaleString()}</td>
+                          <td className="px-4 py-3">
+                            <p className="font-header font-black uppercase text-sm">{item.actorName}</p>
+                            <p className="text-xs text-neutral-500">{item.actorEmail}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-1 text-[10px] uppercase border border-black font-black bg-[#fcf9f5]">{humanizeAction(item.action)}</span>
+                          </td>
+                          <td className="px-4 py-3">{humanizeEntity(item.entityType)}</td>
+                          <td className="px-4 py-3">
+                            <p className="font-header font-black uppercase text-sm">{item.entityName}</p>
+                            <p className="text-xs text-neutral-500">{item.entityId}</p>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-neutral-700">{item.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </PaperCard>
             )}
 
             {activeTab === 'storefront' && (
@@ -822,21 +942,21 @@ export const AdminDashboard = ({
           </main>
 
           <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
-            <DialogContent className="max-w-5xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+            <DialogContent className="max-w-5xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[92vh] overflow-hidden">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
-                  <DialogTitle className="font-western uppercase text-3xl text-black">Nuevo producto</DialogTitle>
-                  <DialogDescription className="text-sm text-neutral-600">El ID se genera automáticamente al guardar para evitar conflictos con productos ya existentes.</DialogDescription>
+                  <DialogTitle className="font-western uppercase text-3xl text-black">{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-600">Ahora el modal incluye flags de nuevo, destacado, activo y el botón de guardar siempre visible.</DialogDescription>
                 </DialogHeader>
               </div>
               <div className="overflow-y-auto p-8">
                 <ProductFormFields
                   form={productForm}
                   categories={snapshot.categories}
-                  isEditing={false}
+                  isEditing={Boolean(editingProductId)}
                   onChange={setProductForm}
                   onSubmit={handleProductSubmit}
-                  submitLabel="Crear producto"
+                  submitLabel={editingProductId ? 'Guardar cambios' : 'Crear producto'}
                 />
               </div>
             </DialogContent>
@@ -846,18 +966,79 @@ export const AdminDashboard = ({
             <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
-                  <DialogTitle className="font-western uppercase text-3xl text-black">Nueva categoría</DialogTitle>
-                  <DialogDescription className="text-sm text-neutral-600">El ID se genera automáticamente al guardar para evitar conflictos con categorías ya existentes.</DialogDescription>
+                  <DialogTitle className="font-western uppercase text-3xl text-black">{editingCategoryId ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-600">Alta y edición ahora comparten el mismo modal para mantener el flujo consistente.</DialogDescription>
                 </DialogHeader>
               </div>
               <div className="overflow-y-auto p-8">
                 <CategoryFormFields
                   form={categoryForm}
-                  isEditing={false}
+                  isEditing={Boolean(editingCategoryId)}
                   onChange={setCategoryForm}
                   onSubmit={handleCategorySubmit}
-                  submitLabel="Crear categoría"
+                  submitLabel={editingCategoryId ? 'Guardar categoría' : 'Crear categoría'}
                 />
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isUserModalOpen} onOpenChange={(open) => { if (!open) closeUserModal(); }}>
+            <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+              <div className="border-b-2 border-black bg-white px-8 py-6">
+                <DialogHeader className="text-left">
+                  <DialogTitle className="font-western uppercase text-3xl text-black">{editingUserId ? 'Editar acceso' : 'Nuevo acceso'}</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-600">El modal muestra el rol y los permisos esperados antes de guardar.</DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="overflow-y-auto p-8">
+                <form onSubmit={handleUserSubmit} className="space-y-4">
+                  <Field label="Nombre"><input required value={userForm.name} onChange={(e) => setUserForm((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
+                  <Field label="Correo"><input required type="email" value={userForm.email} onChange={(e) => setUserForm((current) => ({ ...current, email: e.target.value }))} className={INPUT_CLASS} /></Field>
+                  <Field label="Rol">
+                    <select value={userForm.role} onChange={(e) => setUserForm((current) => ({ ...current, role: e.target.value }))} className={INPUT_CLASS}>
+                      <option value="admin">admin</option>
+                      <option value="editor">editor</option>
+                      <option value="operations">operations</option>
+                    </select>
+                  </Field>
+                  <Field label={editingUserId ? 'Nueva contraseña (opcional)' : 'Contraseña'}><input type="password" value={userForm.password || ''} onChange={(e) => setUserForm((current) => ({ ...current, password: e.target.value }))} className={INPUT_CLASS} /></Field>
+                  <div className="border-2 border-black bg-white p-4">
+                    <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500 mb-3">Permisos que tendrá este rol</p>
+                    <div className="flex flex-wrap gap-2">
+                      {getPermissionsForRole(userForm.role).map((permission) => (
+                        <span key={permission} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
+                          {permission}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full justify-center">{editingUserId ? 'Guardar acceso' : 'Crear acceso'}</Button>
+                </form>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+            <DialogContent className="max-w-2xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+              <div className="border-b-2 border-black bg-white px-8 py-6">
+                <DialogHeader className="text-left">
+                  <DialogTitle className="font-western uppercase text-3xl text-black">Confirmar eliminación</DialogTitle>
+                  <DialogDescription className="text-sm text-neutral-600">Se mostrará el registro afectado antes de borrar para evitar eliminaciones accidentales.</DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="border-2 border-black bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Tipo</p>
+                  <p className="font-header font-black uppercase text-lg mt-1">{deleteTarget ? humanizeEntity(deleteTarget.entityType) : ''}</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mt-4">Registro</p>
+                  <p className="text-sm text-neutral-700 mt-1">{deleteTarget?.entityName}</p>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancelar</Button>
+                  <Button variant="primary" onClick={confirmDelete} disabled={isDeleting}>
+                    {isDeleting ? 'Eliminando…' : 'Sí, eliminar'}
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
@@ -882,7 +1063,7 @@ const ProductFormFields = ({
   onSubmit: (event: React.FormEvent) => void;
   submitLabel: string;
 }) => (
-  <form onSubmit={onSubmit} className="space-y-4">
+  <form onSubmit={onSubmit} className="space-y-6">
     <div className="grid md:grid-cols-2 gap-4">
       <Field label="ID">
         <input
@@ -903,12 +1084,17 @@ const ProductFormFields = ({
       <Field label="Colores"><input value={serializeList(form.colors)} onChange={(e) => onChange((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
       <Field label="Tags" className="md:col-span-2"><input value={serializeList(form.tags)} onChange={(e) => onChange((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
     </div>
-    <div className="grid grid-cols-3 gap-3 text-xs font-header uppercase font-black">
-      <Toggle label="Nuevo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
-      <Toggle label="Destacado" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
-      <Toggle label="Activo" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+    <div className="border-2 border-black bg-white p-4 space-y-4 sticky bottom-0">
+      <div>
+        <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500 mb-3">Visibilidad del producto</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-header uppercase font-black">
+          <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
+          <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
+          <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+        </div>
+      </div>
+      <Button type="submit" className="w-full justify-center"><Save size={16} className="mr-2" /> {submitLabel}</Button>
     </div>
-    <Button type="submit" className="w-full justify-center"><Save size={16} className="mr-2" /> {submitLabel}</Button>
   </form>
 );
 
@@ -947,12 +1133,31 @@ const Field = ({ label, children, className }: { label: string; children: React.
   </label>
 );
 
-const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) => (
+const Toggle = ({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) => (
   <button
     type="button"
     onClick={() => onChange(!checked)}
-    className={cn('border-2 border-black px-3 py-3 text-center', checked ? 'bg-black text-white' : 'bg-white text-black')}
+    className={cn('border-2 border-black px-3 py-3 text-left transition-colors', checked ? 'bg-black text-white' : 'bg-white text-black')}
   >
-    {label}
+    <span className="block">{label}</span>
+    <span className={cn('mt-1 block text-[10px] tracking-normal normal-case', checked ? 'text-white/80' : 'text-neutral-500')}>
+      {description}
+    </span>
   </button>
+);
+
+const FlagBadge = ({ label, active }: { label: string; active: boolean }) => (
+  <span className={cn('px-2 py-1 text-[10px] uppercase border font-black', active ? 'border-black text-black bg-[#fcf9f5]' : 'border-neutral-300 text-neutral-500')}>
+    {label}
+  </span>
 );
