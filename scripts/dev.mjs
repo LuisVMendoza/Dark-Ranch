@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 
 const children = [];
 let shuttingDown = false;
+const apiPort = process.env.API_PORT || '3001';
 
 function spawnProcess(command, args, name) {
   const child = spawn(command, args, {
@@ -38,7 +39,7 @@ function spawnProcess(command, args, name) {
   });
 }
 
-spawnProcess('node', ['server/index.mjs'], 'API local');
+spawnProcess('php', ['-S', `127.0.0.1:${apiPort}`, 'server/router.php'], 'API local PHP');
 spawnProcess('vite', [], 'Vite');
 
 const shutdown = () => {

@@ -1,91 +1,92 @@
-PRAGMA foreign_keys = ON;
+CREATE DATABASE IF NOT EXISTS dark_ranch CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE dark_ranch;
 
 CREATE TABLE IF NOT EXISTS categories (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  slug TEXT NOT NULL UNIQUE,
+  id VARCHAR(50) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  slug VARCHAR(100) NOT NULL UNIQUE,
   image_url TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS products (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
+  id VARCHAR(50) PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  slug VARCHAR(150) NOT NULL UNIQUE,
   description TEXT NOT NULL,
-  price REAL NOT NULL,
-  sale_price REAL,
-  category_id TEXT NOT NULL,
-  images_json TEXT NOT NULL DEFAULT '[]',
-  sizes_json TEXT NOT NULL DEFAULT '[]',
-  colors_json TEXT NOT NULL DEFAULT '[]',
-  tags_json TEXT NOT NULL DEFAULT '[]',
-  stock INTEGER NOT NULL DEFAULT 0,
-  is_new INTEGER NOT NULL DEFAULT 0,
-  is_featured INTEGER NOT NULL DEFAULT 0,
-  is_active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (category_id) REFERENCES categories(id)
-);
+  price DECIMAL(10,2) NOT NULL,
+  sale_price DECIMAL(10,2) NULL,
+  category_id VARCHAR(50) NOT NULL,
+  images_json JSON NOT NULL,
+  sizes_json JSON NOT NULL,
+  colors_json JSON NOT NULL,
+  tags_json JSON NOT NULL,
+  stock INT NOT NULL DEFAULT 0,
+  is_new TINYINT(1) NOT NULL DEFAULT 0,
+  is_featured TINYINT(1) NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id)
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS store_settings (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  hero_title TEXT NOT NULL,
-  hero_subtitle TEXT NOT NULL,
+  id TINYINT PRIMARY KEY,
+  hero_title VARCHAR(200) NOT NULL,
+  hero_subtitle VARCHAR(200) NOT NULL,
   hero_image_url TEXT NOT NULL,
   about_text TEXT NOT NULL,
-  contact_email TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+  contact_email VARCHAR(150) NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS banners (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
+  id VARCHAR(50) PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
   subtitle TEXT NOT NULL,
-  button_text TEXT NOT NULL,
+  button_text VARCHAR(100) NOT NULL,
   image_url TEXT NOT NULL,
-  category_id TEXT,
-  display_order INTEGER NOT NULL DEFAULT 0,
-  is_active INTEGER NOT NULL DEFAULT 1,
-  FOREIGN KEY (category_id) REFERENCES categories(id)
-);
+  category_id VARCHAR(50) NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT fk_banners_category FOREIGN KEY (category_id) REFERENCES categories(id)
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS admin_users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'admin',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  role VARCHAR(50) NOT NULL DEFAULT 'admin',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_number TEXT NOT NULL UNIQUE,
-  customer_name TEXT NOT NULL,
-  customer_email TEXT NOT NULL,
-  address TEXT NOT NULL,
-  city TEXT NOT NULL,
-  zip TEXT NOT NULL,
-  status TEXT NOT NULL,
-  payment_status TEXT NOT NULL,
-  total REAL NOT NULL,
-  cancellation_reason TEXT,
-  refund_amount REAL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  cancelled_at TEXT
-);
+  id INT PRIMARY KEY,
+  order_number VARCHAR(50) NOT NULL UNIQUE,
+  customer_name VARCHAR(150) NOT NULL,
+  customer_email VARCHAR(150) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  city VARCHAR(120) NOT NULL,
+  zip VARCHAR(20) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  payment_status VARCHAR(50) NOT NULL,
+  total DECIMAL(10,2) NOT NULL,
+  cancellation_reason TEXT NULL,
+  refund_amount DECIMAL(10,2) NULL,
+  created_at VARCHAR(40) NOT NULL,
+  cancelled_at VARCHAR(40) NULL
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS order_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER NOT NULL,
-  product_id TEXT NOT NULL,
-  product_name TEXT NOT NULL,
-  price REAL NOT NULL,
-  quantity INTEGER NOT NULL,
-  selected_size TEXT,
-  selected_color TEXT,
-  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  FOREIGN KEY (product_id) REFERENCES products(id)
-);
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  order_id INT NOT NULL,
+  product_id VARCHAR(50) NOT NULL,
+  product_name VARCHAR(150) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  quantity INT NOT NULL,
+  selected_size VARCHAR(50) NULL,
+  selected_color VARCHAR(50) NULL,
+  CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id)
+) ENGINE=InnoDB;
