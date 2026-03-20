@@ -16,3 +16,6 @@ node_modules/@babel/types/lib/index.js.flow
 /node_modules
 /node_modules/.bin
 package-lock.json
+
+/dist
+/local-data/*.sqlite

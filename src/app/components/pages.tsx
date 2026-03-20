@@ -39,7 +39,7 @@ export const AboutPage = ({ text }: { text: string }) => (
   </div>
 );
 
-export const ContactPage = () => (
+export const ContactPage = ({ email }: { email: string }) => (
   <div className="pt-32 pb-24 bg-[#fcf9f5]">
     <div className="container mx-auto px-6">
       <div className="max-w-5xl mx-auto">
@@ -55,7 +55,7 @@ export const ContactPage = () => (
                 </div>
                 <div className="flex gap-4">
                   <Mail className="text-[#C4A484] shrink-0" />
-                  <p className="font-header uppercase text-sm font-bold">contacto@darkranch.com</p>
+                  <p className="font-header uppercase text-sm font-bold">{email}</p>
                 </div>
                 <div className="flex gap-4">
                   <Phone className="text-[#C4A484] shrink-0" />
@@ -73,7 +73,7 @@ export const ContactPage = () => (
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-header uppercase font-bold">Correo Electrónico</label>
-                  <input className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]" placeholder="john@outlaw.com" />
+                  <input className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]" placeholder={email} />
                 </div>
                 <div className="sm:col-span-2 space-y-2">
                   <label className="text-xs font-header uppercase font-bold">Mensaje / Telegrama</label>
