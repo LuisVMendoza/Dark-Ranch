@@ -147,11 +147,26 @@ export interface AdminUser {
   role: string;
 }
 
+export interface AdminActivityLog {
+  id: number | string;
+  actorId?: number | null;
+  actorName: string;
+  actorEmail: string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  entityName: string;
+  details: string;
+  createdAt: string;
+}
+
 export interface AdminSnapshot {
   categories: Category[];
   products: Product[];
   orders: AdminOrder[];
   adminUsers: AdminUser[];
+  activityLogs: AdminActivityLog[];
   settings: StoreSettings;
   dashboard: DashboardData;
 }

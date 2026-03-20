@@ -90,3 +90,21 @@ CREATE TABLE IF NOT EXISTS order_items (
   CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id)
 ) ENGINE=InnoDB;
+
+
+CREATE TABLE IF NOT EXISTS admin_activity_logs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  actor_id INT NULL,
+  actor_name VARCHAR(150) NOT NULL,
+  actor_email VARCHAR(150) NOT NULL,
+  actor_role VARCHAR(50) NOT NULL,
+  action VARCHAR(60) NOT NULL,
+  entity_type VARCHAR(60) NOT NULL,
+  entity_id VARCHAR(80) NOT NULL,
+  entity_name VARCHAR(180) NOT NULL,
+  details TEXT NOT NULL,
+  created_at VARCHAR(40) NOT NULL,
+  INDEX idx_admin_activity_created_at (created_at),
+  INDEX idx_admin_activity_actor (actor_email)
+) ENGINE=InnoDB;
+
