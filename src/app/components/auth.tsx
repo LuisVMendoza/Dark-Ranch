@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button, LOGO_HORIZONTAL, LOGO_CIRCULAR } from './ui';
 import { Mail, Lock, ArrowRight, Github } from 'lucide-react';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+import { ImageWithFallback } from './common/ImageWithFallback';
 import { loginAdmin } from '../lib/api';
 import { toast } from 'sonner';
 

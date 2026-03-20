@@ -3,7 +3,7 @@ import { ShoppingCart, User, Menu, X, Search, ChevronRight } from 'lucide-react'
 import { motion as Motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../cart-context';
 import { Button, LOGO_HORIZONTAL, cn } from './ui';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+import { ImageWithFallback } from './common/ImageWithFallback';
 
 export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: any) => void }) => {
   const { cartCount } = useCart();

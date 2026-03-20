@@ -78,7 +78,7 @@ Scripts para migrar datos mock a Supabase.
 ### Paso 1: Conectar Supabase
 
 1. Crea un proyecto en [supabase.com](https://supabase.com)
-2. En la consola de Figma Make, conecta tu proyecto Supabase
+2. En la consola de tu app local, conecta tu proyecto Supabase
 3. Copia tus credenciales a un archivo `.env`:
 
 ```bash

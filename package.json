@@ -1,11 +1,11 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "dark-ranch",
   "private": true,
   "version": "0.0.1",
   "type": "module",
   "scripts": {
     "api": "node server/index.mjs",
-    "dev": "bash -c 'node server/index.mjs & trap \"kill 0\" EXIT; vite'",
+    "dev": "node scripts/dev.mjs",
     "build": "vite build"
   },
   "dependencies": {

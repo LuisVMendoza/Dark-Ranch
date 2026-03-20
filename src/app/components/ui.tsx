@@ -1,3 +1,5 @@
+import logoHorizontal from '../assets/dark-ranch-logo-horizontal.svg';
+import logoCircular from '../assets/dark-ranch-logo-circular.svg';
 import React from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -7,8 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Assets
-export const LOGO_HORIZONTAL = "figma:asset/afbe96d3b1579f1b85895dae80e8a3ad8f41ff70.png";
-export const LOGO_CIRCULAR = "figma:asset/8d9f25d5d4cf6297b300e2c8907e148c953c4c3e.png";
+export const LOGO_HORIZONTAL = logoHorizontal;
+export const LOGO_CIRCULAR = logoCircular;
 
 // Components
 export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'western', size?: 'sm' | 'md' | 'lg' }>(

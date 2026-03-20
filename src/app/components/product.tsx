@@ -3,7 +3,7 @@ import { ShoppingCart, Eye, Star } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../cart-context';
 import { Button, Badge, cn, LOGO_CIRCULAR } from './ui';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+import { ImageWithFallback } from './common/ImageWithFallback';
 import { toast } from 'sonner';
 
 export const ProductCard = ({ product, onQuickView }: { product: Product, onQuickView?: (p: Product) => void }) => {

@@ -10,7 +10,7 @@ import { LoginPage } from './components/auth';
 import { AboutPage, ContactPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
 import { BootstrapData, StoreSettings } from './types';
-import { ImageWithFallback } from './components/figma/ImageWithFallback';
+import { ImageWithFallback } from './components/common/ImageWithFallback';
 import { ArrowRight, RefreshCw, Filter, Search, ShieldCheck, Truck } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'motion/react';
 import { getBootstrapData } from './lib/api';
