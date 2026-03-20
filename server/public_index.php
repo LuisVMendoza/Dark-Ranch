@@ -1208,6 +1208,15 @@ function update_admin_user(int $id, array $payload): array
 
 function delete_admin_user(int $id): void
 {
+    $actor = current_actor_from_request();
+    if (($actor['role'] ?? '') !== 'admin') {
+        throw new RuntimeException('Solo un admin puede eliminar otras cuentas.');
+    }
+
+    if (($actor['id'] ?? null) === $id) {
+        throw new RuntimeException('No puedes eliminar tu propia cuenta activa.');
+    }
+
     if (count(get_admin_users()) <= 1) {
         throw new RuntimeException('Debes conservar al menos un usuario administrador.');
     }
