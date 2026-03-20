@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
@@ -35,8 +35,7 @@ function load_env(): void
 
             [$key, $value] = explode('=', $trimmed, 2);
             $key = trim($key);
-            $value = trim($value);
-            $value = trim($value, "\"'");
+            $value = trim(trim($value), "\"'");
 
             if ($key !== '' && getenv($key) === false) {
                 putenv("{$key}={$value}");
@@ -104,6 +103,13 @@ function read_json_store(): array
         throw new RuntimeException('No se pudo leer el store JSON local.');
     }
 
+    $payload['categories'] = $payload['categories'] ?? [];
+    $payload['products'] = $payload['products'] ?? [];
+    $payload['orders'] = $payload['orders'] ?? [];
+    $payload['orderItems'] = $payload['orderItems'] ?? [];
+    $payload['adminUsers'] = $payload['adminUsers'] ?? [];
+    $payload['settings'] = $payload['settings'] ?? [];
+
     return $payload;
 }
 
@@ -113,6 +119,7 @@ function write_json_store(array $store): void
     if (!is_dir(dirname($path))) {
         mkdir(dirname($path), 0777, true);
     }
+
     file_put_contents($path, json_encode($store, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
 
@@ -144,76 +151,216 @@ function db(): PDO
     return $pdo;
 }
 
-function format_product(array $product): array
+function normalize_list(mixed $value): array
+{
+    if (is_array($value)) {
+        return array_values(array_filter(array_map(static fn ($item) => trim((string) $item), $value), static fn (string $item): bool => $item !== ''));
+    }
+
+    if (!is_string($value) || trim($value) === '') {
+        return [];
+    }
+
+    return array_values(array_filter(array_map('trim', explode(',', $value)), static fn (string $item): bool => $item !== ''));
+}
+
+function slugify(string $value): string
+{
+    $value = trim(mb_strtolower($value));
+    $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+    if (is_string($transliterated)) {
+        $value = $transliterated;
+    }
+    $value = preg_replace('/[^a-z0-9]+/i', '-', $value) ?? '';
+    $value = trim($value, '-');
+    return $value !== '' ? $value : 'item';
+}
+
+function category_to_client(array $category): array
 {
     return [
-        'id' => $product['id'],
-        'name' => $product['name'],
-        'slug' => $product['slug'],
-        'description' => $product['description'],
-        'price' => (float) $product['price'],
-        'salePrice' => $product['sale_price'] !== null ? (float) $product['sale_price'] : null,
-        'category' => $product['category_name'],
-        'images' => json_decode($product['images_json'] ?? '[]', true) ?: [],
-        'sizes' => json_decode($product['sizes_json'] ?? '[]', true) ?: [],
-        'colors' => json_decode($product['colors_json'] ?? '[]', true) ?: [],
-        'tags' => json_decode($product['tags_json'] ?? '[]', true) ?: [],
-        'stock' => (int) $product['stock'],
-        'isNew' => (bool) $product['is_new'],
-        'isFeatured' => (bool) $product['is_featured'],
+        'id' => (string) $category['id'],
+        'name' => (string) $category['name'],
+        'slug' => (string) $category['slug'],
+        'imageUrl' => (string) $category['imageUrl'],
     ];
 }
 
-function get_products(): array
+function product_to_client(array $product): array
 {
-    if (database_mode() === 'mysql') {
-        $statement = db()->query(
-            'SELECT p.*, c.name AS category_name
-             FROM products p
-             INNER JOIN categories c ON c.id = p.category_id
-             WHERE p.is_active = 1
-             ORDER BY p.is_featured DESC, p.created_at DESC'
-        );
-        return array_map('format_product', $statement->fetchAll());
-    }
+    return [
+        'id' => (string) $product['id'],
+        'name' => (string) $product['name'],
+        'slug' => (string) $product['slug'],
+        'description' => (string) $product['description'],
+        'price' => (float) $product['price'],
+        'salePrice' => $product['salePrice'] !== null ? (float) $product['salePrice'] : null,
+        'category' => (string) $product['category'],
+        'categoryId' => (string) $product['categoryId'],
+        'images' => array_values($product['images']),
+        'sizes' => array_values($product['sizes']),
+        'colors' => array_values($product['colors']),
+        'tags' => array_values($product['tags']),
+        'stock' => (int) $product['stock'],
+        'isNew' => (bool) $product['isNew'],
+        'isFeatured' => (bool) $product['isFeatured'],
+        'isActive' => (bool) $product['isActive'],
+        'createdAt' => (string) $product['createdAt'],
+    ];
+}
 
-    $store = read_json_store();
-    $products = array_values(array_filter($store['products'] ?? [], static fn (array $product): bool => ($product['isActive'] ?? true) !== false));
-    usort($products, static function (array $a, array $b): int {
-        return ((int) ($b['isFeatured'] ?? false) <=> (int) ($a['isFeatured'] ?? false))
-            ?: strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? ''));
-    });
+function order_item_to_client(array $item): array
+{
+    return [
+        'productId' => (string) $item['productId'],
+        'productName' => (string) $item['productName'],
+        'price' => (float) $item['price'],
+        'quantity' => (int) $item['quantity'],
+        'selectedSize' => $item['selectedSize'] !== null ? (string) $item['selectedSize'] : null,
+        'selectedColor' => $item['selectedColor'] !== null ? (string) $item['selectedColor'] : null,
+    ];
+}
 
-    return array_map(static function (array $product): array {
-        unset($product['isActive'], $product['createdAt']);
-        $product['salePrice'] = $product['salePrice'] ?? null;
-        $product['isNew'] = (bool) ($product['isNew'] ?? false);
-        $product['isFeatured'] = (bool) ($product['isFeatured'] ?? false);
-        return $product;
-    }, $products);
+function order_to_client(array $order, array $items = []): array
+{
+    return [
+        'id' => (int) $order['id'],
+        'orderNumber' => (string) $order['order_number'],
+        'customerName' => (string) $order['customer_name'],
+        'customerEmail' => (string) $order['customer_email'],
+        'address' => (string) $order['address'],
+        'city' => (string) $order['city'],
+        'zip' => (string) $order['zip'],
+        'status' => (string) $order['status'],
+        'paymentStatus' => (string) $order['payment_status'],
+        'total' => (float) $order['total'],
+        'createdAt' => (string) $order['created_at'],
+        'cancellationReason' => $order['cancellation_reason'] !== null ? (string) $order['cancellation_reason'] : null,
+        'refundAmount' => $order['refund_amount'] !== null ? (float) $order['refund_amount'] : null,
+        'cancelledAt' => $order['cancelled_at'] !== null ? (string) $order['cancelled_at'] : null,
+        'items' => array_map('order_item_to_client', $items),
+    ];
+}
+
+function admin_user_to_client(array $user): array
+{
+    return [
+        'id' => (int) $user['id'],
+        'email' => (string) $user['email'],
+        'name' => (string) $user['name'],
+        'role' => (string) $user['role'],
+    ];
+}
+
+function format_product_row(array $row): array
+{
+    return [
+        'id' => $row['id'],
+        'name' => $row['name'],
+        'slug' => $row['slug'],
+        'description' => $row['description'],
+        'price' => (float) $row['price'],
+        'salePrice' => $row['sale_price'] !== null ? (float) $row['sale_price'] : null,
+        'category' => $row['category_name'],
+        'categoryId' => $row['category_id'],
+        'images' => json_decode($row['images_json'] ?? '[]', true) ?: [],
+        'sizes' => json_decode($row['sizes_json'] ?? '[]', true) ?: [],
+        'colors' => json_decode($row['colors_json'] ?? '[]', true) ?: [],
+        'tags' => json_decode($row['tags_json'] ?? '[]', true) ?: [],
+        'stock' => (int) $row['stock'],
+        'isNew' => (bool) $row['is_new'],
+        'isFeatured' => (bool) $row['is_featured'],
+        'isActive' => (bool) $row['is_active'],
+        'createdAt' => (string) $row['created_at'],
+    ];
 }
 
 function get_categories(): array
 {
     if (database_mode() === 'mysql') {
         $rows = db()->query('SELECT id, name, slug, image_url FROM categories ORDER BY name ASC')->fetchAll();
-        return array_map(static fn (array $row): array => [
+        return array_map(static fn (array $row): array => category_to_client([
             'id' => $row['id'],
             'name' => $row['name'],
             'slug' => $row['slug'],
             'imageUrl' => $row['image_url'],
-        ], $rows);
+        ]), $rows);
     }
 
-    $categories = read_json_store()['categories'] ?? [];
+    $categories = array_map('category_to_client', read_json_store()['categories']);
     usort($categories, static fn (array $a, array $b): int => strcmp($a['name'], $b['name']));
     return $categories;
+}
+
+function get_admin_products(bool $includeInactive = true): array
+{
+    if (database_mode() === 'mysql') {
+        $sql = 'SELECT p.*, c.name AS category_name FROM products p INNER JOIN categories c ON c.id = p.category_id';
+        if (!$includeInactive) {
+            $sql .= ' WHERE p.is_active = 1';
+        }
+        $sql .= ' ORDER BY p.is_featured DESC, p.created_at DESC';
+        $rows = db()->query($sql)->fetchAll();
+        return array_map(static fn (array $row): array => product_to_client(format_product_row($row)), $rows);
+    }
+
+    $store = read_json_store();
+    $categoriesByName = [];
+    foreach ($store['categories'] as $category) {
+        $categoriesByName[$category['name']] = $category['id'];
+        $categoriesByName[$category['id']] = $category['id'];
+    }
+
+    $products = [];
+    foreach ($store['products'] as $product) {
+        $isActive = ($product['isActive'] ?? true) !== false;
+        if (!$includeInactive && !$isActive) {
+            continue;
+        }
+
+        $products[] = product_to_client([
+            'id' => $product['id'],
+            'name' => $product['name'],
+            'slug' => $product['slug'],
+            'description' => $product['description'],
+            'price' => (float) $product['price'],
+            'salePrice' => $product['salePrice'] ?? null,
+            'category' => $product['category'],
+            'categoryId' => $categoriesByName[$product['category']] ?? ($product['categoryId'] ?? ''),
+            'images' => $product['images'] ?? [],
+            'sizes' => $product['sizes'] ?? [],
+            'colors' => $product['colors'] ?? [],
+            'tags' => $product['tags'] ?? [],
+            'stock' => (int) ($product['stock'] ?? 0),
+            'isNew' => (bool) ($product['isNew'] ?? false),
+            'isFeatured' => (bool) ($product['isFeatured'] ?? false),
+            'isActive' => $isActive,
+            'createdAt' => $product['createdAt'] ?? (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+        ]);
+    }
+
+    usort($products, static fn (array $a, array $b): int => ((int) $b['isFeatured'] <=> (int) $a['isFeatured']) ?: strcmp($b['createdAt'], $a['createdAt']));
+    return $products;
+}
+
+function get_products(): array
+{
+    return get_admin_products(false);
 }
 
 function get_settings(): array
 {
     if (database_mode() === 'mysql') {
         $settings = db()->query('SELECT * FROM store_settings WHERE id = 1 LIMIT 1')->fetch();
+        if (!$settings) {
+            return [
+                'hero' => ['title' => '', 'subtitle' => '', 'imageUrl' => ''],
+                'banners' => [],
+                'aboutText' => '',
+                'contactEmail' => '',
+            ];
+        }
+
         $banners = db()->query(
             'SELECT b.*, c.name AS category_name
              FROM banners b
@@ -234,41 +381,97 @@ function get_settings(): array
                 'subtitle' => $banner['subtitle'],
                 'buttonText' => $banner['button_text'],
                 'imageUrl' => $banner['image_url'],
-                'categoryLink' => $banner['category_name'],
+                'categoryLink' => $banner['category_name'] ?? '',
             ], $banners),
             'aboutText' => $settings['about_text'],
             'contactEmail' => $settings['contact_email'],
         ];
     }
 
-    return read_json_store()['settings'] ?? [];
+    return read_json_store()['settings'];
+}
+
+function get_order_items_map(): array
+{
+    if (database_mode() === 'mysql') {
+        $rows = db()->query('SELECT order_id, product_id, product_name, price, quantity, selected_size, selected_color FROM order_items ORDER BY id ASC')->fetchAll();
+        $map = [];
+        foreach ($rows as $row) {
+            $orderId = (int) $row['order_id'];
+            $map[$orderId] ??= [];
+            $map[$orderId][] = [
+                'productId' => $row['product_id'],
+                'productName' => $row['product_name'],
+                'price' => (float) $row['price'],
+                'quantity' => (int) $row['quantity'],
+                'selectedSize' => $row['selected_size'],
+                'selectedColor' => $row['selected_color'],
+            ];
+        }
+        return $map;
+    }
+
+    $map = [];
+    foreach (read_json_store()['orderItems'] as $item) {
+        $orderId = (int) $item['orderId'];
+        $map[$orderId] ??= [];
+        $map[$orderId][] = [
+            'productId' => $item['productId'],
+            'productName' => $item['productName'],
+            'price' => (float) $item['price'],
+            'quantity' => (int) $item['quantity'],
+            'selectedSize' => $item['selectedSize'] ?? null,
+            'selectedColor' => $item['selectedColor'] ?? null,
+        ];
+    }
+    return $map;
+}
+
+function get_admin_orders(): array
+{
+    if (database_mode() === 'mysql') {
+        $rows = db()->query('SELECT * FROM orders ORDER BY created_at DESC')->fetchAll();
+        $itemsMap = get_order_items_map();
+        return array_map(static fn (array $row): array => order_to_client($row, $itemsMap[(int) $row['id']] ?? []), $rows);
+    }
+
+    $store = read_json_store();
+    $itemsMap = get_order_items_map();
+    $orders = array_map(static fn (array $row): array => order_to_client($row, $itemsMap[(int) $row['id']] ?? []), $store['orders']);
+    usort($orders, static fn (array $a, array $b): int => strcmp($b['createdAt'], $a['createdAt']));
+    return $orders;
 }
 
 function get_orders(): array
 {
+    return array_map(static fn (array $order): array => [
+        'id' => $order['id'],
+        'order_number' => $order['orderNumber'],
+        'customer_name' => $order['customerName'],
+        'customer_email' => $order['customerEmail'],
+        'address' => $order['address'],
+        'city' => $order['city'],
+        'zip' => $order['zip'],
+        'status' => $order['status'],
+        'payment_status' => $order['paymentStatus'],
+        'total' => $order['total'],
+        'created_at' => $order['createdAt'],
+        'cancellation_reason' => $order['cancellationReason'],
+        'refund_amount' => $order['refundAmount'],
+        'cancelled_at' => $order['cancelledAt'],
+    ], get_admin_orders());
+}
+
+function get_admin_users(): array
+{
     if (database_mode() === 'mysql') {
-        $rows = db()->query('SELECT * FROM orders ORDER BY created_at DESC')->fetchAll();
-        return array_map(static fn (array $row): array => [
-            'id' => (int) $row['id'],
-            'order_number' => $row['order_number'],
-            'customer_name' => $row['customer_name'],
-            'customer_email' => $row['customer_email'],
-            'address' => $row['address'],
-            'city' => $row['city'],
-            'zip' => $row['zip'],
-            'status' => $row['status'],
-            'payment_status' => $row['payment_status'],
-            'total' => (float) $row['total'],
-            'created_at' => $row['created_at'],
-            'cancellation_reason' => $row['cancellation_reason'],
-            'refund_amount' => $row['refund_amount'] !== null ? (float) $row['refund_amount'] : null,
-            'cancelled_at' => $row['cancelled_at'],
-        ], $rows);
+        $rows = db()->query('SELECT id, email, name, role FROM admin_users ORDER BY created_at DESC, id DESC')->fetchAll();
+        return array_map('admin_user_to_client', $rows);
     }
 
-    $orders = read_json_store()['orders'] ?? [];
-    usort($orders, static fn (array $a, array $b): int => strcmp($b['created_at'], $a['created_at']));
-    return $orders;
+    $users = array_map('admin_user_to_client', read_json_store()['adminUsers']);
+    usort($users, static fn (array $a, array $b): int => $b['id'] <=> $a['id']);
+    return $users;
 }
 
 function format_currency(float $value): string
@@ -283,9 +486,9 @@ function build_reports(array $orders): array
         ['id' => 'pr-day', 'periodType' => 'day', 'periodLabel' => 'Día (Hoy)', 'start' => $now->setTime(0, 0)],
         ['id' => 'pr-week', 'periodType' => 'week', 'periodLabel' => 'Semana actual', 'start' => $now->modify('monday this week')->setTime(0, 0)],
         ['id' => 'pr-month', 'periodType' => 'month', 'periodLabel' => 'Mes actual', 'start' => $now->modify('first day of this month')->setTime(0, 0)],
-        ['id' => 'pr-bimester', 'periodType' => 'bimester', 'periodLabel' => 'Bimestre actual', 'start' => (new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $now->format('Y'), ((int) floor(((int) $now->format('n') - 1) / 2) * 2) + 1)))],
-        ['id' => 'pr-quarter', 'periodType' => 'quarter', 'periodLabel' => 'Trimestre actual', 'start' => (new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $now->format('Y'), ((int) floor(((int) $now->format('n') - 1) / 3) * 3) + 1)))],
-        ['id' => 'pr-semester', 'periodType' => 'semester', 'periodLabel' => 'Semestre actual', 'start' => (new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $now->format('Y'), (int) $now->format('n') < 7 ? 1 : 7)))],
+        ['id' => 'pr-bimester', 'periodType' => 'bimester', 'periodLabel' => 'Bimestre actual', 'start' => new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $now->format('Y'), ((int) floor(((int) $now->format('n') - 1) / 2) * 2) + 1))],
+        ['id' => 'pr-quarter', 'periodType' => 'quarter', 'periodLabel' => 'Trimestre actual', 'start' => new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $now->format('Y'), ((int) floor(((int) $now->format('n') - 1) / 3) * 3) + 1))],
+        ['id' => 'pr-semester', 'periodType' => 'semester', 'periodLabel' => 'Semestre actual', 'start' => new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $now->format('Y'), (int) $now->format('n') < 7 ? 1 : 7))],
         ['id' => 'pr-year', 'periodType' => 'year', 'periodLabel' => 'Año actual', 'start' => $now->setDate((int) $now->format('Y'), 1, 1)->setTime(0, 0)],
     ];
 
@@ -351,37 +554,614 @@ function get_bootstrap_payload(): array
     ];
 }
 
+function get_admin_snapshot(): array
+{
+    return [
+        'categories' => get_categories(),
+        'products' => get_admin_products(true),
+        'orders' => get_admin_orders(),
+        'adminUsers' => get_admin_users(),
+        'settings' => get_settings(),
+        'dashboard' => get_dashboard(),
+    ];
+}
+
 function login_admin(string $email, string $password): ?array
 {
     if (database_mode() === 'mysql') {
         $statement = db()->prepare('SELECT id, email, name, role FROM admin_users WHERE email = :email AND password = :password LIMIT 1');
         $statement->execute(['email' => $email, 'password' => $password]);
         $user = $statement->fetch();
-        if (!$user) {
-            return null;
-        }
-
-        return [
-            'id' => (int) $user['id'],
-            'email' => $user['email'],
-            'name' => $user['name'],
-            'role' => $user['role'],
-        ];
+        return $user ? admin_user_to_client($user) : null;
     }
 
-    $store = read_json_store();
-    foreach ($store['adminUsers'] ?? [] as $user) {
+    foreach (read_json_store()['adminUsers'] as $user) {
         if (($user['email'] ?? '') === $email && ($user['password'] ?? '') === $password) {
-            return [
-                'id' => (int) $user['id'],
-                'email' => $user['email'],
-                'name' => $user['name'],
-                'role' => $user['role'],
-            ];
+            return admin_user_to_client($user);
         }
     }
 
     return null;
+}
+
+function ensure_category_exists(string $categoryId): array
+{
+    foreach (get_categories() as $category) {
+        if ($category['id'] === $categoryId) {
+            return $category;
+        }
+    }
+
+    throw new RuntimeException('La categoría indicada no existe.');
+}
+
+function product_payload_to_record(array $payload, ?string $existingId = null): array
+{
+    $name = trim((string) ($payload['name'] ?? ''));
+    if ($name === '') {
+        throw new RuntimeException('El nombre del producto es obligatorio.');
+    }
+
+    $categoryId = trim((string) ($payload['categoryId'] ?? ''));
+    $category = ensure_category_exists($categoryId);
+    $id = trim((string) ($payload['id'] ?? $existingId ?? ''));
+    if ($id === '') {
+        throw new RuntimeException('El identificador del producto es obligatorio.');
+    }
+
+    return [
+        'id' => $id,
+        'name' => $name,
+        'slug' => trim((string) ($payload['slug'] ?? '')) ?: slugify($name),
+        'description' => trim((string) ($payload['description'] ?? '')),
+        'price' => (float) ($payload['price'] ?? 0),
+        'salePrice' => ($payload['salePrice'] ?? null) !== null && $payload['salePrice'] !== '' ? (float) $payload['salePrice'] : null,
+        'categoryId' => $category['id'],
+        'category' => $category['name'],
+        'images' => normalize_list($payload['images'] ?? []),
+        'sizes' => normalize_list($payload['sizes'] ?? []),
+        'colors' => normalize_list($payload['colors'] ?? []),
+        'tags' => normalize_list($payload['tags'] ?? []),
+        'stock' => max((int) ($payload['stock'] ?? 0), 0),
+        'isNew' => (bool) ($payload['isNew'] ?? false),
+        'isFeatured' => (bool) ($payload['isFeatured'] ?? false),
+        'isActive' => (bool) ($payload['isActive'] ?? true),
+        'createdAt' => (string) ($payload['createdAt'] ?? (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM)),
+    ];
+}
+
+function create_admin_product(array $payload): array
+{
+    $record = product_payload_to_record($payload);
+
+    if (database_mode() === 'mysql') {
+        $pdo = db();
+        $exists = $pdo->prepare('SELECT COUNT(*) FROM products WHERE id = :id OR slug = :slug');
+        $exists->execute(['id' => $record['id'], 'slug' => $record['slug']]);
+        if ((int) $exists->fetchColumn() > 0) {
+            throw new RuntimeException('Ya existe un producto con ese ID o slug.');
+        }
+
+        $statement = $pdo->prepare(
+            'INSERT INTO products (id, name, slug, description, price, sale_price, category_id, images_json, sizes_json, colors_json, tags_json, stock, is_new, is_featured, is_active, created_at, updated_at)
+             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at, CURRENT_TIMESTAMP)'
+        );
+        $statement->execute([
+            'id' => $record['id'],
+            'name' => $record['name'],
+            'slug' => $record['slug'],
+            'description' => $record['description'],
+            'price' => $record['price'],
+            'sale_price' => $record['salePrice'],
+            'category_id' => $record['categoryId'],
+            'images_json' => json_encode($record['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'sizes_json' => json_encode($record['sizes'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'colors_json' => json_encode($record['colors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'tags_json' => json_encode($record['tags'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'stock' => $record['stock'],
+            'is_new' => (int) $record['isNew'],
+            'is_featured' => (int) $record['isFeatured'],
+            'is_active' => (int) $record['isActive'],
+            'created_at' => $record['createdAt'],
+        ]);
+        return product_to_client($record);
+    }
+
+    $store = read_json_store();
+    foreach ($store['products'] as $product) {
+        if (($product['id'] ?? '') === $record['id'] || ($product['slug'] ?? '') === $record['slug']) {
+            throw new RuntimeException('Ya existe un producto con ese ID o slug.');
+        }
+    }
+
+    $store['products'][] = [
+        'id' => $record['id'],
+        'name' => $record['name'],
+        'slug' => $record['slug'],
+        'description' => $record['description'],
+        'price' => $record['price'],
+        'salePrice' => $record['salePrice'],
+        'category' => $record['category'],
+        'images' => $record['images'],
+        'sizes' => $record['sizes'],
+        'colors' => $record['colors'],
+        'tags' => $record['tags'],
+        'stock' => $record['stock'],
+        'isNew' => $record['isNew'],
+        'isFeatured' => $record['isFeatured'],
+        'isActive' => $record['isActive'],
+        'createdAt' => $record['createdAt'],
+    ];
+    write_json_store($store);
+
+    return product_to_client($record);
+}
+
+function update_admin_product(string $id, array $payload): array
+{
+    if (database_mode() === 'mysql') {
+        $statement = db()->prepare('SELECT created_at FROM products WHERE id = :id LIMIT 1');
+        $statement->execute(['id' => $id]);
+        $existing = $statement->fetch();
+        if (!$existing) {
+            throw new RuntimeException('Producto no encontrado.');
+        }
+
+        $record = product_payload_to_record([...$payload, 'id' => $id, 'createdAt' => $existing['created_at']], $id);
+        $conflict = db()->prepare('SELECT COUNT(*) FROM products WHERE slug = :slug AND id <> :id');
+        $conflict->execute(['slug' => $record['slug'], 'id' => $id]);
+        if ((int) $conflict->fetchColumn() > 0) {
+            throw new RuntimeException('Ya existe otro producto con ese slug.');
+        }
+
+        $update = db()->prepare(
+            'UPDATE products
+             SET name = :name, slug = :slug, description = :description, price = :price, sale_price = :sale_price, category_id = :category_id,
+                 images_json = :images_json, sizes_json = :sizes_json, colors_json = :colors_json, tags_json = :tags_json,
+                 stock = :stock, is_new = :is_new, is_featured = :is_featured, is_active = :is_active, updated_at = CURRENT_TIMESTAMP
+             WHERE id = :id'
+        );
+        $update->execute([
+            'id' => $id,
+            'name' => $record['name'],
+            'slug' => $record['slug'],
+            'description' => $record['description'],
+            'price' => $record['price'],
+            'sale_price' => $record['salePrice'],
+            'category_id' => $record['categoryId'],
+            'images_json' => json_encode($record['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'sizes_json' => json_encode($record['sizes'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'colors_json' => json_encode($record['colors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'tags_json' => json_encode($record['tags'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'stock' => $record['stock'],
+            'is_new' => (int) $record['isNew'],
+            'is_featured' => (int) $record['isFeatured'],
+            'is_active' => (int) $record['isActive'],
+        ]);
+        return product_to_client($record);
+    }
+
+    $store = read_json_store();
+    $found = false;
+    foreach ($store['products'] as $index => $product) {
+        if (($product['id'] ?? '') === $id) {
+            $found = true;
+            $record = product_payload_to_record([...$payload, 'id' => $id, 'createdAt' => $product['createdAt'] ?? null], $id);
+            foreach ($store['products'] as $candidate) {
+                if (($candidate['id'] ?? '') !== $id && ($candidate['slug'] ?? '') === $record['slug']) {
+                    throw new RuntimeException('Ya existe otro producto con ese slug.');
+                }
+            }
+            $store['products'][$index] = [
+                'id' => $record['id'],
+                'name' => $record['name'],
+                'slug' => $record['slug'],
+                'description' => $record['description'],
+                'price' => $record['price'],
+                'salePrice' => $record['salePrice'],
+                'category' => $record['category'],
+                'images' => $record['images'],
+                'sizes' => $record['sizes'],
+                'colors' => $record['colors'],
+                'tags' => $record['tags'],
+                'stock' => $record['stock'],
+                'isNew' => $record['isNew'],
+                'isFeatured' => $record['isFeatured'],
+                'isActive' => $record['isActive'],
+                'createdAt' => $record['createdAt'],
+            ];
+            write_json_store($store);
+            return product_to_client($record);
+        }
+    }
+
+    if (!$found) {
+        throw new RuntimeException('Producto no encontrado.');
+    }
+
+    throw new RuntimeException('No se pudo actualizar el producto.');
+}
+
+function delete_admin_product(string $id): void
+{
+    if (database_mode() === 'mysql') {
+        $count = db()->prepare('SELECT COUNT(*) FROM order_items WHERE product_id = :id');
+        $count->execute(['id' => $id]);
+        if ((int) $count->fetchColumn() > 0) {
+            throw new RuntimeException('No se puede eliminar un producto que ya pertenece a órdenes. Desactívalo en su lugar.');
+        }
+
+        $delete = db()->prepare('DELETE FROM products WHERE id = :id');
+        $delete->execute(['id' => $id]);
+        if ($delete->rowCount() === 0) {
+            throw new RuntimeException('Producto no encontrado.');
+        }
+        return;
+    }
+
+    $store = read_json_store();
+    foreach ($store['orderItems'] as $item) {
+        if (($item['productId'] ?? '') === $id) {
+            throw new RuntimeException('No se puede eliminar un producto que ya pertenece a órdenes. Desactívalo en su lugar.');
+        }
+    }
+
+    $before = count($store['products']);
+    $store['products'] = array_values(array_filter($store['products'], static fn (array $product): bool => ($product['id'] ?? '') !== $id));
+    if ($before === count($store['products'])) {
+        throw new RuntimeException('Producto no encontrado.');
+    }
+    write_json_store($store);
+}
+
+function category_payload_to_record(array $payload, ?string $existingId = null): array
+{
+    $name = trim((string) ($payload['name'] ?? ''));
+    if ($name === '') {
+        throw new RuntimeException('El nombre de la categoría es obligatorio.');
+    }
+
+    $id = trim((string) ($payload['id'] ?? $existingId ?? ''));
+    if ($id === '') {
+        throw new RuntimeException('El identificador de la categoría es obligatorio.');
+    }
+
+    return [
+        'id' => $id,
+        'name' => $name,
+        'slug' => trim((string) ($payload['slug'] ?? '')) ?: slugify($name),
+        'imageUrl' => trim((string) ($payload['imageUrl'] ?? '')),
+    ];
+}
+
+function create_admin_category(array $payload): array
+{
+    $record = category_payload_to_record($payload);
+
+    if (database_mode() === 'mysql') {
+        $exists = db()->prepare('SELECT COUNT(*) FROM categories WHERE id = :id OR slug = :slug OR name = :name');
+        $exists->execute(['id' => $record['id'], 'slug' => $record['slug'], 'name' => $record['name']]);
+        if ((int) $exists->fetchColumn() > 0) {
+            throw new RuntimeException('Ya existe una categoría con ese ID, nombre o slug.');
+        }
+
+        $insert = db()->prepare('INSERT INTO categories (id, name, slug, image_url) VALUES (:id, :name, :slug, :image_url)');
+        $insert->execute(['id' => $record['id'], 'name' => $record['name'], 'slug' => $record['slug'], 'image_url' => $record['imageUrl']]);
+        return category_to_client($record);
+    }
+
+    $store = read_json_store();
+    foreach ($store['categories'] as $category) {
+        if (($category['id'] ?? '') === $record['id'] || ($category['name'] ?? '') === $record['name'] || ($category['slug'] ?? '') === $record['slug']) {
+            throw new RuntimeException('Ya existe una categoría con ese ID, nombre o slug.');
+        }
+    }
+    $store['categories'][] = $record;
+    write_json_store($store);
+    return category_to_client($record);
+}
+
+function update_admin_category(string $id, array $payload): array
+{
+    $record = category_payload_to_record([...$payload, 'id' => $id], $id);
+
+    if (database_mode() === 'mysql') {
+        $exists = db()->prepare('SELECT COUNT(*) FROM categories WHERE id = :id');
+        $exists->execute(['id' => $id]);
+        if ((int) $exists->fetchColumn() === 0) {
+            throw new RuntimeException('Categoría no encontrada.');
+        }
+
+        $conflict = db()->prepare('SELECT COUNT(*) FROM categories WHERE id <> :id AND (slug = :slug OR name = :name)');
+        $conflict->execute(['id' => $id, 'slug' => $record['slug'], 'name' => $record['name']]);
+        if ((int) $conflict->fetchColumn() > 0) {
+            throw new RuntimeException('Ya existe otra categoría con ese nombre o slug.');
+        }
+
+        $update = db()->prepare('UPDATE categories SET name = :name, slug = :slug, image_url = :image_url WHERE id = :id');
+        $update->execute(['id' => $id, 'name' => $record['name'], 'slug' => $record['slug'], 'image_url' => $record['imageUrl']]);
+
+        $products = db()->prepare('UPDATE products SET category_id = :category_id WHERE category_id = :category_id');
+        $products->execute(['category_id' => $id]);
+
+        return category_to_client($record);
+    }
+
+    $store = read_json_store();
+    $found = false;
+    foreach ($store['categories'] as $index => $category) {
+        if (($category['id'] ?? '') === $id) {
+            $found = true;
+            foreach ($store['categories'] as $candidate) {
+                if (($candidate['id'] ?? '') !== $id && ((($candidate['name'] ?? '') === $record['name']) || (($candidate['slug'] ?? '') === $record['slug']))) {
+                    throw new RuntimeException('Ya existe otra categoría con ese nombre o slug.');
+                }
+            }
+            $previousName = $category['name'];
+            $store['categories'][$index] = $record;
+            foreach ($store['products'] as &$product) {
+                if (($product['category'] ?? '') === $previousName) {
+                    $product['category'] = $record['name'];
+                }
+            }
+            unset($product);
+            write_json_store($store);
+            return category_to_client($record);
+        }
+    }
+
+    if (!$found) {
+        throw new RuntimeException('Categoría no encontrada.');
+    }
+
+    throw new RuntimeException('No se pudo actualizar la categoría.');
+}
+
+function delete_admin_category(string $id): void
+{
+    if (database_mode() === 'mysql') {
+        $count = db()->prepare('SELECT COUNT(*) FROM products WHERE category_id = :id');
+        $count->execute(['id' => $id]);
+        if ((int) $count->fetchColumn() > 0) {
+            throw new RuntimeException('No se puede eliminar una categoría con productos asignados.');
+        }
+
+        $delete = db()->prepare('DELETE FROM categories WHERE id = :id');
+        $delete->execute(['id' => $id]);
+        if ($delete->rowCount() === 0) {
+            throw new RuntimeException('Categoría no encontrada.');
+        }
+        return;
+    }
+
+    $store = read_json_store();
+    $categoryName = null;
+    foreach ($store['categories'] as $category) {
+        if (($category['id'] ?? '') === $id) {
+            $categoryName = $category['name'];
+            break;
+        }
+    }
+    if ($categoryName === null) {
+        throw new RuntimeException('Categoría no encontrada.');
+    }
+    foreach ($store['products'] as $product) {
+        if (($product['category'] ?? '') === $categoryName) {
+            throw new RuntimeException('No se puede eliminar una categoría con productos asignados.');
+        }
+    }
+    $store['categories'] = array_values(array_filter($store['categories'], static fn (array $category): bool => ($category['id'] ?? '') !== $id));
+    write_json_store($store);
+}
+
+function create_admin_user(array $payload): array
+{
+    $email = trim((string) ($payload['email'] ?? ''));
+    $name = trim((string) ($payload['name'] ?? ''));
+    $role = trim((string) ($payload['role'] ?? 'admin')) ?: 'admin';
+    $password = (string) ($payload['password'] ?? '');
+
+    if ($email === '' || $name === '' || $password === '') {
+        throw new RuntimeException('Nombre, correo y contraseña son obligatorios.');
+    }
+
+    if (database_mode() === 'mysql') {
+        $exists = db()->prepare('SELECT COUNT(*) FROM admin_users WHERE email = :email');
+        $exists->execute(['email' => $email]);
+        if ((int) $exists->fetchColumn() > 0) {
+            throw new RuntimeException('Ya existe un administrador con ese correo.');
+        }
+
+        $insert = db()->prepare('INSERT INTO admin_users (email, password, name, role) VALUES (:email, :password, :name, :role)');
+        $insert->execute(['email' => $email, 'password' => $password, 'name' => $name, 'role' => $role]);
+        return ['id' => (int) db()->lastInsertId(), 'email' => $email, 'name' => $name, 'role' => $role];
+    }
+
+    $store = read_json_store();
+    foreach ($store['adminUsers'] as $user) {
+        if (($user['email'] ?? '') === $email) {
+            throw new RuntimeException('Ya existe un administrador con ese correo.');
+        }
+    }
+    $nextId = array_reduce($store['adminUsers'], static fn (int $max, array $user): int => max($max, (int) ($user['id'] ?? 0)), 0) + 1;
+    $store['adminUsers'][] = ['id' => $nextId, 'email' => $email, 'password' => $password, 'name' => $name, 'role' => $role];
+    write_json_store($store);
+    return ['id' => $nextId, 'email' => $email, 'name' => $name, 'role' => $role];
+}
+
+function update_admin_user(int $id, array $payload): array
+{
+    $email = trim((string) ($payload['email'] ?? ''));
+    $name = trim((string) ($payload['name'] ?? ''));
+    $role = trim((string) ($payload['role'] ?? 'admin')) ?: 'admin';
+    $password = array_key_exists('password', $payload) ? (string) $payload['password'] : null;
+
+    if ($email === '' || $name === '') {
+        throw new RuntimeException('Nombre y correo son obligatorios.');
+    }
+
+    if (database_mode() === 'mysql') {
+        $exists = db()->prepare('SELECT COUNT(*) FROM admin_users WHERE id = :id');
+        $exists->execute(['id' => $id]);
+        if ((int) $exists->fetchColumn() === 0) {
+            throw new RuntimeException('Administrador no encontrado.');
+        }
+
+        $conflict = db()->prepare('SELECT COUNT(*) FROM admin_users WHERE email = :email AND id <> :id');
+        $conflict->execute(['email' => $email, 'id' => $id]);
+        if ((int) $conflict->fetchColumn() > 0) {
+            throw new RuntimeException('Ya existe otro administrador con ese correo.');
+        }
+
+        if ($password !== null && trim($password) !== '') {
+            $update = db()->prepare('UPDATE admin_users SET email = :email, name = :name, role = :role, password = :password WHERE id = :id');
+            $update->execute(['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role, 'password' => $password]);
+        } else {
+            $update = db()->prepare('UPDATE admin_users SET email = :email, name = :name, role = :role WHERE id = :id');
+            $update->execute(['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role]);
+        }
+        return ['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role];
+    }
+
+    $store = read_json_store();
+    foreach ($store['adminUsers'] as $candidate) {
+        if ((int) ($candidate['id'] ?? 0) !== $id && ($candidate['email'] ?? '') === $email) {
+            throw new RuntimeException('Ya existe otro administrador con ese correo.');
+        }
+    }
+    foreach ($store['adminUsers'] as $index => $user) {
+        if ((int) ($user['id'] ?? 0) === $id) {
+            $store['adminUsers'][$index] = [
+                'id' => $id,
+                'email' => $email,
+                'password' => ($password !== null && trim($password) !== '') ? $password : ($user['password'] ?? ''),
+                'name' => $name,
+                'role' => $role,
+            ];
+            write_json_store($store);
+            return ['id' => $id, 'email' => $email, 'name' => $name, 'role' => $role];
+        }
+    }
+
+    throw new RuntimeException('Administrador no encontrado.');
+}
+
+function delete_admin_user(int $id): void
+{
+    if (count(get_admin_users()) <= 1) {
+        throw new RuntimeException('Debes conservar al menos un usuario administrador.');
+    }
+
+    if (database_mode() === 'mysql') {
+        $delete = db()->prepare('DELETE FROM admin_users WHERE id = :id');
+        $delete->execute(['id' => $id]);
+        if ($delete->rowCount() === 0) {
+            throw new RuntimeException('Administrador no encontrado.');
+        }
+        return;
+    }
+
+    $store = read_json_store();
+    $before = count($store['adminUsers']);
+    $store['adminUsers'] = array_values(array_filter($store['adminUsers'], static fn (array $user): bool => (int) ($user['id'] ?? 0) !== $id));
+    if ($before === count($store['adminUsers'])) {
+        throw new RuntimeException('Administrador no encontrado.');
+    }
+    if (count($store['adminUsers']) === 0) {
+        throw new RuntimeException('Debes conservar al menos un usuario administrador.');
+    }
+    write_json_store($store);
+}
+
+function update_admin_order(int $id, array $payload): array
+{
+    $status = trim((string) ($payload['status'] ?? ''));
+    $paymentStatus = trim((string) ($payload['paymentStatus'] ?? ''));
+    $cancellationReason = array_key_exists('cancellationReason', $payload) ? trim((string) $payload['cancellationReason']) : null;
+    $refundAmount = array_key_exists('refundAmount', $payload) && $payload['refundAmount'] !== null && $payload['refundAmount'] !== '' ? (float) $payload['refundAmount'] : null;
+    $cancelledAt = $status === 'cancelled' ? (string) ($payload['cancelledAt'] ?? (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM)) : null;
+
+    if ($status === '' || $paymentStatus === '') {
+        throw new RuntimeException('El estado de la orden y el estado del pago son obligatorios.');
+    }
+
+    if (database_mode() === 'mysql') {
+        $exists = db()->prepare('SELECT COUNT(*) FROM orders WHERE id = :id');
+        $exists->execute(['id' => $id]);
+        if ((int) $exists->fetchColumn() === 0) {
+            throw new RuntimeException('Orden no encontrada.');
+        }
+
+        $update = db()->prepare(
+            'UPDATE orders
+             SET status = :status, payment_status = :payment_status, cancellation_reason = :cancellation_reason, refund_amount = :refund_amount, cancelled_at = :cancelled_at
+             WHERE id = :id'
+        );
+        $update->execute([
+            'id' => $id,
+            'status' => $status,
+            'payment_status' => $paymentStatus,
+            'cancellation_reason' => $status === 'cancelled' ? ($cancellationReason ?: 'Cancelada desde administración') : null,
+            'refund_amount' => $status === 'cancelled' ? $refundAmount : null,
+            'cancelled_at' => $cancelledAt,
+        ]);
+
+        foreach (get_admin_orders() as $order) {
+            if ($order['id'] === $id) {
+                return $order;
+            }
+        }
+    }
+
+    $store = read_json_store();
+    foreach ($store['orders'] as $index => $order) {
+        if ((int) ($order['id'] ?? 0) === $id) {
+            $store['orders'][$index]['status'] = $status;
+            $store['orders'][$index]['payment_status'] = $paymentStatus;
+            $store['orders'][$index]['cancellation_reason'] = $status === 'cancelled' ? ($cancellationReason ?: 'Cancelada desde administración') : null;
+            $store['orders'][$index]['refund_amount'] = $status === 'cancelled' ? $refundAmount : null;
+            $store['orders'][$index]['cancelled_at'] = $cancelledAt;
+            write_json_store($store);
+            foreach (get_admin_orders() as $updatedOrder) {
+                if ($updatedOrder['id'] === $id) {
+                    return $updatedOrder;
+                }
+            }
+        }
+    }
+
+    throw new RuntimeException('Orden no encontrada.');
+}
+
+function delete_admin_order(int $id): void
+{
+    if (database_mode() === 'mysql') {
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $deleteItems = $pdo->prepare('DELETE FROM order_items WHERE order_id = :id');
+            $deleteItems->execute(['id' => $id]);
+            $delete = $pdo->prepare('DELETE FROM orders WHERE id = :id');
+            $delete->execute(['id' => $id]);
+            if ($delete->rowCount() === 0) {
+                throw new RuntimeException('Orden no encontrada.');
+            }
+            $pdo->commit();
+            return;
+        } catch (Throwable $exception) {
+            $pdo->rollBack();
+            throw $exception;
+        }
+    }
+
+    $store = read_json_store();
+    $before = count($store['orders']);
+    $store['orders'] = array_values(array_filter($store['orders'], static fn (array $order): bool => (int) ($order['id'] ?? 0) !== $id));
+    if ($before === count($store['orders'])) {
+        throw new RuntimeException('Orden no encontrada.');
+    }
+    $store['orderItems'] = array_values(array_filter($store['orderItems'], static fn (array $item): bool => (int) ($item['orderId'] ?? 0) !== $id));
+    write_json_store($store);
 }
 
 function create_order(array $payload): array
@@ -440,7 +1220,7 @@ function create_order(array $payload): array
     }
 
     $store = read_json_store();
-    $currentMaxId = array_reduce($store['orders'] ?? [], static fn (int $max, array $order): int => max($max, (int) $order['id']), 0);
+    $currentMaxId = array_reduce($store['orders'], static fn (int $max, array $order): int => max($max, (int) $order['id']), 0);
     $nextId = $currentMaxId + 1;
     $orderNumber = sprintf('DR-%s-%05d', (new DateTimeImmutable('now'))->format('Y'), $nextId);
     $store['orders'][] = [
@@ -489,10 +1269,20 @@ function category_id_by_name(?string $name): ?string
         return null;
     }
 
-    $statement = db()->prepare('SELECT id FROM categories WHERE name = :name LIMIT 1');
-    $statement->execute(['name' => $name]);
-    $categoryId = $statement->fetchColumn();
-    return $categoryId === false ? null : (string) $categoryId;
+    foreach (get_categories() as $category) {
+        if ($category['name'] === $name || $category['id'] === $name) {
+            return $category['id'];
+        }
+    }
+
+    if (database_mode() === 'mysql') {
+        $statement = db()->prepare('SELECT id FROM categories WHERE name = :name LIMIT 1');
+        $statement->execute(['name' => $name]);
+        $categoryId = $statement->fetchColumn();
+        return $categoryId === false ? null : (string) $categoryId;
+    }
+
+    return null;
 }
 
 function save_store_settings(array $payload): array
@@ -565,18 +1355,48 @@ function swagger_spec(): array
         'openapi' => '3.0.3',
         'info' => [
             'title' => 'Dark Ranch Local API',
-            'version' => '1.0.0',
-            'description' => 'API local para Dark Ranch con soporte para JSON o MySQL (XAMPP).',
+            'version' => '2.0.0',
+            'description' => 'API local para Dark Ranch con CRUD completo de administración, dashboard operativo y soporte para JSON o MySQL (XAMPP).',
         ],
         'servers' => [[
             'url' => sprintf('%s://%s', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http', $_SERVER['HTTP_HOST'] ?? 'localhost:3001'),
         ]],
         'paths' => [
             '/api/health' => ['get' => ['summary' => 'Estado del API', 'responses' => ['200' => ['description' => 'OK']]]],
-            '/api/bootstrap' => ['get' => ['summary' => 'Carga inicial de tienda y dashboard', 'responses' => ['200' => ['description' => 'Bootstrap data']]]],
+            '/api/bootstrap' => ['get' => ['summary' => 'Carga inicial de tienda y dashboard público', 'responses' => ['200' => ['description' => 'Bootstrap data']]]],
             '/api/login' => ['post' => ['summary' => 'Login de administrador', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Login correcto'], '401' => ['description' => 'Credenciales inválidas']]]],
             '/api/orders' => ['post' => ['summary' => 'Crear orden', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Orden creada']]]],
             '/api/settings' => ['put' => ['summary' => 'Actualizar settings', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Settings actualizados']]]],
+            '/api/admin/snapshot' => ['get' => ['summary' => 'Dashboard y recursos completos del admin', 'responses' => ['200' => ['description' => 'Snapshot completo']]]],
+            '/api/admin/products' => [
+                'get' => ['summary' => 'Listar productos del admin', 'responses' => ['200' => ['description' => 'Lista de productos']]],
+                'post' => ['summary' => 'Crear producto', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Producto creado']]],
+            ],
+            '/api/admin/products/{id}' => [
+                'put' => ['summary' => 'Actualizar producto', 'responses' => ['200' => ['description' => 'Producto actualizado']]],
+                'delete' => ['summary' => 'Eliminar producto', 'responses' => ['200' => ['description' => 'Producto eliminado']]],
+            ],
+            '/api/admin/categories' => [
+                'get' => ['summary' => 'Listar categorías', 'responses' => ['200' => ['description' => 'Lista de categorías']]],
+                'post' => ['summary' => 'Crear categoría', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Categoría creada']]],
+            ],
+            '/api/admin/categories/{id}' => [
+                'put' => ['summary' => 'Actualizar categoría', 'responses' => ['200' => ['description' => 'Categoría actualizada']]],
+                'delete' => ['summary' => 'Eliminar categoría', 'responses' => ['200' => ['description' => 'Categoría eliminada']]],
+            ],
+            '/api/admin/orders' => ['get' => ['summary' => 'Listar órdenes completas', 'responses' => ['200' => ['description' => 'Lista de órdenes']]]],
+            '/api/admin/orders/{id}' => [
+                'put' => ['summary' => 'Actualizar orden', 'responses' => ['200' => ['description' => 'Orden actualizada']]],
+                'delete' => ['summary' => 'Eliminar orden', 'responses' => ['200' => ['description' => 'Orden eliminada']]],
+            ],
+            '/api/admin/users' => [
+                'get' => ['summary' => 'Listar administradores', 'responses' => ['200' => ['description' => 'Lista de usuarios admin']]],
+                'post' => ['summary' => 'Crear administrador', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Administrador creado']]],
+            ],
+            '/api/admin/users/{id}' => [
+                'put' => ['summary' => 'Actualizar administrador', 'responses' => ['200' => ['description' => 'Administrador actualizado']]],
+                'delete' => ['summary' => 'Eliminar administrador', 'responses' => ['200' => ['description' => 'Administrador eliminado']]],
+            ],
         ],
     ];
 }
@@ -631,8 +1451,8 @@ try {
             'docs' => '/api/docs',
         ];
         if (database_mode() === 'mysql') {
-            $payload['mysql'] = ['connected' => true];
             db();
+            $payload['mysql'] = ['connected' => true];
         } else {
             $payload['jsonFile'] = basename(data_store_path());
         }
@@ -641,6 +1461,26 @@ try {
 
     if ($method === 'GET' && $path === '/api/bootstrap') {
         json_response(200, get_bootstrap_payload());
+    }
+
+    if ($method === 'GET' && $path === '/api/admin/snapshot') {
+        json_response(200, get_admin_snapshot());
+    }
+
+    if ($method === 'GET' && $path === '/api/admin/products') {
+        json_response(200, ['products' => get_admin_products(true)]);
+    }
+
+    if ($method === 'GET' && $path === '/api/admin/categories') {
+        json_response(200, ['categories' => get_categories()]);
+    }
+
+    if ($method === 'GET' && $path === '/api/admin/orders') {
+        json_response(200, ['orders' => get_admin_orders()]);
+    }
+
+    if ($method === 'GET' && $path === '/api/admin/users') {
+        json_response(200, ['adminUsers' => get_admin_users()]);
     }
 
     if ($method === 'POST' && $path === '/api/login') {
@@ -666,6 +1506,65 @@ try {
         $body = read_json_body();
         $settings = save_store_settings($body);
         json_response(200, ['settings' => $settings]);
+    }
+
+    if ($method === 'POST' && $path === '/api/admin/products') {
+        $product = create_admin_product(read_json_body());
+        json_response(201, ['product' => $product]);
+    }
+
+    if (preg_match('#^/api/admin/products/([^/]+)$#', $path, $matches) === 1) {
+        $productId = urldecode($matches[1]);
+        if ($method === 'PUT') {
+            json_response(200, ['product' => update_admin_product($productId, read_json_body())]);
+        }
+        if ($method === 'DELETE') {
+            delete_admin_product($productId);
+            json_response(200, ['ok' => true]);
+        }
+    }
+
+    if ($method === 'POST' && $path === '/api/admin/categories') {
+        $category = create_admin_category(read_json_body());
+        json_response(201, ['category' => $category]);
+    }
+
+    if (preg_match('#^/api/admin/categories/([^/]+)$#', $path, $matches) === 1) {
+        $categoryId = urldecode($matches[1]);
+        if ($method === 'PUT') {
+            json_response(200, ['category' => update_admin_category($categoryId, read_json_body())]);
+        }
+        if ($method === 'DELETE') {
+            delete_admin_category($categoryId);
+            json_response(200, ['ok' => true]);
+        }
+    }
+
+    if (preg_match('#^/api/admin/orders/(\d+)$#', $path, $matches) === 1) {
+        $orderId = (int) $matches[1];
+        if ($method === 'PUT') {
+            json_response(200, ['order' => update_admin_order($orderId, read_json_body())]);
+        }
+        if ($method === 'DELETE') {
+            delete_admin_order($orderId);
+            json_response(200, ['ok' => true]);
+        }
+    }
+
+    if ($method === 'POST' && $path === '/api/admin/users') {
+        $adminUser = create_admin_user(read_json_body());
+        json_response(201, ['adminUser' => $adminUser]);
+    }
+
+    if (preg_match('#^/api/admin/users/(\d+)$#', $path, $matches) === 1) {
+        $userId = (int) $matches[1];
+        if ($method === 'PUT') {
+            json_response(200, ['adminUser' => update_admin_user($userId, read_json_body())]);
+        }
+        if ($method === 'DELETE') {
+            delete_admin_user($userId);
+            json_response(200, ['ok' => true]);
+        }
     }
 
     json_response(404, ['message' => sprintf('Ruta no encontrada: %s %s', $method, $path)]);

@@ -283,11 +283,20 @@ const App = () => {
       case 'admin':
         return isAdmin ? (
           <AdminDashboard
-            settings={storeSettings}
-            products={bootstrap.products}
-            categories={bootstrap.categories}
-            dashboard={bootstrap.dashboard}
-            onSettingsSaved={(settings) => setBootstrap({ ...bootstrap, settings })}
+            initialSnapshot={{
+              categories: bootstrap.categories,
+              products: bootstrap.products,
+              orders: [],
+              adminUsers: [],
+              settings: storeSettings,
+              dashboard: bootstrap.dashboard,
+            }}
+            onSnapshotUpdated={(nextSnapshot) => setBootstrap({
+              categories: nextSnapshot.categories,
+              products: nextSnapshot.products.filter((product) => product.isActive !== false),
+              settings: nextSnapshot.settings,
+              dashboard: nextSnapshot.dashboard,
+            })}
           />
         ) : <LoginPage onLogin={handleLogin} />;
       default:
