@@ -11,10 +11,34 @@ import {
   StoreSettings,
 } from '../types';
 
+function getAdminHeaders(): HeadersInit {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  const rawUser = window.localStorage.getItem('dark-ranch-admin-user');
+  if (!rawUser) {
+    return {};
+  }
+
+  try {
+    const user = JSON.parse(rawUser) as { id?: number; name?: string; email?: string; role?: string };
+    return {
+      ...(user.id ? { 'X-Admin-Actor-Id': String(user.id) } : {}),
+      ...(user.name ? { 'X-Admin-Actor-Name': user.name } : {}),
+      ...(user.email ? { 'X-Admin-Actor-Email': user.email } : {}),
+      ...(user.role ? { 'X-Admin-Actor-Role': user.role } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
       'Content-Type': 'application/json',
+      ...getAdminHeaders(),
       ...(init?.headers || {}),
     },
     ...init,

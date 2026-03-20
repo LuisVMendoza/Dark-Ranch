@@ -9,7 +9,7 @@ import { CheckoutPage } from './components/checkout';
 import { LoginPage } from './components/auth';
 import { AboutPage, ContactPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
-import { BootstrapData, StoreSettings } from './types';
+import { AdminUser, BootstrapData, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
 import { ArrowRight, RefreshCw, Filter, Search, ShieldCheck, Truck } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'motion/react';
@@ -21,6 +21,7 @@ const App = () => {
   const [currentView, setCurrentView] = useState<View>('home');
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
@@ -46,6 +47,21 @@ const App = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    try {
+      const rawAdminUser = localStorage.getItem('dark-ranch-admin-user');
+      if (!rawAdminUser) return;
+      const parsedAdminUser = JSON.parse(rawAdminUser) as AdminUser;
+      if (parsedAdminUser?.id) {
+        setAdminUser(parsedAdminUser);
+        setIsAdmin(true);
+      }
+    } catch {
+      localStorage.removeItem('dark-ranch-admin-user');
+    }
+  }, []);
+
+
   const filteredProducts = useMemo(() => {
     if (!bootstrap) return [];
     return bootstrap.products.filter((product) => {
@@ -62,9 +78,10 @@ const App = () => {
 
   const storeSettings: StoreSettings | null = bootstrap?.settings ?? null;
 
-  const handleLogin = (isAdminUser: boolean) => {
-    setIsAdmin(isAdminUser);
-    setCurrentView(isAdminUser ? 'admin' : 'home');
+  const handleLogin = (user: AdminUser | null) => {
+    setAdminUser(user);
+    setIsAdmin(Boolean(user));
+    setCurrentView(user ? 'admin' : 'home');
   };
 
   const navigateToCategory = (categoryName: string) => {
@@ -288,9 +305,11 @@ const App = () => {
               products: bootstrap.products,
               orders: [],
               adminUsers: [],
+              activityLogs: [],
               settings: storeSettings,
               dashboard: bootstrap.dashboard,
             }}
+            currentAdminUser={adminUser}
             onSnapshotUpdated={(nextSnapshot) => setBootstrap({
               categories: nextSnapshot.categories,
               products: nextSnapshot.products.filter((product) => product.isActive !== false),
