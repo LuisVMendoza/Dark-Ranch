@@ -176,6 +176,41 @@ function slugify(string $value): string
     return $value !== '' ? $value : 'item';
 }
 
+function next_incremental_id(array $ids, string $prefix): string
+{
+    $max = 0;
+
+    foreach ($ids as $id) {
+        if (preg_match('/^' . preg_quote($prefix, '/') . '(\d+)$/', (string) $id, $matches) === 1) {
+            $max = max($max, (int) $matches[1]);
+        }
+    }
+
+    return $prefix . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT);
+}
+
+function generate_product_id(): string
+{
+    if (database_mode() === 'mysql') {
+        $ids = db()->query('SELECT id FROM products')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        return next_incremental_id($ids, 'dr-');
+    }
+
+    $store = read_json_store();
+    return next_incremental_id(array_column($store['products'] ?? [], 'id'), 'dr-');
+}
+
+function generate_category_id(): string
+{
+    if (database_mode() === 'mysql') {
+        $ids = db()->query('SELECT id FROM categories')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        return next_incremental_id($ids, 'cat-');
+    }
+
+    $store = read_json_store();
+    return next_incremental_id(array_column($store['categories'] ?? [], 'id'), 'cat-');
+}
+
 function category_to_client(array $category): array
 {
     return [
@@ -606,7 +641,11 @@ function product_payload_to_record(array $payload, ?string $existingId = null): 
     $category = ensure_category_exists($categoryId);
     $id = trim((string) ($payload['id'] ?? $existingId ?? ''));
     if ($id === '') {
-        throw new RuntimeException('El identificador del producto es obligatorio.');
+        if ($existingId !== null) {
+            throw new RuntimeException('El identificador del producto es obligatorio.');
+        }
+
+        $id = generate_product_id();
     }
 
     return [
@@ -823,7 +862,11 @@ function category_payload_to_record(array $payload, ?string $existingId = null):
 
     $id = trim((string) ($payload['id'] ?? $existingId ?? ''));
     if ($id === '') {
-        throw new RuntimeException('El identificador de la categoría es obligatorio.');
+        if ($existingId !== null) {
+            throw new RuntimeException('El identificador de la categoría es obligatorio.');
+        }
+
+        $id = generate_category_id();
     }
 
     return [
