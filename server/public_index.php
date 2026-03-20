@@ -320,111 +320,70 @@ function next_activity_log_id_json(array $store): int
     return array_reduce($store['activityLogs'] ?? [], static fn (int $max, array $log): int => max($max, (int) ($log['id'] ?? 0)), 0) + 1;
 }
 
-function ensure_activity_log_table_mysql(): void
+function log_activity(string $action, string $entityType, string $entityId, string $entityName, string $details): void
 {
-    static $ensured = false;
+    $actor = current_actor_from_request();
+    $createdAt = (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
 
-    if ($ensured || database_mode() !== 'mysql') {
+    if (database_mode() === 'mysql') {
+        $insert = db()->prepare(
+            'INSERT INTO admin_activity_logs (actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, entity_name, details, created_at)
+             VALUES (:actor_id, :actor_name, :actor_email, :actor_role, :action, :entity_type, :entity_id, :entity_name, :details, :created_at)'
+        );
+        $insert->execute([
+            'actor_id' => $actor['id'],
+            'actor_name' => $actor['name'],
+            'actor_email' => $actor['email'],
+            'actor_role' => $actor['role'],
+            'action' => $action,
+            'entity_type' => $entityType,
+            'entity_id' => $entityId,
+            'entity_name' => $entityName,
+            'details' => $details,
+            'created_at' => $createdAt,
+        ]);
         return;
     }
 
-    db()->exec(
-        'CREATE TABLE IF NOT EXISTS admin_activity_logs (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            actor_id INT NULL,
-            actor_name VARCHAR(150) NOT NULL,
-            actor_email VARCHAR(150) NOT NULL,
-            actor_role VARCHAR(50) NOT NULL,
-            action VARCHAR(60) NOT NULL,
-            entity_type VARCHAR(60) NOT NULL,
-            entity_id VARCHAR(80) NOT NULL,
-            entity_name VARCHAR(180) NOT NULL,
-            details TEXT NOT NULL,
-            created_at VARCHAR(40) NOT NULL,
-            INDEX idx_admin_activity_created_at (created_at),
-            INDEX idx_admin_activity_actor (actor_email)
-        ) ENGINE=InnoDB'
-    );
-
-    $ensured = true;
-}
-
-function log_activity(string $action, string $entityType, string $entityId, string $entityName, string $details): void
-{
-    try {
-        $actor = current_actor_from_request();
-        $createdAt = (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
-
-        if (database_mode() === 'mysql') {
-            ensure_activity_log_table_mysql();
-
-            $insert = db()->prepare(
-                'INSERT INTO admin_activity_logs (actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, entity_name, details, created_at)
-                 VALUES (:actor_id, :actor_name, :actor_email, :actor_role, :action, :entity_type, :entity_id, :entity_name, :details, :created_at)'
-            );
-            $insert->execute([
-                'actor_id' => $actor['id'],
-                'actor_name' => $actor['name'],
-                'actor_email' => $actor['email'],
-                'actor_role' => $actor['role'],
-                'action' => $action,
-                'entity_type' => $entityType,
-                'entity_id' => $entityId,
-                'entity_name' => $entityName,
-                'details' => $details,
-                'created_at' => $createdAt,
-            ]);
-            return;
-        }
-
-        $store = read_json_store();
-        $store['activityLogs'][] = [
-            'id' => next_activity_log_id_json($store),
-            'actorId' => $actor['id'],
-            'actorName' => $actor['name'],
-            'actorEmail' => $actor['email'],
-            'actorRole' => $actor['role'],
-            'action' => $action,
-            'entityType' => $entityType,
-            'entityId' => $entityId,
-            'entityName' => $entityName,
-            'details' => $details,
-            'createdAt' => $createdAt,
-        ];
-        write_json_store($store);
-    } catch (Throwable $exception) {
-        error_log('[Dark Ranch] No se pudo registrar activity log: ' . $exception->getMessage());
-    }
+    $store = read_json_store();
+    $store['activityLogs'][] = [
+        'id' => next_activity_log_id_json($store),
+        'actorId' => $actor['id'],
+        'actorName' => $actor['name'],
+        'actorEmail' => $actor['email'],
+        'actorRole' => $actor['role'],
+        'action' => $action,
+        'entityType' => $entityType,
+        'entityId' => $entityId,
+        'entityName' => $entityName,
+        'details' => $details,
+        'createdAt' => $createdAt,
+    ];
+    write_json_store($store);
 }
 
 function get_activity_logs(): array
 {
-    try {
-        if (database_mode() === 'mysql') {
-            ensure_activity_log_table_mysql();
-            $rows = db()->query('SELECT id, actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, entity_name, details, created_at FROM admin_activity_logs ORDER BY created_at DESC, id DESC')->fetchAll();
-            return array_map(static fn (array $row): array => activity_log_to_client([
-                'id' => (int) $row['id'],
-                'actorId' => $row['actor_id'] !== null ? (int) $row['actor_id'] : null,
-                'actorName' => $row['actor_name'],
-                'actorEmail' => $row['actor_email'],
-                'actorRole' => $row['actor_role'],
-                'action' => $row['action'],
-                'entityType' => $row['entity_type'],
-                'entityId' => $row['entity_id'],
-                'entityName' => $row['entity_name'],
-                'details' => $row['details'],
-                'createdAt' => $row['created_at'],
-            ]), $rows);
-        }
-
-        $logs = array_map('activity_log_to_client', read_json_store()['activityLogs']);
-        usort($logs, static fn (array $a, array $b): int => strcmp($b['createdAt'], $a['createdAt']));
-        return $logs;
-    } catch (Throwable $exception) {
-        error_log('[Dark Ranch] No se pudo leer activity logs: ' . $exception->getMessage());
-        return [];
+    if (database_mode() === 'mysql') {
+        $rows = db()->query('SELECT id, actor_id, actor_name, actor_email, actor_role, action, entity_type, entity_id, entity_name, details, created_at FROM admin_activity_logs ORDER BY created_at DESC, id DESC')->fetchAll();
+        return array_map(static fn (array $row): array => activity_log_to_client([
+            'id' => (int) $row['id'],
+            'actorId' => $row['actor_id'] !== null ? (int) $row['actor_id'] : null,
+            'actorName' => $row['actor_name'],
+            'actorEmail' => $row['actor_email'],
+            'actorRole' => $row['actor_role'],
+            'action' => $row['action'],
+            'entityType' => $row['entity_type'],
+            'entityId' => $row['entity_id'],
+            'entityName' => $row['entity_name'],
+            'details' => $row['details'],
+            'createdAt' => $row['created_at'],
+        ]), $rows);
     }
+
+    $logs = array_map('activity_log_to_client', read_json_store()['activityLogs']);
+    usort($logs, static fn (array $a, array $b): int => strcmp($b['createdAt'], $a['createdAt']));
+    return $logs;
 }
 
 function format_product_row(array $row): array
