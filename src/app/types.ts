@@ -4,8 +4,9 @@ export interface Product {
   slug: string;
   description: string;
   price: number;
-  salePrice?: number;
+  salePrice?: number | null;
   category: string;
+  categoryId?: string;
   images: string[];
   sizes: string[];
   colors: string[];
@@ -13,6 +14,8 @@ export interface Product {
   tags: string[];
   isNew?: boolean;
   isFeatured?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface Category {
@@ -108,4 +111,86 @@ export interface CheckoutPayload {
     selectedSize?: string;
     selectedColor?: string;
   }>;
+}
+
+export interface AdminOrderItem {
+  productId: string;
+  productName: string;
+  price: number;
+  quantity: number;
+  selectedSize?: string | null;
+  selectedColor?: string | null;
+}
+
+export interface AdminOrder {
+  id: number;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  address: string;
+  city: string;
+  zip: string;
+  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  total: number;
+  createdAt: string;
+  cancellationReason?: string | null;
+  refundAmount?: number | null;
+  cancelledAt?: string | null;
+  items: AdminOrderItem[];
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+}
+
+export interface AdminSnapshot {
+  categories: Category[];
+  products: Product[];
+  orders: AdminOrder[];
+  adminUsers: AdminUser[];
+  settings: StoreSettings;
+  dashboard: DashboardData;
+}
+
+export interface AdminProductPayload {
+  id: string;
+  name: string;
+  slug?: string;
+  description: string;
+  price: number;
+  salePrice?: number | null;
+  categoryId: string;
+  images: string[];
+  sizes: string[];
+  colors: string[];
+  tags: string[];
+  stock: number;
+  isNew: boolean;
+  isFeatured: boolean;
+  isActive: boolean;
+}
+
+export interface AdminCategoryPayload {
+  id: string;
+  name: string;
+  slug?: string;
+  imageUrl: string;
+}
+
+export interface AdminUserPayload {
+  email: string;
+  name: string;
+  role: string;
+  password?: string;
+}
+
+export interface AdminOrderUpdatePayload {
+  status: AdminOrder['status'];
+  paymentStatus: AdminOrder['paymentStatus'];
+  cancellationReason?: string;
+  refundAmount?: number | null;
 }
