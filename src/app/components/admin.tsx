@@ -818,80 +818,111 @@ export const AdminDashboard = ({
             )}
 
             {activeTab === 'team' && (
-              <PaperCard>
-                <div className="flex items-center justify-between gap-4 mb-6">
+              <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8">
+                <PaperCard>
+                  <div className="flex items-center justify-between gap-4 mb-6">
+                    <div>
+                      <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Permisos</p>
+                      <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
+                    </div>
+                    <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
+                  </div>
+                  <div className="mb-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="border-2 border-black bg-white p-4">
+                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500">Política de eliminación</p>
+                      <p className="mt-3 text-sm text-neutral-700 leading-relaxed">
+                        Se listan todas las cuentas con su rol. Solo las cuentas con rol <span className="font-header font-black uppercase">admin</span> pueden borrar otras cuentas, y nunca su propia sesión.
+                      </p>
+                    </div>
+                    <div className="border-2 border-black bg-[#1f130b] p-4 text-white">
+                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#d4c5b3]">Tu capacidad actual</p>
+                      <p className="mt-3 font-header font-black uppercase text-lg">{canManageTeam ? 'Puedes administrar y borrar otras cuentas' : 'Solo puedes consultar cuentas y roles'}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    {snapshot.adminUsers.map((user) => (
+                      <div key={user.id} className="border-2 border-black bg-white p-4 space-y-4">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                          <div className="space-y-3">
+                            <div>
+                              <p className="font-header font-black uppercase text-lg">{user.name}</p>
+                              <p className="text-sm text-neutral-600">{user.email}</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center border-2 border-black bg-[#fcf9f5] px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em]">
+                                Rol: {user.role}
+                              </span>
+                              {currentAdminUser?.id === user.id && (
+                                <span className="inline-flex items-center border-2 border-[#8c6844] bg-[#f4eadf] px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em] text-[#8c6844]">
+                                  Cuenta actual
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)}>Editar</Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!canManageTeam || currentAdminUser?.id === user.id}
+                              onClick={() => setDeleteTarget({ entityType: 'user', entityId: user.id, entityName: user.name })}
+                            >
+                              Eliminar
+                            </Button>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500 mb-3">Permisos actuales</p>
+                          <div className="flex flex-wrap gap-2">
+                            {getPermissionsForRole(user.role).map((permission) => (
+                              <span key={`${user.id}-${permission}`} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
+                                {permission}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </PaperCard>
+
+                <PaperCard>
                   <div>
                     <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Cuentas</p>
                     <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
                   </div>
-                  <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
-                </div>
-                <div className="overflow-x-auto border-2 border-black bg-white">
-                  <table className="w-full text-left min-w-[980px]">
-                    <thead className="bg-neutral-100 border-b-2 border-black font-header uppercase text-[10px] tracking-[0.2em]">
-                      <tr>
-                        <th className="px-4 py-3">Cuenta</th>
-                        <th className="px-4 py-3">Correo</th>
-                        <th className="px-4 py-3">Rol</th>
-                        <th className="px-4 py-3">Permisos</th>
-                        <th className="px-4 py-3">Estado</th>
-                        <th className="px-4 py-3">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-200">
-                      {snapshot.adminUsers.map((user) => (
-                        <tr key={user.id}>
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-header font-black uppercase text-sm">{user.name}</p>
-                              <p className="text-[11px] text-neutral-500">ID: {user.id}</p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-neutral-700">{user.email}</td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center border-2 border-black bg-[#fcf9f5] px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em]">
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-2">
-                              {getPermissionsForRole(user.role).map((permission) => (
-                                <span key={`${user.id}-${permission}`} className="px-2 py-1 text-[10px] font-header uppercase border border-black bg-[#fcf9f5]">
-                                  {permission}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            {currentAdminUser?.id === user.id ? (
-                              <span className="inline-flex items-center border-2 border-[#8c6844] bg-[#f4eadf] px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em] text-[#8c6844]">
-                                Cuenta actual
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center border-2 border-black bg-white px-3 py-1 text-[11px] font-header font-black uppercase tracking-[0.2em]">
-                                Activa
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)}>Editar</Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={!canManageTeam || currentAdminUser?.id === user.id}
-                                onClick={() => setDeleteTarget({ entityType: 'user', entityId: user.id, entityName: user.name })}
-                              >
-                                Eliminar
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </PaperCard>
+                  <div className="mt-6 border-2 border-black bg-white p-5 space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Nombre</p>
+                      <p className="font-header font-black text-xl mt-1">{currentAdminUser?.name || 'Sin sesión'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Correo</p>
+                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.email || 'No disponible'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Rol</p>
+                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.role || 'No disponible'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción de borrado</p>
+                      <p className="text-sm text-neutral-700 mt-1">
+                        {canManageTeam ? 'Puedes borrar otras cuentas listadas en el equipo.' : 'Tu rol no puede borrar cuentas; solo un admin puede hacerlo.'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-3">Permisos aplicados</p>
+                      <div className="flex flex-wrap gap-2">
+                        {getPermissionsForRole(currentAdminUser?.role || 'guest').map((permission) => (
+                          <span key={permission} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
+                            {permission}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </PaperCard>
+              </div>
             )}
 
             {activeTab === 'activity' && (
