@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Minus, Plus, Trash2, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useCart } from '../cart-context';
 import { Button, cn } from './ui';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+import { ImageWithFallback } from './common/ImageWithFallback';
 import { motion as Motion, AnimatePresence } from 'motion/react';
 
 export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, onClose: () => void, onCheckout: () => void }) => {

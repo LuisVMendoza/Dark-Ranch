@@ -1,6 +1,6 @@
 import React from 'react';
 import { SectionTitle, PaperCard, Button, OrnateBorder, LOGO_CIRCULAR } from './ui';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+import { ImageWithFallback } from './common/ImageWithFallback';
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
 
 export const AboutPage = ({ text }: { text: string }) => (
