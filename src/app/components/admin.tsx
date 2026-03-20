@@ -4,9 +4,11 @@ import {
   ArrowLeft,
   Boxes,
   DollarSign,
+  Eye,
   Package,
   Pencil,
   Plus,
+  Printer,
   Save,
   Settings,
   ShieldCheck,
@@ -101,6 +103,22 @@ const serializeList = (list: string[]) => list.join(', ');
 const statCardClass = 'bg-white border-2 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]';
 const INPUT_CLASS = 'w-full border-2 border-black bg-white px-3 py-3 outline-none focus:bg-[#fffdfa]';
 
+const statusBadgeClassMap: Record<AdminOrder['status'], string> = {
+  pending: 'border-[#b7791f] bg-[#fff7e6] text-[#8a5a12]',
+  paid: 'border-[#2563eb] bg-[#eff6ff] text-[#1d4ed8]',
+  shipped: 'border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]',
+  delivered: 'border-[#15803d] bg-[#f0fdf4] text-[#166534]',
+  cancelled: 'border-[#b91c1c] bg-[#fef2f2] text-[#991b1b]',
+  refunded: 'border-[#374151] bg-[#f3f4f6] text-[#1f2937]',
+};
+
+const paymentBadgeClassMap: Record<AdminOrder['paymentStatus'], string> = {
+  pending: 'border-[#b7791f] bg-[#fff7e6] text-[#8a5a12]',
+  paid: 'border-[#15803d] bg-[#f0fdf4] text-[#166534]',
+  failed: 'border-[#b91c1c] bg-[#fef2f2] text-[#991b1b]',
+  refunded: 'border-[#374151] bg-[#f3f4f6] text-[#1f2937]',
+};
+
 const humanizeAction = (action: string) => {
   const labels: Record<string, string> = {
     login: 'Inicio de sesión',
@@ -130,6 +148,25 @@ const humanizeEntity = (entityType: string) => {
 };
 
 const getPermissionsForRole = (role: string) => ROLE_PERMISSIONS[role] || ['Acceso básico'];
+const formatOrderStatus = (status: AdminOrder['status']) => ({
+  pending: 'Pendiente',
+  paid: 'Pagada',
+  shipped: 'Enviada',
+  delivered: 'Entregada',
+  cancelled: 'Cancelada',
+  refunded: 'Reembolsada',
+}[status]);
+const formatPaymentStatus = (status: AdminOrder['paymentStatus']) => ({
+  pending: 'Pendiente',
+  paid: 'Pagado',
+  failed: 'Fallido',
+  refunded: 'Reembolsado',
+}[status]);
+const renderBadge = (label: string, className: string) => (
+  <span className={cn('inline-flex items-center border px-2.5 py-1 text-[11px] font-header font-black uppercase tracking-[0.18em]', className)}>
+    {label}
+  </span>
+);
 
 export const AdminDashboard = ({
   initialSnapshot,
@@ -164,12 +201,14 @@ export const AdminDashboard = ({
 
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialSnapshot.orders[0]?.id ?? null);
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
 
   useEffect(() => {
     setSnapshot(initialSnapshot);
     setSettingsForm(initialSnapshot.settings);
+    setSelectedOrderId(initialSnapshot.orders[0]?.id ?? null);
   }, [initialSnapshot]);
 
   useEffect(() => {
@@ -190,6 +229,7 @@ export const AdminDashboard = ({
       setSnapshot(next);
       setSettingsForm(next.settings);
       setOrderDrafts({});
+      setSelectedOrderId((current) => next.orders.some((order) => order.id === current) ? current : next.orders[0]?.id ?? null);
       onSnapshotUpdated(next);
       if (successMessage) toast.success(successMessage);
     } catch (error) {
@@ -235,6 +275,10 @@ export const AdminDashboard = ({
   );
 
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
+  const selectedOrder = useMemo(
+    () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? snapshot.orders[0] ?? null,
+    [selectedOrderId, snapshot.orders],
+  );
 
   const resetProductForm = () => {
     setEditingProductId(null);
@@ -417,6 +461,151 @@ export const AdminDashboard = ({
       setIsDeleting(false);
     }
   };
+
+  const printShippingLabel = (order: AdminOrder) => {
+    if (typeof window === 'undefined') return;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      toast.error('No se pudo abrir la ventana de impresión.');
+      return;
+    }
+
+    const itemLines = order.items
+      .map((item) => `${item.productName} x ${item.quantity}${item.selectedSize ? ` · Talla ${item.selectedSize}` : ''}${item.selectedColor ? ` · Color ${item.selectedColor}` : ''}`)
+      .join('<br />');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Etiqueta ${order.orderNumber}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              font-family: Arial, sans-serif;
+              color: #111;
+              background: #fff;
+            }
+            .sheet {
+              width: 102mm;
+              min-height: 152mm;
+              margin: 0 auto;
+              padding: 12mm 10mm;
+              border: 2px solid #111;
+              display: grid;
+              gap: 10px;
+            }
+            .brand, .section-title, .meta-label {
+              text-transform: uppercase;
+              letter-spacing: 0.18em;
+              font-size: 10px;
+              font-weight: 700;
+            }
+            .order-number {
+              font-size: 22px;
+              font-weight: 700;
+              margin: 4px 0 0;
+            }
+            .recipient {
+              font-size: 24px;
+              font-weight: 700;
+              line-height: 1.15;
+              margin: 0;
+            }
+            .address {
+              font-size: 18px;
+              line-height: 1.4;
+              margin: 0;
+            }
+            .box {
+              border: 1.5px solid #111;
+              padding: 10px;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 8px;
+            }
+            .meta-value {
+              font-size: 15px;
+              font-weight: 700;
+              margin-top: 4px;
+            }
+            .items {
+              font-size: 13px;
+              line-height: 1.5;
+            }
+            @media print {
+              body { padding: 0; }
+              .sheet { border-width: 2px; }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="sheet">
+            <section>
+              <div class="brand">Dark Ranch · Etiqueta de envío</div>
+              <p class="order-number">${order.orderNumber}</p>
+            </section>
+
+            <section class="box">
+              <div class="section-title">Destinatario</div>
+              <p class="recipient">${order.customerName}</p>
+              <p class="address">${order.address}<br />${order.city}, ${order.zip}</p>
+            </section>
+
+            <section class="grid">
+              <div class="box">
+                <div class="meta-label">Estatus orden</div>
+                <div class="meta-value">${formatOrderStatus(order.status)}</div>
+              </div>
+              <div class="box">
+                <div class="meta-label">Pago</div>
+                <div class="meta-value">${formatPaymentStatus(order.paymentStatus)}</div>
+              </div>
+              <div class="box">
+                <div class="meta-label">Correo</div>
+                <div class="meta-value">${order.customerEmail}</div>
+              </div>
+              <div class="box">
+                <div class="meta-label">Total</div>
+                <div class="meta-value">${currency.format(order.total)}</div>
+              </div>
+            </section>
+
+            <section class="box">
+              <div class="section-title">Contenido</div>
+              <div class="items">${itemLines}</div>
+            </section>
+
+            <section class="box">
+              <div class="meta-label">Preparado</div>
+              <div style="height: 48px; border-bottom: 1px solid #111; margin-top: 12px;"></div>
+            </section>
+          </main>
+          <script>
+            window.onload = () => {
+              window.print();
+              window.onafterprint = () => window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const selectedOrderDraft = selectedOrder
+    ? orderDrafts[selectedOrder.id] || {
+      status: selectedOrder.status,
+      paymentStatus: selectedOrder.paymentStatus,
+      cancellationReason: selectedOrder.cancellationReason || '',
+      refundAmount: selectedOrder.refundAmount ?? null,
+    }
+    : null;
 
   const saveOrder = async (orderId: number) => {
     const draft = orderDrafts[orderId];
@@ -746,73 +935,160 @@ export const AdminDashboard = ({
                     <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Postventa</p>
                     <h2 className="font-western uppercase text-3xl">Gestión de órdenes</h2>
                   </div>
+                  <div className="text-right">
+                    <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500">Órdenes registradas</p>
+                    <p className="font-header font-black text-2xl">{snapshot.orders.length}</p>
+                  </div>
                 </div>
                 <div className="space-y-5">
-                  {snapshot.orders.map((order) => {
-                    const draft = orderDrafts[order.id] || {
-                      status: order.status,
-                      paymentStatus: order.paymentStatus,
-                      cancellationReason: order.cancellationReason || '',
-                      refundAmount: order.refundAmount ?? null,
-                    };
-                    return (
-                      <div key={order.id} className="border-2 border-black bg-white p-5 space-y-4">
-                        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                          <div>
-                            <p className="font-header font-black text-lg">{order.orderNumber}</p>
-                            <p className="text-sm text-neutral-600">{order.customerName} · {order.customerEmail}</p>
-                            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mt-1">{new Date(order.createdAt).toLocaleString()}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-header font-black text-2xl">{currency.format(order.total)}</p>
-                            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">{order.items.length} item(s)</p>
-                          </div>
-                        </div>
-
-                        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-                          <Field label="Estado orden">
-                            <select value={draft.status} onChange={(e) => setOrderDrafts((current) => ({ ...current, [order.id]: { ...draft, status: e.target.value as AdminOrder['status'] } }))} className={INPUT_CLASS}>
-                              {ORDER_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
-                            </select>
-                          </Field>
-                          <Field label="Estado pago">
-                            <select value={draft.paymentStatus} onChange={(e) => setOrderDrafts((current) => ({ ...current, [order.id]: { ...draft, paymentStatus: e.target.value as AdminOrder['paymentStatus'] } }))} className={INPUT_CLASS}>
-                              {PAYMENT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
-                            </select>
-                          </Field>
-                          <Field label="Motivo cancelación">
-                            <input value={draft.cancellationReason || ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [order.id]: { ...draft, cancellationReason: e.target.value } }))} className={INPUT_CLASS} />
-                          </Field>
-                          <Field label="Reembolso">
-                            <input type="number" step="0.01" min="0" value={draft.refundAmount ?? ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [order.id]: { ...draft, refundAmount: e.target.value === '' ? null : Number(e.target.value) } }))} className={INPUT_CLASS} />
-                          </Field>
-                        </div>
-
-                        <div className="border-2 border-dashed border-neutral-300 p-4 bg-[#fcf9f5]">
-                          <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500 mb-3">Detalle</p>
-                          <div className="space-y-2 text-sm text-neutral-700">
-                            {order.items.map((item, index) => (
-                              <div key={`${order.id}-${item.productId}-${index}`} className="flex items-center justify-between gap-4">
-                                <span>{item.productName} × {item.quantity}</span>
-                                <span>{currency.format(item.price * item.quantity)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3 justify-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setDeleteTarget({ entityType: 'order', entityId: order.id, entityName: order.orderNumber })}
-                          >
-                            <Trash2 size={14} className="mr-2" /> Eliminar
-                          </Button>
-                          <Button size="sm" onClick={() => saveOrder(order.id)}><Save size={14} className="mr-2" /> Guardar</Button>
+                  {snapshot.orders.length === 0 ? (
+                    <div className="border-2 border-dashed border-black bg-white p-8 text-center">
+                      <p className="font-header font-black uppercase text-lg">Sin órdenes registradas</p>
+                      <p className="mt-2 text-sm text-neutral-600">Cuando se generen compras aparecerán aquí para seguimiento y postventa.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-hidden border-2 border-black bg-white">
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-[#1f130b] text-white">
+                              <tr className="text-left">
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em]">Orden</th>
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em]">Cliente</th>
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em]">Estatus</th>
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em]">Pago</th>
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em]">Fecha</th>
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em] text-right">Total</th>
+                                <th className="px-4 py-3 font-header uppercase tracking-[0.2em] text-right">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {snapshot.orders.map((order) => (
+                                <tr
+                                  key={order.id}
+                                  className={cn(
+                                    'border-t-2 border-black align-top transition-colors',
+                                    selectedOrder?.id === order.id ? 'bg-[#f4eadf]' : 'bg-white hover:bg-[#fcf9f5]',
+                                  )}
+                                >
+                                  <td className="px-4 py-4">
+                                    <p className="font-header font-black">{order.orderNumber}</p>
+                                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">{order.items.length} artículo(s)</p>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <p className="font-medium text-neutral-900">{order.customerName}</p>
+                                    <p className="mt-1 text-neutral-600">{order.customerEmail}</p>
+                                    <p className="mt-1 text-xs text-neutral-500">{order.city}, {order.zip}</p>
+                                  </td>
+                                  <td className="px-4 py-4">{renderBadge(formatOrderStatus(order.status), statusBadgeClassMap[order.status])}</td>
+                                  <td className="px-4 py-4">{renderBadge(formatPaymentStatus(order.paymentStatus), paymentBadgeClassMap[order.paymentStatus])}</td>
+                                  <td className="px-4 py-4 text-neutral-700">{new Date(order.createdAt).toLocaleString()}</td>
+                                  <td className="px-4 py-4 text-right font-header font-black">{currency.format(order.total)}</td>
+                                  <td className="px-4 py-4">
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                      <Button size="sm" variant="outline" onClick={() => setSelectedOrderId(order.id)}>
+                                        <Eye size={14} className="mr-2" /> Ver
+                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={() => printShippingLabel(order)}>
+                                        <Printer size={14} className="mr-2" /> Imprimir
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
-                    );
-                  })}
+
+                      {selectedOrder && selectedOrderDraft && (
+                        <div className="border-2 border-black bg-white p-5 space-y-5">
+                          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                            <div>
+                              <p className="font-header uppercase text-xs tracking-[0.2em] text-[#8c6844]">Orden seleccionada</p>
+                              <h3 className="font-western uppercase text-2xl">{selectedOrder.orderNumber}</h3>
+                              <p className="text-sm text-neutral-600 mt-2">{selectedOrder.customerName} · {selectedOrder.customerEmail}</p>
+                              <p className="text-sm text-neutral-600">{selectedOrder.address}, {selectedOrder.city}, {selectedOrder.zip}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {renderBadge(formatOrderStatus(selectedOrder.status), statusBadgeClassMap[selectedOrder.status])}
+                              {renderBadge(formatPaymentStatus(selectedOrder.paymentStatus), paymentBadgeClassMap[selectedOrder.paymentStatus])}
+                            </div>
+                          </div>
+
+                          <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-5">
+                            <div className="border-2 border-dashed border-neutral-300 p-4 bg-[#fcf9f5]">
+                              <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500 mb-3">Contenido de la orden</p>
+                              <div className="space-y-2 text-sm text-neutral-700">
+                                {selectedOrder.items.map((item, index) => (
+                                  <div key={`${selectedOrder.id}-${item.productId}-${index}`} className="flex items-center justify-between gap-4 border-b border-dashed border-neutral-300 pb-2 last:border-b-0 last:pb-0">
+                                    <div>
+                                      <p>{item.productName} × {item.quantity}</p>
+                                      {(item.selectedSize || item.selectedColor) && (
+                                        <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                                          {item.selectedSize ? `Talla ${item.selectedSize}` : ''}
+                                          {item.selectedSize && item.selectedColor ? ' · ' : ''}
+                                          {item.selectedColor ? `Color ${item.selectedColor}` : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <span>{currency.format(item.price * item.quantity)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="border-2 border-black p-4 bg-[#fffdfa] space-y-3">
+                              <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500">Formato para embalaje</p>
+                              <div className="border-2 border-black p-4 bg-white space-y-2">
+                                <p className="font-header uppercase text-[11px] tracking-[0.2em] text-neutral-500">Destinatario</p>
+                                <p className="font-header font-black text-lg">{selectedOrder.customerName}</p>
+                                <p className="text-sm text-neutral-700">{selectedOrder.address}</p>
+                                <p className="text-sm text-neutral-700">{selectedOrder.city}, {selectedOrder.zip}</p>
+                                <p className="text-sm text-neutral-700">{selectedOrder.customerEmail}</p>
+                              </div>
+                              <Button className="w-full" onClick={() => printShippingLabel(selectedOrder)}>
+                                <Printer size={16} className="mr-2" /> Imprimir etiqueta de envío
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+                            <Field label="Estado orden">
+                              <select value={selectedOrderDraft.status} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, status: e.target.value as AdminOrder['status'] } }))} className={INPUT_CLASS}>
+                                {ORDER_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{formatOrderStatus(status)}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Estado pago">
+                              <select value={selectedOrderDraft.paymentStatus} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, paymentStatus: e.target.value as AdminOrder['paymentStatus'] } }))} className={INPUT_CLASS}>
+                                {PAYMENT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{formatPaymentStatus(status)}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Motivo cancelación">
+                              <input value={selectedOrderDraft.cancellationReason || ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, cancellationReason: e.target.value } }))} className={INPUT_CLASS} />
+                            </Field>
+                            <Field label="Reembolso">
+                              <input type="number" step="0.01" min="0" value={selectedOrderDraft.refundAmount ?? ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, refundAmount: e.target.value === '' ? null : Number(e.target.value) } }))} className={INPUT_CLASS} />
+                            </Field>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3 justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDeleteTarget({ entityType: 'order', entityId: selectedOrder.id, entityName: selectedOrder.orderNumber })}
+                            >
+                              <Trash2 size={14} className="mr-2" /> Eliminar
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => printShippingLabel(selectedOrder)}>
+                              <Printer size={14} className="mr-2" /> Imprimir formato
+                            </Button>
+                            <Button size="sm" onClick={() => saveOrder(selectedOrder.id)}><Save size={14} className="mr-2" /> Guardar</Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </PaperCard>
             )}
