@@ -1,10 +1,51 @@
 ## Running the code
 
-Dark Ranch now uses a **local JSON data store** persisted at `local-data/dark-ranch.json` and a small local API server exposed from `server/index.mjs`.
+Dark Ranch now ships with a **PHP local API** that can work in two modes:
 
-### Development
+- **`DB_CONNECTION=json`** for quick offline/local testing using `local-data/dark-ranch.json`
+- **`DB_CONNECTION=mysql`** to work with **XAMPP + MySQL** before deploying to hosting
 
-Run the app and the local API together (works on Windows, macOS, and Linux without WSL):
+The API also exposes Swagger UI at `http://localhost:3001/api/docs`.
+
+### 1. Configure local environment
+
+Copy the example env file and adjust it as needed:
+
+```bash
+cp .env.example .env
+```
+
+If you want to use XAMPP/MySQL, use values like these in `.env`:
+
+```env
+API_PORT=3001
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=dark_ranch
+DB_USERNAME=root
+DB_PASSWORD=
+DB_CHARSET=utf8mb4
+```
+
+If you only want to keep using the local JSON file, change:
+
+```env
+DB_CONNECTION=json
+```
+
+### 2. Prepare MySQL in XAMPP
+
+1. Start **Apache** and **MySQL** from XAMPP.
+2. Open **phpMyAdmin**.
+3. Run `server/schema.sql`.
+4. Then run `server/seed.sql`.
+
+That creates the same catalog, settings, admin user, and demo orders that the front-end expects.
+
+### 3. Development
+
+Run the app and the local API together:
 
 ```bash
 npm run dev
@@ -12,18 +53,17 @@ npm run dev
 
 This command starts:
 
-- the local API on `http://localhost:3001`
+- the PHP API on `http://localhost:3001`
+- Swagger UI on `http://localhost:3001/api/docs`
 - the Vite app on its default port
 
-### API only
-
-If you only want the local data/API layer:
+### 4. API only
 
 ```bash
 npm run api
 ```
 
-### Production build
+### 5. Production build
 
 ```bash
 npm run build
@@ -36,6 +76,8 @@ Use these credentials to access the admin panel connected to the local database:
 - **Email:** `admin@darkranch.com`
 - **Password:** `admin123`
 
-## Notes for Windows
+## Local notes for XAMPP
 
-The development script no longer depends on `bash` or WSL. You can run `npm run dev` directly from PowerShell or Command Prompt without installing extra Unix tooling.
+- If port `3306` is busy, update `DB_PORT` in `.env`.
+- If your hosting later uses MySQL, this setup helps you keep the same relational structure locally.
+- If you want to test endpoints manually, open Swagger and execute requests from there.
