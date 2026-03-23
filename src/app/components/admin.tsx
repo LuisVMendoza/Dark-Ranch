@@ -102,6 +102,15 @@ const parseTags = (value: string) => value.split(',').map((item) => item.trim())
 const serializeList = (list: string[]) => list.join(', ');
 const statCardClass = 'bg-white border-2 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]';
 const INPUT_CLASS = 'w-full border-2 border-black bg-white px-3 py-3 outline-none focus:bg-[#fffdfa]';
+const generateProductSlug = (value: string) => value
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .replace(/\s+/g, '_')
+  .replace(/[^a-z0-9_]/g, '')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '');
 
 const statusBadgeClassMap: Record<AdminOrder['status'], string> = {
   pending: 'border-[#b7791f] bg-[#fff7e6] text-[#8a5a12]',
@@ -1287,11 +1296,11 @@ export const AdminDashboard = ({
           </main>
 
           <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
-            <DialogContent className="flex h-[min(94vh,980px)] w-[min(96vw,88rem)] max-w-[88rem] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-              <div className="border-b-2 border-black bg-white px-5 py-5 sm:px-8 sm:py-6">
+            <DialogContent className="flex h-[min(94vh,980px)] w-[min(98vw,110rem)] max-w-[110rem] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+              <div className="border-b-2 border-black bg-white px-5 py-4 sm:px-8 sm:py-5">
                 <DialogHeader className="gap-3 text-left">
                   <DialogTitle className="font-western uppercase text-2xl text-black sm:text-3xl">{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
-                  <DialogDescription className="max-w-3xl text-sm text-neutral-600">Ahora el modal usa una estructura fija con cabecera y acciones persistentes, mientras el contenido se desplaza por secciones para que ningún campo ni botón quede fuera de pantalla.</DialogDescription>
+                  <DialogDescription className="text-sm text-neutral-600">Formulario optimizado para capturar todo el producto sin que el contenido se vea apretado.</DialogDescription>
                 </DialogHeader>
               </div>
               <div className="min-h-0 flex-1">
@@ -1413,19 +1422,18 @@ const ProductFormFields = ({
 }) => (
   <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col">
     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)]">
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,0.85fr)]">
         <div className="space-y-5">
-          <section className="border-2 border-black bg-white p-4 sm:p-5 space-y-4">
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Información principal</p>
-                <h3 className="mt-2 font-western text-xl uppercase sm:text-2xl">Base del producto</h3>
+                <h3 className="font-western text-xl uppercase sm:text-2xl">Datos básicos</h3>
               </div>
               <span className="inline-flex w-fit items-center border-2 border-black bg-[#fcf9f5] px-3 py-2 text-[11px] font-header font-black uppercase tracking-[0.2em]">
                 {isEditing ? 'Modo edición' : 'Alta de producto'}
               </span>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
               <Field label="ID">
                 <input
                   value={isEditing ? form.id : 'Auto-generado al crear'}
@@ -1433,18 +1441,29 @@ const ProductFormFields = ({
                   className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
                 />
               </Field>
-              <Field label="Slug"><input value={form.slug || ''} onChange={(e) => onChange((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
-              <Field label="Nombre" className="md:col-span-2"><input required value={form.name} onChange={(e) => onChange((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
-              <Field label="Descripción" className="md:col-span-2"><textarea value={form.description} onChange={(e) => onChange((current) => ({ ...current, description: e.target.value }))} className={`${INPUT_CLASS} min-h-[140px]`} /></Field>
+              <Field label="Nombre" className="lg:col-span-2 xl:col-span-2">
+                <input
+                  required
+                  value={form.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    onChange((current) => ({ ...current, name, slug: generateProductSlug(name) }));
+                  }}
+                  className={INPUT_CLASS}
+                />
+              </Field>
+              <Field label="Slug">
+                <input value={form.slug || ''} readOnly className={`${INPUT_CLASS} bg-neutral-100 text-neutral-600`} />
+              </Field>
             </div>
+            <Field label="Descripción">
+              <textarea value={form.description} onChange={(e) => onChange((current) => ({ ...current, description: e.target.value }))} className={`${INPUT_CLASS} min-h-[120px]`} />
+            </Field>
           </section>
 
-          <section className="border-2 border-black bg-white p-4 sm:p-5 space-y-4">
-            <div>
-              <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Venta e inventario</p>
-              <h3 className="mt-2 font-western text-xl uppercase sm:text-2xl">Precio, categoría y stock</h3>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Venta e inventario</h3>
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
               <Field label="Precio"><input type="number" min="0" step="0.01" value={form.price} onChange={(e) => onChange((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
               <Field label="Precio oferta"><input type="number" min="0" step="0.01" value={form.salePrice ?? ''} onChange={(e) => onChange((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} /></Field>
               <Field label="Categoría"><select value={form.categoryId} onChange={(e) => onChange((current) => ({ ...current, categoryId: e.target.value }))} className={INPUT_CLASS}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
@@ -1452,11 +1471,8 @@ const ProductFormFields = ({
             </div>
           </section>
 
-          <section className="border-2 border-black bg-white p-4 sm:p-5 space-y-4">
-            <div>
-              <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Recursos visuales</p>
-              <h3 className="mt-2 font-western text-xl uppercase sm:text-2xl">Imágenes del catálogo</h3>
-            </div>
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Imágenes</h3>
             <Field label="Imágenes (URL, una por línea)">
               <textarea value={form.images.join('\n')} onChange={(e) => onChange((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[180px]`} />
             </Field>
@@ -1464,42 +1480,19 @@ const ProductFormFields = ({
         </div>
 
         <div className="space-y-5">
-          <section className="border-2 border-black bg-white p-4 sm:p-5 space-y-4">
-            <div>
-              <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Configuración comercial</p>
-              <h3 className="mt-2 font-western text-xl uppercase sm:text-2xl">Atributos del producto</h3>
-            </div>
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Atributos</h3>
             <Field label="Tallas"><input value={serializeList(form.sizes)} onChange={(e) => onChange((current) => ({ ...current, sizes: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
             <Field label="Colores"><input value={serializeList(form.colors)} onChange={(e) => onChange((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
             <Field label="Tags"><input value={serializeList(form.tags)} onChange={(e) => onChange((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
           </section>
 
-          <section className="border-2 border-black bg-white p-4 sm:p-5 space-y-4">
-            <div>
-              <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Visibilidad</p>
-              <h3 className="mt-2 font-western text-xl uppercase sm:text-2xl">Estado del producto</h3>
-            </div>
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Estado</h3>
             <div className="grid gap-3 text-xs font-header uppercase font-black">
               <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
               <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
               <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
-            </div>
-          </section>
-
-          <section className="border-2 border-black bg-white p-4 sm:p-5 space-y-4">
-            <div>
-              <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#8c6844]">Resumen rápido</p>
-              <h3 className="mt-2 font-western text-xl uppercase sm:text-2xl">Validación visual</h3>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <div className="border-2 border-black bg-[#fcf9f5] p-3">
-                <p className="text-[11px] font-header uppercase tracking-[0.2em] text-neutral-500">Categoría</p>
-                <p className="mt-2 text-sm font-semibold text-neutral-800">{categories.find((category) => category.id === form.categoryId)?.name || 'Sin categoría'}</p>
-              </div>
-              <div className="border-2 border-black bg-[#fcf9f5] p-3">
-                <p className="text-[11px] font-header uppercase tracking-[0.2em] text-neutral-500">Multimedia</p>
-                <p className="mt-2 text-sm font-semibold text-neutral-800">{form.images.filter(Boolean).length} imagen(es) cargadas</p>
-              </div>
             </div>
           </section>
         </div>
@@ -1510,7 +1503,7 @@ const ProductFormFields = ({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#d4c5b3]">Acciones rápidas</p>
-          <p className="mt-1 text-sm text-white/80">Las acciones quedan fijadas al pie del modal para que siempre puedas cancelar o guardar sin perderlas al desplazarte.</p>
+          <p className="mt-1 text-sm text-white/80">Guarda los cambios o cierra el formulario.</p>
         </div>
         <div className="flex flex-col-reverse gap-3 sm:flex-row">
           <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
