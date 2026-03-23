@@ -66,9 +66,9 @@ const EMPTY_PRODUCT: AdminProductPayload = {
   salePrice: null,
   categoryId: '',
   images: [''],
-  sizes: [],
-  colors: [],
-  tags: [],
+  sizes: ['CH', 'M', 'G'],
+  colors: ['Negro', 'Café'],
+  tags: ['western', 'cuero'],
   stock: 0,
   isNew: false,
   isFeatured: false,
@@ -100,6 +100,12 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
 const parseTags = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 const serializeList = (list: string[]) => list.join(', ');
+const ATTRIBUTE_DEFAULTS = {
+  sizes: ['CH', 'M', 'G', 'EG', '28', '30', '32', '34'],
+  colors: ['Negro', 'Café', 'Miel', 'Azul mezclilla', 'Arena', 'Vino'],
+  tags: ['western', 'cuero', 'artesanal', 'edición limitada', 'nuevo ingreso', 'bestseller'],
+} as const;
+type AttributeFieldKey = keyof typeof ATTRIBUTE_DEFAULTS;
 const statCardClass = 'bg-white border-2 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]';
 const INPUT_CLASS = 'w-full border-2 border-black bg-white px-3 py-3 outline-none focus:bg-[#fffdfa]';
 const generateProductSlug = (value: string) => value
@@ -282,6 +288,28 @@ export const AdminDashboard = ({
     () => snapshot.products.filter((product) => product.isActive !== false).sort((a, b) => a.stock - b.stock).slice(0, 6),
     [snapshot],
   );
+  const existingAttributeOptions = useMemo<Record<AttributeFieldKey, string[]>>(() => {
+    const collectUnique = (field: AttributeFieldKey) => {
+      const seen = new Set<string>();
+
+      snapshot.products.forEach((product) => {
+        product[field].forEach((item) => {
+          const normalized = item.trim();
+          if (normalized) seen.add(normalized);
+        });
+      });
+
+      ATTRIBUTE_DEFAULTS[field].forEach((item) => seen.add(item));
+
+      return [...seen].sort((left, right) => left.localeCompare(right, 'es', { sensitivity: 'base' }));
+    };
+
+    return {
+      sizes: collectUnique('sizes'),
+      colors: collectUnique('colors'),
+      tags: collectUnique('tags'),
+    };
+  }, [snapshot.products]);
 
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
@@ -1307,6 +1335,7 @@ export const AdminDashboard = ({
       <ProductFormFields
         form={productForm}
         categories={snapshot.categories}
+        existingAttributeOptions={existingAttributeOptions}
         isEditing={Boolean(editingProductId)}
         onChange={setProductForm}
         onSubmit={handleProductSubmit}
@@ -1406,6 +1435,7 @@ export const AdminDashboard = ({
 const ProductFormFields = ({
   form,
   categories,
+  existingAttributeOptions,
   isEditing,
   onChange,
   onSubmit,
@@ -1414,6 +1444,7 @@ const ProductFormFields = ({
 }: {
   form: AdminProductPayload;
   categories: AdminSnapshot['categories'];
+  existingAttributeOptions: Record<AttributeFieldKey, string[]>;
   isEditing: boolean;
   onChange: React.Dispatch<React.SetStateAction<AdminProductPayload>>;
   onSubmit: (event: React.FormEvent) => void;
@@ -1482,14 +1513,37 @@ const ProductFormFields = ({
         <div className="space-y-5">
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Atributos</h3>
-            <Field label="Tallas"><input value={serializeList(form.sizes)} onChange={(e) => onChange((current) => ({ ...current, sizes: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-            <Field label="Colores"><input value={serializeList(form.colors)} onChange={(e) => onChange((current) => ({ ...current, colors: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
-            <Field label="Tags"><input value={serializeList(form.tags)} onChange={(e) => onChange((current) => ({ ...current, tags: parseTags(e.target.value) }))} className={INPUT_CLASS} /></Field>
+            <div className="grid gap-4">
+              <AttributeTagPicker
+                label="Tallas"
+                value={form.sizes}
+                fieldKey="sizes"
+                suggestions={ATTRIBUTE_DEFAULTS.sizes}
+                existingOptions={existingAttributeOptions.sizes}
+                onChange={(sizes) => onChange((current) => ({ ...current, sizes }))}
+              />
+              <AttributeTagPicker
+                label="Colores"
+                value={form.colors}
+                fieldKey="colors"
+                suggestions={ATTRIBUTE_DEFAULTS.colors}
+                existingOptions={existingAttributeOptions.colors}
+                onChange={(colors) => onChange((current) => ({ ...current, colors }))}
+              />
+              <AttributeTagPicker
+                label="Tags"
+                value={form.tags}
+                fieldKey="tags"
+                suggestions={ATTRIBUTE_DEFAULTS.tags}
+                existingOptions={existingAttributeOptions.tags}
+                onChange={(tags) => onChange((current) => ({ ...current, tags }))}
+              />
+            </div>
           </section>
 
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Estado</h3>
-            <div className="grid gap-3 text-xs font-header uppercase font-black">
+            <div className="grid gap-2 sm:grid-cols-3 text-[11px] font-header uppercase font-black">
               <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
               <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
               <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
@@ -1565,10 +1619,13 @@ const Toggle = ({
   <button
     type="button"
     onClick={() => onChange(!checked)}
-    className={cn('border-2 border-black px-3 py-3 text-left transition-colors', checked ? 'bg-black text-white' : 'bg-white text-black')}
+    className={cn(
+      'border-2 border-black px-2.5 py-2 text-left transition-colors sm:min-h-[76px]',
+      checked ? 'bg-black text-white' : 'bg-white text-black',
+    )}
   >
-    <span className="block">{label}</span>
-    <span className={cn('mt-1 block text-[10px] tracking-normal normal-case', checked ? 'text-white/80' : 'text-neutral-500')}>
+    <span className="block text-[11px] leading-none">{label}</span>
+    <span className={cn('mt-1 block text-[9px] leading-snug tracking-normal normal-case', checked ? 'text-white/80' : 'text-neutral-500')}>
       {description}
     </span>
   </button>
@@ -1579,3 +1636,98 @@ const FlagBadge = ({ label, active }: { label: string; active: boolean }) => (
     {label}
   </span>
 );
+
+const AttributeTagPicker = ({
+  label,
+  fieldKey,
+  value,
+  suggestions,
+  existingOptions,
+  onChange,
+}: {
+  label: string;
+  fieldKey: AttributeFieldKey;
+  value: string[];
+  suggestions: readonly string[];
+  existingOptions: string[];
+  onChange: (items: string[]) => void;
+}) => {
+  const normalizedItems = parseTags(serializeList(value));
+  const suggestedItems = suggestions.filter((item) => !normalizedItems.includes(item));
+  const existingItems = existingOptions.filter((item) => !normalizedItems.includes(item));
+
+  const addSuggestion = (item: string) => {
+    if (normalizedItems.includes(item)) return;
+    onChange([...normalizedItems, item]);
+  };
+
+  const removeItem = (item: string) => {
+    onChange(normalizedItems.filter((current) => current !== item));
+  };
+
+  return (
+    <Field label={label}>
+      <div className="space-y-3">
+        <input
+          value={serializeList(normalizedItems)}
+          onChange={(e) => onChange(parseTags(e.target.value))}
+          className={INPUT_CLASS}
+        />
+        <div className="flex flex-wrap gap-2">
+          {normalizedItems.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => removeItem(item)}
+              className="inline-flex items-center gap-2 border border-black bg-[#fcf9f5] px-2.5 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] transition-colors hover:bg-black hover:text-white"
+            >
+              <span>{item}</span>
+              <span aria-hidden="true">×</span>
+            </button>
+          ))}
+        </div>
+        <details className="border border-dashed border-black/40 bg-[#f8f1ea]">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] text-neutral-700">
+            Agregar más atributos
+          </summary>
+          <div className="space-y-4 border-t border-black/20 px-3 py-3">
+            <div className="space-y-2">
+              <p className="text-[10px] font-header font-black uppercase tracking-[0.18em] text-neutral-500">
+                Ya existentes en {fieldKey === 'tags' ? 'otros productos' : 'catálogo'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {existingItems.length > 0 ? existingItems.map((item) => (
+                  <button
+                    key={`${fieldKey}-existing-${item}`}
+                    type="button"
+                    onClick={() => addSuggestion(item)}
+                    className="border border-black bg-white px-2.5 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] transition-colors hover:bg-black hover:text-white"
+                  >
+                    {item}
+                  </button>
+                )) : (
+                  <span className="text-xs text-neutral-500">No hay atributos extra disponibles.</span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[10px] font-header font-black uppercase tracking-[0.18em] text-neutral-500">Sugeridos rápidos</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedItems.map((item) => (
+                  <button
+                    key={`${fieldKey}-suggested-${item}`}
+                    type="button"
+                    onClick={() => addSuggestion(item)}
+                    className="border border-black bg-[#fffdfa] px-2.5 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] transition-colors hover:bg-black hover:text-white"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </Field>
+  );
+};
