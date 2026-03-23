@@ -1295,27 +1295,27 @@ export const AdminDashboard = ({
             )}
           </main>
 
-          <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
-            <DialogContent className="flex h-[min(94vh,980px)] w-[min(98vw,110rem)] max-w-[110rem] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-              <div className="border-b-2 border-black bg-white px-5 py-4 sm:px-8 sm:py-5">
-                <DialogHeader className="gap-3 text-left">
-                  <DialogTitle className="font-western uppercase text-2xl text-black sm:text-3xl">{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
-                  <DialogDescription className="text-sm text-neutral-600">Formulario optimizado para capturar todo el producto sin que el contenido se vea apretado.</DialogDescription>
-                </DialogHeader>
-              </div>
-              <div className="min-h-0 flex-1">
-                <ProductFormFields
-                  form={productForm}
-                  categories={snapshot.categories}
-                  isEditing={Boolean(editingProductId)}
-                  onChange={setProductForm}
-                  onSubmit={handleProductSubmit}
-                  submitLabel={editingProductId ? 'Guardar cambios' : 'Crear producto'}
-                  onCancel={closeProductModal}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+<Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
+  <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
+    <div className="border-b-2 border-black bg-white px-5 py-4 sm:px-8 sm:py-5">
+      <DialogHeader className="gap-3 text-left">
+        <DialogTitle className="font-western uppercase text-2xl text-black sm:text-3xl">{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+        <DialogDescription className="text-sm text-neutral-600">Formulario optimizado para capturar todo el producto sin que el contenido se vea apretado.</DialogDescription>
+      </DialogHeader>
+    </div>
+    <div className="min-h-0 flex-1">
+      <ProductFormFields
+        form={productForm}
+        categories={snapshot.categories}
+        isEditing={Boolean(editingProductId)}
+        onChange={setProductForm}
+        onSubmit={handleProductSubmit}
+        submitLabel={editingProductId ? 'Guardar cambios' : 'Crear producto'}
+        onCancel={closeProductModal}
+      />
+    </div>
+  </DialogContent>
+</Dialog>
 
           <Dialog open={isCategoryModalOpen} onOpenChange={(open) => { if (!open) closeCategoryModal(); }}>
             <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
