@@ -63,6 +63,23 @@ function json_response(int $status, array $payload): never
     exit;
 }
 
+function expected_runtime_status(Throwable $exception): ?int
+{
+    if (!($exception instanceof RuntimeException)) {
+        return null;
+    }
+
+    $message = mb_strtolower($exception->getMessage());
+    if (str_contains($message, 'no encontrado') || str_contains($message, 'no encontrada')) {
+        return 404;
+    }
+    if (str_contains($message, 'no se puede eliminar')) {
+        return 409;
+    }
+
+    return 422;
+}
+
 function html_response(string $html): never
 {
     http_response_code(200);
@@ -886,11 +903,11 @@ function update_admin_product(string $id, array $payload): array
     $store = read_json_store();
     $found = false;
     foreach ($store['products'] as $index => $product) {
-        if (($product['id'] ?? '') === $id) {
+        if ((string) ($product['id'] ?? '') === $id) {
             $found = true;
             $record = product_payload_to_record([...$payload, 'id' => $id, 'createdAt' => $product['createdAt'] ?? null], $id);
             foreach ($store['products'] as $candidate) {
-                if (($candidate['id'] ?? '') !== $id && ($candidate['slug'] ?? '') === $record['slug']) {
+                if ((string) ($candidate['id'] ?? '') !== $id && ($candidate['slug'] ?? '') === $record['slug']) {
                     throw new RuntimeException('Ya existe otro producto con ese slug.');
                 }
             }
@@ -945,13 +962,13 @@ function delete_admin_product(string $id): void
 
     $store = read_json_store();
     foreach ($store['orderItems'] as $item) {
-        if (($item['productId'] ?? '') === $id) {
+        if ((string) ($item['productId'] ?? '') === $id) {
             throw new RuntimeException('No se puede eliminar un producto que ya pertenece a órdenes. Desactívalo en su lugar.');
         }
     }
 
     $before = count($store['products']);
-    $store['products'] = array_values(array_filter($store['products'], static fn (array $product): bool => ($product['id'] ?? '') !== $id));
+    $store['products'] = array_values(array_filter($store['products'], static fn (array $product): bool => (string) ($product['id'] ?? '') !== $id));
     if ($before === count($store['products'])) {
         throw new RuntimeException('Producto no encontrado.');
     }
@@ -1042,10 +1059,10 @@ function update_admin_category(string $id, array $payload): array
     $store = read_json_store();
     $found = false;
     foreach ($store['categories'] as $index => $category) {
-        if (($category['id'] ?? '') === $id) {
+        if ((string) ($category['id'] ?? '') === $id) {
             $found = true;
             foreach ($store['categories'] as $candidate) {
-                if (($candidate['id'] ?? '') !== $id && ((($candidate['name'] ?? '') === $record['name']) || (($candidate['slug'] ?? '') === $record['slug']))) {
+                if ((string) ($candidate['id'] ?? '') !== $id && ((($candidate['name'] ?? '') === $record['name']) || (($candidate['slug'] ?? '') === $record['slug']))) {
                     throw new RuntimeException('Ya existe otra categoría con ese nombre o slug.');
                 }
             }
@@ -1091,7 +1108,7 @@ function delete_admin_category(string $id): void
     $store = read_json_store();
     $categoryName = null;
     foreach ($store['categories'] as $category) {
-        if (($category['id'] ?? '') === $id) {
+        if ((string) ($category['id'] ?? '') === $id) {
             $categoryName = $category['name'];
             break;
         }
@@ -1104,7 +1121,7 @@ function delete_admin_category(string $id): void
             throw new RuntimeException('No se puede eliminar una categoría con productos asignados.');
         }
     }
-    $store['categories'] = array_values(array_filter($store['categories'], static fn (array $category): bool => ($category['id'] ?? '') !== $id));
+    $store['categories'] = array_values(array_filter($store['categories'], static fn (array $category): bool => (string) ($category['id'] ?? '') !== $id));
     write_json_store($store);
     log_activity('delete', 'category', $id, $categoryName, 'Categoría eliminada desde administración.');
 }
@@ -1753,5 +1770,7 @@ try {
 
     json_response(404, ['message' => sprintf('Ruta no encontrada: %s %s', $method, $path)]);
 } catch (Throwable $exception) {
-    json_response(500, ['message' => 'Error interno del servidor', 'detail' => $exception->getMessage()]);
+    $status = expected_runtime_status($exception) ?? 500;
+    $message = $status === 500 ? 'Error interno del servidor' : $exception->getMessage();
+    json_response($status, ['message' => $message, 'detail' => $exception->getMessage()]);
 }
