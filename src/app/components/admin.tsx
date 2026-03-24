@@ -41,6 +41,7 @@ import {
   deleteAdminProduct,
   deleteAdminUser,
   getAdminSnapshot,
+  purgeAdminActivityLogs,
   saveStoreSettings,
   updateAdminCategory,
   updateAdminOrder,
@@ -224,6 +225,15 @@ export const AdminDashboard = ({
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialSnapshot.orders[0]?.id ?? null);
+  const [activityDateFilter, setActivityDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
+  const [activityActionFilter, setActivityActionFilter] = useState('all');
+  const [activityEntityFilter, setActivityEntityFilter] = useState('all');
+  const [activitySearchTerm, setActivitySearchTerm] = useState('');
+  const [activityPageSize, setActivityPageSize] = useState(25);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityRetentionMonths, setActivityRetentionMonths] = useState(6);
+  const [activityAutoPurgeEnabled, setActivityAutoPurgeEnabled] = useState(true);
+  const [isPurgingLogs, setIsPurgingLogs] = useState(false);
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
 
@@ -244,6 +254,44 @@ export const AdminDashboard = ({
     }
   }, [snapshot.categories, productForm.categoryId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rawConfig = window.localStorage.getItem('dark-ranch-activity-config');
+    if (!rawConfig) return;
+
+    try {
+      const parsed = JSON.parse(rawConfig) as {
+        dateFilter?: 'today' | '7d' | '30d' | 'all';
+        actionFilter?: string;
+        entityFilter?: string;
+        pageSize?: number;
+        retentionMonths?: number;
+        autoPurge?: boolean;
+      };
+
+      if (parsed.dateFilter) setActivityDateFilter(parsed.dateFilter);
+      if (parsed.actionFilter) setActivityActionFilter(parsed.actionFilter);
+      if (parsed.entityFilter) setActivityEntityFilter(parsed.entityFilter);
+      if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setActivityPageSize(Math.max(10, Math.min(200, parsed.pageSize)));
+      if (parsed.retentionMonths && Number.isFinite(parsed.retentionMonths)) setActivityRetentionMonths(Math.max(1, Math.min(60, parsed.retentionMonths)));
+      if (typeof parsed.autoPurge === 'boolean') setActivityAutoPurgeEnabled(parsed.autoPurge);
+    } catch {
+      // ignorar config corrupta
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('dark-ranch-activity-config', JSON.stringify({
+      dateFilter: activityDateFilter,
+      actionFilter: activityActionFilter,
+      entityFilter: activityEntityFilter,
+      pageSize: activityPageSize,
+      retentionMonths: activityRetentionMonths,
+      autoPurge: activityAutoPurgeEnabled,
+    }));
+  }, [activityActionFilter, activityAutoPurgeEnabled, activityDateFilter, activityEntityFilter, activityPageSize, activityRetentionMonths]);
+
   const refreshSnapshot = async (successMessage?: string) => {
     setIsRefreshing(true);
     try {
@@ -260,6 +308,33 @@ export const AdminDashboard = ({
       setIsRefreshing(false);
     }
   };
+
+  const runActivityPurge = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (isPurgingLogs) return;
+
+    setIsPurgingLogs(true);
+    try {
+      const result = await purgeAdminActivityLogs(activityRetentionMonths);
+      if (result.deleted > 0) {
+        await refreshSnapshot();
+        if (!silent) {
+          toast.success(`${result.deleted} movimiento(s) eliminado(s) por política de retención.`);
+        }
+      } else if (!silent) {
+        toast.message('No hubo movimientos para depurar con la configuración actual.');
+      }
+    } catch (error) {
+      if (!silent) toast.error(error instanceof Error ? error.message : 'No se pudo depurar la bitácora');
+    } finally {
+      setIsPurgingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'activity' || !activityAutoPurgeEnabled) return;
+    void runActivityPurge({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activityAutoPurgeEnabled, activityRetentionMonths]);
 
   const productMetrics = useMemo(() => {
     const activeProducts = snapshot.products.filter((product) => product.isActive !== false);
@@ -342,11 +417,68 @@ export const AdminDashboard = ({
     });
   }, [productCategoryFilter, productSearchTerm, snapshot.categories, snapshot.products]);
 
+  const activityActionOptions = useMemo(
+    () => [...new Set(snapshot.activityLogs.map((item) => item.action))].sort((left, right) => left.localeCompare(right)),
+    [snapshot.activityLogs],
+  );
+  const activityEntityOptions = useMemo(
+    () => [...new Set(snapshot.activityLogs.map((item) => item.entityType))].sort((left, right) => left.localeCompare(right)),
+    [snapshot.activityLogs],
+  );
+  const activityTodayCount = useMemo(() => {
+    const now = new Date();
+    return snapshot.activityLogs.filter((item) => {
+      const date = new Date(item.createdAt);
+      return date.getFullYear() === now.getFullYear()
+        && date.getMonth() === now.getMonth()
+        && date.getDate() === now.getDate();
+    }).length;
+  }, [snapshot.activityLogs]);
+  const filteredActivityLogs = useMemo(() => {
+    const now = new Date();
+    const search = activitySearchTerm.trim().toLowerCase();
+    const dateThreshold = activityDateFilter === 'all'
+      ? null
+      : new Date(now.getTime() - (
+        activityDateFilter === 'today' ? 24 * 60 * 60 * 1000 : activityDateFilter === '7d' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000
+      ));
+
+    return snapshot.activityLogs.filter((item) => {
+      if (activityActionFilter !== 'all' && item.action !== activityActionFilter) return false;
+      if (activityEntityFilter !== 'all' && item.entityType !== activityEntityFilter) return false;
+      if (dateThreshold && new Date(item.createdAt).getTime() < dateThreshold.getTime()) return false;
+      if (!search) return true;
+
+      return [
+        item.actorName,
+        item.actorEmail,
+        item.entityName,
+        item.entityId,
+        item.details,
+        humanizeAction(item.action),
+        humanizeEntity(item.entityType),
+      ].join(' ').toLowerCase().includes(search);
+    });
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activitySearchTerm, snapshot.activityLogs]);
+  const totalActivityPages = Math.max(1, Math.ceil(filteredActivityLogs.length / activityPageSize));
+  const paginatedActivityLogs = useMemo(() => {
+    const start = (activityPage - 1) * activityPageSize;
+    return filteredActivityLogs.slice(start, start + activityPageSize);
+  }, [activityPage, activityPageSize, filteredActivityLogs]);
+
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
     () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? snapshot.orders[0] ?? null,
     [selectedOrderId, snapshot.orders],
   );
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize, activitySearchTerm]);
+
+  useEffect(() => {
+    setActivityPage((current) => Math.min(current, totalActivityPages));
+  }, [totalActivityPages]);
 
   const resetProductForm = () => {
     setEditingProductId(null);
@@ -1323,7 +1455,67 @@ export const AdminDashboard = ({
                   </div>
                   <div className="text-right text-sm text-neutral-500">
                     <p>{snapshot.activityLogs.length} movimiento(s) registrados</p>
+                    <p className="text-xs mt-1">{activityTodayCount} movimiento(s) registrados el día de hoy</p>
                   </div>
+                </div>
+
+                <div className="border-2 border-black bg-white p-4 mb-5 grid gap-4 lg:grid-cols-6">
+                  <Field label="Rango de fechas">
+                    <select value={activityDateFilter} onChange={(event) => setActivityDateFilter(event.target.value as 'today' | '7d' | '30d' | 'all')} className={INPUT_CLASS}>
+                      <option value="today">Últimas 24 horas</option>
+                      <option value="7d">Últimos 7 días</option>
+                      <option value="30d">Últimos 30 días</option>
+                      <option value="all">Todo el histórico</option>
+                    </select>
+                  </Field>
+                  <Field label="Tipo de acción">
+                    <select value={activityActionFilter} onChange={(event) => setActivityActionFilter(event.target.value)} className={INPUT_CLASS}>
+                      <option value="all">Todas</option>
+                      {activityActionOptions.map((action) => (
+                        <option key={action} value={action}>{humanizeAction(action)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Entidad">
+                    <select value={activityEntityFilter} onChange={(event) => setActivityEntityFilter(event.target.value)} className={INPUT_CLASS}>
+                      <option value="all">Todas</option>
+                      {activityEntityOptions.map((entity) => (
+                        <option key={entity} value={entity}>{humanizeEntity(entity)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Buscar en bitácora">
+                    <input value={activitySearchTerm} onChange={(event) => setActivitySearchTerm(event.target.value)} className={INPUT_CLASS} placeholder="Cuenta, registro o detalle" />
+                  </Field>
+                  <Field label="Filas por página">
+                    <select value={activityPageSize} onChange={(event) => setActivityPageSize(Number(event.target.value))} className={INPUT_CLASS}>
+                      {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </Field>
+                  <div className="border-2 border-black bg-[#fcf9f5] p-3 self-end">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Resultados</p>
+                    <p className="font-header font-black text-lg mt-1">{filteredActivityLogs.length}</p>
+                  </div>
+                </div>
+
+                <div className="border-2 border-black bg-[#1f130b] text-white p-4 mb-5 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+                  <Field label="Retención automática (meses)">
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={activityRetentionMonths}
+                      onChange={(event) => setActivityRetentionMonths(Math.max(1, Math.min(60, Number(event.target.value) || 1)))}
+                      className={`${INPUT_CLASS} bg-[#2b1b10] text-white border-white/60`}
+                    />
+                  </Field>
+                  <label className="flex items-center gap-3 border-2 border-white/40 px-3 py-2 mt-auto">
+                    <input type="checkbox" checked={activityAutoPurgeEnabled} onChange={(event) => setActivityAutoPurgeEnabled(event.target.checked)} />
+                    <span className="text-xs uppercase tracking-[0.15em]">Depurar automáticamente al abrir bitácora</span>
+                  </label>
+                  <Button size="sm" variant="outline" className="bg-white text-black hover:bg-[#f5efe8] mt-auto" onClick={() => void runActivityPurge()} disabled={isPurgingLogs}>
+                    <Trash2 size={14} className="mr-2" /> {isPurgingLogs ? 'Depurando…' : 'Depurar ahora'}
+                  </Button>
                 </div>
 
                 <div className="overflow-x-auto border-2 border-black bg-white">
@@ -1339,7 +1531,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {snapshot.activityLogs.map((item: AdminActivityLog) => (
+                      {paginatedActivityLogs.map((item: AdminActivityLog) => (
                         <tr key={String(item.id)}>
                           <td className="px-4 py-3 text-sm">{new Date(item.createdAt).toLocaleString()}</td>
                           <td className="px-4 py-3">
@@ -1357,8 +1549,24 @@ export const AdminDashboard = ({
                           <td className="px-4 py-3 text-sm text-neutral-700">{item.details}</td>
                         </tr>
                       ))}
+                      {paginatedActivityLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-500">
+                            No hay movimientos para los filtros seleccionados.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+                  <p className="text-xs uppercase tracking-[0.15em] text-neutral-500">
+                    Página {activityPage} de {totalActivityPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setActivityPage((current) => Math.max(1, current - 1))} disabled={activityPage <= 1}>Anterior</Button>
+                    <Button size="sm" variant="outline" onClick={() => setActivityPage((current) => Math.min(totalActivityPages, current + 1))} disabled={activityPage >= totalActivityPages}>Siguiente</Button>
+                  </div>
                 </div>
               </PaperCard>
             )}
