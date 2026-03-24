@@ -137,9 +137,22 @@ export const Footer = () => (
             Nacidos en el desierto, forjados en el taller. Calidad premium desde 1922.
           </p>
           <div className="flex space-x-4">
-            <div className="w-8 h-8 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-white hover:text-black transition-colors cursor-pointer text-xs">IG</div>
-            <div className="w-8 h-8 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-white hover:text-black transition-colors cursor-pointer text-xs">FB</div>
-            <div className="w-8 h-8 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-white hover:text-black transition-colors cursor-pointer text-xs">TW</div>
+            <a
+              href="https://www.instagram.com/darkranchboots/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-8 h-8 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-white hover:text-black transition-colors cursor-pointer text-xs"
+            >
+              IG
+            </a>
+            <a
+              href="https://www.facebook.com/profile.php/?id=100090450979615"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-8 h-8 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-white hover:text-black transition-colors cursor-pointer text-xs"
+            >
+              FB
+            </a>
           </div>
         </div>
         
