@@ -5,7 +5,7 @@ import { useCart } from '../cart-context';
 import { Button, LOGO_HORIZONTAL, cn } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 
-export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: any) => void }) => {
+export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: any) => void, currentView: string }) => {
   const { cartCount } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -23,10 +23,13 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate }: { onOpenCart: () 
     { name: 'Contacto', view: 'contact' },
   ];
 
+  const isHomeView = currentView === 'home';
+  const useTransparentNavbar = isHomeView && !isScrolled;
+
   return (
     <nav className={cn(
       "fixed top-0 left-0 w-full z-50 transition-all duration-500",
-      isScrolled ? "bg-black/95 backdrop-blur-sm border-b border-white/10 py-2" : "bg-transparent py-4"
+      useTransparentNavbar ? "bg-transparent py-4" : "bg-black/95 backdrop-blur-sm border-b border-white/10 py-2"
     )}>
       <div className="container mx-auto px-6 flex items-center justify-between">
         {/* Mobile Menu Toggle */}
