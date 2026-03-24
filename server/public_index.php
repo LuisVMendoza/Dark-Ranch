@@ -403,6 +403,50 @@ function get_activity_logs(): array
     return $logs;
 }
 
+function purge_activity_logs(int $retentionMonths): array
+{
+    if ($retentionMonths < 1 || $retentionMonths > 60) {
+        throw new RuntimeException('La retención debe estar entre 1 y 60 meses.', 422);
+    }
+
+    $cutoff = (new DateTimeImmutable('now'))->modify(sprintf('-%d months', $retentionMonths));
+    $cutoffIso = $cutoff->format(DateTimeInterface::ATOM);
+
+    if (database_mode() === 'mysql') {
+        $delete = db()->prepare('DELETE FROM admin_activity_logs WHERE created_at < :cutoff');
+        $delete->execute(['cutoff' => $cutoffIso]);
+
+        return [
+            'ok' => true,
+            'deleted' => $delete->rowCount(),
+            'retentionMonths' => $retentionMonths,
+            'cutoffDate' => $cutoffIso,
+        ];
+    }
+
+    $store = read_json_store();
+    $logs = $store['activityLogs'] ?? [];
+    $before = count($logs);
+
+    $store['activityLogs'] = array_values(array_filter($logs, static function (array $item) use ($cutoff): bool {
+        try {
+            $createdAt = new DateTimeImmutable((string) ($item['createdAt'] ?? ''));
+            return $createdAt >= $cutoff;
+        } catch (Throwable) {
+            return true;
+        }
+    }));
+
+    write_json_store($store);
+
+    return [
+        'ok' => true,
+        'deleted' => $before - count($store['activityLogs']),
+        'retentionMonths' => $retentionMonths,
+        'cutoffDate' => $cutoffIso,
+    ];
+}
+
 function format_product_row(array $row): array
 {
     return [
@@ -1677,6 +1721,12 @@ try {
 
     if ($method === 'GET' && $path === '/api/admin/users') {
         json_response(200, ['adminUsers' => get_admin_users()]);
+    }
+
+    if ($method === 'POST' && $path === '/api/admin/activity/purge') {
+        $body = read_json_body();
+        $retentionMonths = (int) ($body['retentionMonths'] ?? 0);
+        json_response(200, purge_activity_logs($retentionMonths));
     }
 
     if ($method === 'POST' && $path === '/api/login') {

@@ -158,3 +158,10 @@ export function deleteAdminUser(id: number) {
     method: 'DELETE',
   });
 }
+
+export function purgeAdminActivityLogs(retentionMonths: number) {
+  return request<{ ok: boolean; deleted: number; retentionMonths: number; cutoffDate: string }>('/api/admin/activity/purge', {
+    method: 'POST',
+    body: JSON.stringify({ retentionMonths }),
+  });
+}
