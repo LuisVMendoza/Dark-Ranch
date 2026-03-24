@@ -344,6 +344,7 @@ const App = () => {
             onOpenCart={() => setIsCartOpen(true)}
             onOpenAuth={() => setCurrentView(isAdmin ? 'admin' : 'login')}
             onNavigate={(view: View) => setCurrentView(view)}
+            currentView={currentView}
           />
         )}
 
