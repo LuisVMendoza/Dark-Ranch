@@ -234,6 +234,7 @@ export const AdminDashboard = ({
   const [activityPage, setActivityPage] = useState(1);
   const [activityRetentionMonths, setActivityRetentionMonths] = useState(6);
   const [activityAutoPurgeEnabled, setActivityAutoPurgeEnabled] = useState(true);
+  const [isActivityCleanupModalOpen, setIsActivityCleanupModalOpen] = useState(false);
   const [isPurgingLogs, setIsPurgingLogs] = useState(false);
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
