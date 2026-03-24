@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  ShieldAlert,
   Save,
   Settings,
   ShieldCheck,
@@ -41,6 +42,7 @@ import {
   deleteAdminProduct,
   deleteAdminUser,
   getAdminSnapshot,
+  purgeAdminActivityLogs,
   saveStoreSettings,
   updateAdminCategory,
   updateAdminOrder,
@@ -224,6 +226,13 @@ export const AdminDashboard = ({
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialSnapshot.orders[0]?.id ?? null);
+  const [activityDateFilter, setActivityDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
+  const [activityActionFilter, setActivityActionFilter] = useState('all');
+  const [activityEntityFilter, setActivityEntityFilter] = useState('all');
+  const [activityPageSize, setActivityPageSize] = useState(25);
+  const [activityPage, setActivityPage] = useState(1);
+  const [isPurgingLogs, setIsPurgingLogs] = useState(false);
+  const [isActivityCleanupModalOpen, setIsActivityCleanupModalOpen] = useState(false);
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
 
@@ -244,6 +253,38 @@ export const AdminDashboard = ({
     }
   }, [snapshot.categories, productForm.categoryId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rawConfig = window.localStorage.getItem('dark-ranch-activity-config');
+    if (!rawConfig) return;
+
+    try {
+      const parsed = JSON.parse(rawConfig) as {
+        dateFilter?: 'today' | '7d' | '30d' | 'all';
+        actionFilter?: string;
+        entityFilter?: string;
+        pageSize?: number;
+      };
+
+      if (parsed.dateFilter) setActivityDateFilter(parsed.dateFilter);
+      if (parsed.actionFilter) setActivityActionFilter(parsed.actionFilter);
+      if (parsed.entityFilter) setActivityEntityFilter(parsed.entityFilter);
+      if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setActivityPageSize(Math.max(10, Math.min(200, parsed.pageSize)));
+    } catch {
+      // ignorar config corrupta
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('dark-ranch-activity-config', JSON.stringify({
+      dateFilter: activityDateFilter,
+      actionFilter: activityActionFilter,
+      entityFilter: activityEntityFilter,
+      pageSize: activityPageSize,
+    }));
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
+
   const refreshSnapshot = async (successMessage?: string) => {
     setIsRefreshing(true);
     try {
@@ -258,6 +299,27 @@ export const AdminDashboard = ({
       toast.error(error instanceof Error ? error.message : 'No se pudo recargar el panel');
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const runActivityPurge = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (isPurgingLogs) return;
+
+    setIsPurgingLogs(true);
+    try {
+      const result = await purgeAdminActivityLogs(3);
+      if (result.deleted > 0) {
+        await refreshSnapshot();
+        if (!silent) {
+          toast.success(`${result.deleted} movimiento(s) eliminado(s). Se conservaron los últimos 3 meses.`);
+        }
+      } else if (!silent) {
+        toast.message('No hubo movimientos para limpiar fuera de los últimos 3 meses.');
+      }
+    } catch (error) {
+      if (!silent) toast.error(error instanceof Error ? error.message : 'No se pudo depurar la bitácora');
+    } finally {
+      setIsPurgingLogs(false);
     }
   };
 
@@ -342,11 +404,57 @@ export const AdminDashboard = ({
     });
   }, [productCategoryFilter, productSearchTerm, snapshot.categories, snapshot.products]);
 
+  const activityActionOptions = useMemo(
+    () => [...new Set(snapshot.activityLogs.map((item) => item.action))].sort((left, right) => left.localeCompare(right)),
+    [snapshot.activityLogs],
+  );
+  const activityEntityOptions = useMemo(
+    () => [...new Set(snapshot.activityLogs.map((item) => item.entityType))].sort((left, right) => left.localeCompare(right)),
+    [snapshot.activityLogs],
+  );
+  const activityTodayCount = useMemo(() => {
+    const now = new Date();
+    return snapshot.activityLogs.filter((item) => {
+      const date = new Date(item.createdAt);
+      return date.getFullYear() === now.getFullYear()
+        && date.getMonth() === now.getMonth()
+        && date.getDate() === now.getDate();
+    }).length;
+  }, [snapshot.activityLogs]);
+  const filteredActivityLogs = useMemo(() => {
+    const now = new Date();
+    const dateThreshold = activityDateFilter === 'all'
+      ? null
+      : new Date(now.getTime() - (
+        activityDateFilter === 'today' ? 24 * 60 * 60 * 1000 : activityDateFilter === '7d' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000
+      ));
+
+    return snapshot.activityLogs.filter((item) => {
+      if (activityActionFilter !== 'all' && item.action !== activityActionFilter) return false;
+      if (activityEntityFilter !== 'all' && item.entityType !== activityEntityFilter) return false;
+      if (dateThreshold && new Date(item.createdAt).getTime() < dateThreshold.getTime()) return false;
+      return true;
+    });
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, snapshot.activityLogs]);
+  const totalActivityPages = Math.max(1, Math.ceil(filteredActivityLogs.length / activityPageSize));
+  const paginatedActivityLogs = useMemo(() => {
+    const start = (activityPage - 1) * activityPageSize;
+    return filteredActivityLogs.slice(start, start + activityPageSize);
+  }, [activityPage, activityPageSize, filteredActivityLogs]);
+
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
     () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? snapshot.orders[0] ?? null,
     [selectedOrderId, snapshot.orders],
   );
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
+
+  useEffect(() => {
+    setActivityPage((current) => Math.min(current, totalActivityPages));
+  }, [totalActivityPages]);
 
   const resetProductForm = () => {
     setEditingProductId(null);
@@ -1321,8 +1429,62 @@ export const AdminDashboard = ({
                     <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Auditoría</p>
                     <h2 className="font-western uppercase text-3xl">Bitácora de movimientos</h2>
                   </div>
-                  <div className="text-right text-sm text-neutral-500">
-                    <p>{snapshot.activityLogs.length} movimiento(s) registrados</p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-sm text-neutral-500">
+                      <p>{snapshot.activityLogs.length} movimiento(s) registrados</p>
+                      <p className="text-xs mt-1">{activityTodayCount} movimiento(s) registrados el día de hoy</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setIsActivityCleanupModalOpen(true)} aria-label="Opciones de limpieza de bitácora">
+                      <Settings size={16} />
+                    </Button>
+                  </div>
+                </div>
+
+                {snapshot.activityLogs.length >= 500 && (
+                  <div className="mb-5 border-2 border-[#8a5a12] bg-[#fff7e6] px-4 py-3 flex items-start gap-3">
+                    <ShieldAlert className="mt-0.5" size={18} />
+                    <div>
+                      <p className="font-header font-black uppercase text-xs tracking-[0.15em]">Bitácora con volumen alto</p>
+                      <p className="text-sm text-[#7b4e11] mt-1">
+                        Ya hay {snapshot.activityLogs.length} registros. Recomendación: limpiar la bitácora cuando supere 500 movimientos.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-2 border-black bg-white p-4 mb-5 grid gap-4 lg:grid-cols-4">
+                  <Field label="Rango de fechas">
+                    <select value={activityDateFilter} onChange={(event) => setActivityDateFilter(event.target.value as 'today' | '7d' | '30d' | 'all')} className={INPUT_CLASS}>
+                      <option value="today">Últimas 24 horas</option>
+                      <option value="7d">Últimos 7 días</option>
+                      <option value="30d">Últimos 30 días</option>
+                      <option value="all">Todo el histórico</option>
+                    </select>
+                  </Field>
+                  <Field label="Tipo de acción">
+                    <select value={activityActionFilter} onChange={(event) => setActivityActionFilter(event.target.value)} className={INPUT_CLASS}>
+                      <option value="all">Todas</option>
+                      {activityActionOptions.map((action) => (
+                        <option key={action} value={action}>{humanizeAction(action)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Entidad">
+                    <select value={activityEntityFilter} onChange={(event) => setActivityEntityFilter(event.target.value)} className={INPUT_CLASS}>
+                      <option value="all">Todas</option>
+                      {activityEntityOptions.map((entity) => (
+                        <option key={entity} value={entity}>{humanizeEntity(entity)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Filas por página">
+                    <select value={activityPageSize} onChange={(event) => setActivityPageSize(Number(event.target.value))} className={INPUT_CLASS}>
+                      {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </Field>
+                  <div className="border-2 border-black bg-[#fcf9f5] p-3 self-end lg:justify-self-end lg:w-full">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Resultados</p>
+                    <p className="font-header font-black text-lg mt-1">{filteredActivityLogs.length}</p>
                   </div>
                 </div>
 
@@ -1339,7 +1501,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {snapshot.activityLogs.map((item: AdminActivityLog) => (
+                      {paginatedActivityLogs.map((item: AdminActivityLog) => (
                         <tr key={String(item.id)}>
                           <td className="px-4 py-3 text-sm">{new Date(item.createdAt).toLocaleString()}</td>
                           <td className="px-4 py-3">
@@ -1357,8 +1519,24 @@ export const AdminDashboard = ({
                           <td className="px-4 py-3 text-sm text-neutral-700">{item.details}</td>
                         </tr>
                       ))}
+                      {paginatedActivityLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-500">
+                            No hay movimientos para los filtros seleccionados.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+                  <p className="text-xs uppercase tracking-[0.15em] text-neutral-500">
+                    Página {activityPage} de {totalActivityPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setActivityPage((current) => Math.max(1, current - 1))} disabled={activityPage <= 1}>Anterior</Button>
+                    <Button size="sm" variant="outline" onClick={() => setActivityPage((current) => Math.min(totalActivityPages, current + 1))} disabled={activityPage >= totalActivityPages}>Siguiente</Button>
+                  </div>
                 </div>
               </PaperCard>
             )}
@@ -1398,6 +1576,37 @@ export const AdminDashboard = ({
               </PaperCard>
             )}
           </main>
+
+          <Dialog open={isActivityCleanupModalOpen} onOpenChange={setIsActivityCleanupModalOpen}>
+            <DialogContent className="max-w-xl border-2 border-black bg-[#fcf9f5]">
+              <DialogHeader>
+                <DialogTitle className="font-western uppercase text-2xl">Mantenimiento de bitácora</DialogTitle>
+                <DialogDescription className="text-sm text-neutral-700">
+                  Limpia la bitácora y conserva solamente los movimientos de los últimos 3 meses.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 border-2 border-black bg-white p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción disponible</p>
+                <p className="font-header font-black uppercase mt-2">Limpiar la bitácora</p>
+                <p className="text-sm text-neutral-700 mt-2">
+                  Se eliminarán de forma permanente todos los registros anteriores a 3 meses. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <Button variant="outline" size="sm" onClick={() => setIsActivityCleanupModalOpen(false)}>Cancelar</Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    await runActivityPurge();
+                    setIsActivityCleanupModalOpen(false);
+                  }}
+                  disabled={isPurgingLogs}
+                >
+                  <Trash2 size={14} className="mr-2" /> {isPurgingLogs ? 'Limpiando…' : 'Limpiar la bitácora'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
 <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
   <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
