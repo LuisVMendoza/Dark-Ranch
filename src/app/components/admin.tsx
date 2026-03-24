@@ -198,6 +198,8 @@ export const AdminDashboard = ({
   const [snapshot, setSnapshot] = useState<AdminSnapshot>(initialSnapshot);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
 
   const [productForm, setProductForm] = useState<AdminProductPayload>(EMPTY_PRODUCT);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -310,6 +312,30 @@ export const AdminDashboard = ({
       tags: collectUnique('tags'),
     };
   }, [snapshot.products]);
+
+  const filteredProducts = useMemo(() => {
+    const search = productSearchTerm.trim().toLowerCase();
+
+    return snapshot.products.filter((product) => {
+      const matchesCategory = productCategoryFilter === 'all'
+        || product.categoryId === productCategoryFilter
+        || product.category === snapshot.categories.find((category) => category.id === productCategoryFilter)?.name;
+
+      if (!matchesCategory) return false;
+      if (!search) return true;
+
+      return [
+        product.name,
+        product.id,
+        product.category,
+        product.slug,
+        ...(product.tags ?? []),
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(search);
+    });
+  }, [productCategoryFilter, productSearchTerm, snapshot.categories, snapshot.products]);
 
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
@@ -868,9 +894,41 @@ export const AdminDashboard = ({
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
                     <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Catálogo</p>
-                    <h2 className="font-western uppercase text-3xl">CRUD de productos</h2>
+                    <h2 className="font-western uppercase text-3xl">Productos</h2>
                   </div>
                   <Button size="sm" onClick={openNewProductModal}><Plus size={16} className="mr-2" /> Nuevo</Button>
+                </div>
+                <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_240px_auto]">
+                  <input
+                    type="search"
+                    value={productSearchTerm}
+                    onChange={(event) => setProductSearchTerm(event.target.value)}
+                    placeholder="Buscar por nombre, ID, slug, etiqueta..."
+                    className={INPUT_CLASS}
+                  />
+                  <select
+                    value={productCategoryFilter}
+                    onChange={(event) => setProductCategoryFilter(event.target.value)}
+                    className={INPUT_CLASS}
+                  >
+                    <option value="all">Todas las categorías</option>
+                    {snapshot.categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setProductSearchTerm('');
+                      setProductCategoryFilter('all');
+                    }}
+                    disabled={!productSearchTerm && productCategoryFilter === 'all'}
+                  >
+                    Limpiar filtros
+                  </Button>
                 </div>
                 <div className="overflow-x-auto border-2 border-black bg-white">
                   <table className="w-full text-left min-w-[940px]">
@@ -885,7 +943,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {snapshot.products.map((product) => (
+                      {filteredProducts.map((product) => (
                         <tr key={product.id}>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
@@ -920,6 +978,13 @@ export const AdminDashboard = ({
                           </td>
                         </tr>
                       ))}
+                      {filteredProducts.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-600">
+                            No hay productos que coincidan con los filtros seleccionados.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
