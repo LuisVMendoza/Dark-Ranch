@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingBag,
+  LogOut,
   Trash2,
   Users,
   Warehouse,
@@ -190,11 +191,13 @@ export const AdminDashboard = ({
   onSnapshotUpdated,
   currentAdminUser,
   onExit,
+  onLogout,
 }: {
   initialSnapshot: AdminSnapshot;
   onSnapshotUpdated: (snapshot: AdminSnapshot) => void;
   currentAdminUser: AdminUser | null;
   onExit: () => void;
+  onLogout: () => void;
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [snapshot, setSnapshot] = useState<AdminSnapshot>(initialSnapshot);
@@ -730,6 +733,9 @@ export const AdminDashboard = ({
               <Button className="mt-3 w-full justify-center" variant="outline" onClick={onExit}>
                 <ArrowLeft size={16} className="mr-2" /> Volver a la tienda
               </Button>
+              <Button className="mt-3 w-full justify-center" variant="outline" onClick={onLogout}>
+                <LogOut size={16} className="mr-2" /> Cerrar sesión
+              </Button>
             </div>
 
             <div className="bg-white border-2 border-black p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-2">
@@ -758,6 +764,9 @@ export const AdminDashboard = ({
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" onClick={onExit}>
                   <ArrowLeft size={16} className="mr-2" /> Regresar a página principal
+                </Button>
+                <Button variant="outline" onClick={onLogout}>
+                  <LogOut size={16} className="mr-2" /> Cerrar sesión
                 </Button>
                 <Button onClick={() => refreshSnapshot('Panel sincronizado')} disabled={isRefreshing}>
                   {isRefreshing ? 'Sincronizando…' : 'Actualizar panel'}
