@@ -9,7 +9,6 @@ import {
   Pencil,
   Plus,
   Printer,
-  ShieldAlert,
   Save,
   Settings,
   ShieldCheck,
@@ -1607,37 +1606,6 @@ export const AdminDashboard = ({
               </PaperCard>
             )}
           </main>
-
-          <Dialog open={isActivityCleanupModalOpen} onOpenChange={setIsActivityCleanupModalOpen}>
-            <DialogContent className="max-w-xl border-2 border-black bg-[#fcf9f5]">
-              <DialogHeader>
-                <DialogTitle className="font-western uppercase text-2xl">Mantenimiento de bitácora</DialogTitle>
-                <DialogDescription className="text-sm text-neutral-700">
-                  Limpia la bitácora y conserva solamente los movimientos de los últimos 3 meses.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="mt-4 border-2 border-black bg-white p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción disponible</p>
-                <p className="font-header font-black uppercase mt-2">Limpiar la bitácora</p>
-                <p className="text-sm text-neutral-700 mt-2">
-                  Se eliminarán de forma permanente todos los registros anteriores a 3 meses. Esta acción no se puede deshacer.
-                </p>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <Button variant="outline" size="sm" onClick={() => setIsActivityCleanupModalOpen(false)}>Cancelar</Button>
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    await runActivityPurge();
-                    setIsActivityCleanupModalOpen(false);
-                  }}
-                  disabled={isPurgingLogs}
-                >
-                  <Trash2 size={14} className="mr-2" /> {isPurgingLogs ? 'Limpiando…' : 'Limpiar la bitácora'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
 
 <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
   <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
