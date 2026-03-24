@@ -108,7 +108,7 @@ const ATTRIBUTE_DEFAULTS = {
 type AttributeFieldKey = keyof typeof ATTRIBUTE_DEFAULTS;
 const statCardClass = 'bg-white border-2 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]';
 const INPUT_CLASS = 'w-full border-2 border-black bg-white px-3 py-3 outline-none focus:bg-[#fffdfa]';
-const generateProductSlug = (value: string) => value
+const generateSlug = (value: string) => value
   .toLowerCase()
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -117,6 +117,8 @@ const generateProductSlug = (value: string) => value
   .replace(/[^a-z0-9_]/g, '')
   .replace(/_+/g, '_')
   .replace(/^_+|_+$/g, '');
+const generateProductSlug = generateSlug;
+const generateCategorySlug = generateSlug;
 
 const statusBadgeClassMap: Record<AdminOrder['status'], string> = {
   pending: 'border-[#b7791f] bg-[#fff7e6] text-[#8a5a12]',
@@ -1656,8 +1658,18 @@ const CategoryFormFields = ({
         className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
       />
     </Field>
-    <Field label="Nombre"><input required value={form.name} onChange={(e) => onChange((current) => ({ ...current, name: e.target.value }))} className={INPUT_CLASS} /></Field>
-    <Field label="Slug"><input value={form.slug || ''} onChange={(e) => onChange((current) => ({ ...current, slug: e.target.value }))} className={INPUT_CLASS} /></Field>
+    <Field label="Nombre">
+      <input
+        required
+        value={form.name}
+        onChange={(e) => {
+          const name = e.target.value;
+          onChange((current) => ({ ...current, name, slug: generateCategorySlug(name) }));
+        }}
+        className={INPUT_CLASS}
+      />
+    </Field>
+    <Field label="Slug"><input value={form.slug || ''} readOnly className={`${INPUT_CLASS} bg-neutral-100 text-neutral-600`} /></Field>
     <Field label="Imagen URL"><input required value={form.imageUrl} onChange={(e) => onChange((current) => ({ ...current, imageUrl: e.target.value }))} className={INPUT_CLASS} /></Field>
     <Button type="submit" className="w-full justify-center">{submitLabel}</Button>
   </form>
