@@ -1800,6 +1800,10 @@ try {
         json_response(200, get_bootstrap_payload());
     }
 
+    if ($method === 'GET' && preg_match('#^/api/uploads/(.+)$#', $path, $matches) === 1) {
+        stream_uploaded_image($matches[1]);
+    }
+
     if ($method === 'GET' && $path === '/api/admin/snapshot') {
         json_response(200, get_admin_snapshot());
     }

@@ -71,7 +71,7 @@ const EMPTY_PRODUCT: AdminProductPayload = {
   price: 0,
   salePrice: null,
   categoryId: '',
-  images: [''],
+  images: [],
   sizes: ['CH', 'M', 'G'],
   colors: ['Negro', 'Café'],
   tags: ['western', 'cuero'],
