@@ -618,6 +618,17 @@ function get_categories(): array
     return $categories;
 }
 
+function get_admin_category_by_id(string $id): array
+{
+    foreach (get_categories() as $category) {
+        if ((string) ($category['id'] ?? '') === $id) {
+            return $category;
+        }
+    }
+
+    throw new RuntimeException('Categoría no encontrada.');
+}
+
 function get_admin_products(bool $includeInactive = true): array
 {
     if (database_mode() === 'mysql') {
@@ -667,6 +678,17 @@ function get_admin_products(bool $includeInactive = true): array
 
     usort($products, static fn (array $a, array $b): int => ((int) $b['isFeatured'] <=> (int) $a['isFeatured']) ?: strcmp($b['createdAt'], $a['createdAt']));
     return $products;
+}
+
+function get_admin_product_by_id(string $id): array
+{
+    foreach (get_admin_products(true) as $product) {
+        if ((string) ($product['id'] ?? '') === $id) {
+            return $product;
+        }
+    }
+
+    throw new RuntimeException('Producto no encontrado.');
 }
 
 function get_products(): array
@@ -1761,6 +1783,7 @@ function swagger_spec(): array
                 'post' => ['summary' => 'Crear producto', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Producto creado']]],
             ],
             '/api/admin/products/{id}' => [
+                'get' => ['summary' => 'Obtener producto por id', 'responses' => ['200' => ['description' => 'Producto']]],
                 'put' => ['summary' => 'Actualizar producto', 'responses' => ['200' => ['description' => 'Producto actualizado']]],
                 'delete' => ['summary' => 'Eliminar producto', 'responses' => ['200' => ['description' => 'Producto eliminado']]],
             ],
@@ -1769,6 +1792,7 @@ function swagger_spec(): array
                 'post' => ['summary' => 'Crear categoría', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Categoría creada']]],
             ],
             '/api/admin/categories/{id}' => [
+                'get' => ['summary' => 'Obtener categoría por id', 'responses' => ['200' => ['description' => 'Categoría']]],
                 'put' => ['summary' => 'Actualizar categoría', 'responses' => ['200' => ['description' => 'Categoría actualizada']]],
                 'delete' => ['summary' => 'Eliminar categoría', 'responses' => ['200' => ['description' => 'Categoría eliminada']]],
             ],
@@ -1930,6 +1954,9 @@ try {
 
     if (preg_match('#^/api/admin/products/([^/]+)$#', $path, $matches) === 1) {
         $productId = urldecode($matches[1]);
+        if ($method === 'GET') {
+            json_response(200, ['product' => get_admin_product_by_id($productId)]);
+        }
         if ($method === 'PUT') {
             json_response(200, ['product' => update_admin_product($productId, read_json_body())]);
         }
@@ -1946,6 +1973,9 @@ try {
 
     if (preg_match('#^/api/admin/categories/([^/]+)$#', $path, $matches) === 1) {
         $categoryId = urldecode($matches[1]);
+        if ($method === 'GET') {
+            json_response(200, ['category' => get_admin_category_by_id($categoryId)]);
+        }
         if ($method === 'PUT') {
             json_response(200, ['category' => update_admin_category($categoryId, read_json_body())]);
         }
