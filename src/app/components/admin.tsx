@@ -195,8 +195,6 @@ const uploadImageToStorage = async (file: File, folder: string) => {
 };
 
 const deleteImageFromStorage = async (imageUrl: string) => {
-  if (!imageUrl) return;
-  if (!imageUrl.includes('/api/uploads/') && !imageUrl.includes('/uploads/')) return;
   await deleteAdminImage(imageUrl);
 };
 
@@ -1724,12 +1722,11 @@ const ImageDropzone = ({
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-    const handleUpload = async (fileList: FileList | null) => {
+  const handleUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const fileArray = Array.from(fileList);
-      const currentItems = value.filter(Boolean);
-      const availableSlots = typeof maxItems === 'number' ? Math.max(maxItems - currentItems.length, 0) : fileArray.length;
-      const files = fileArray.slice(0, availableSlots);
+    const availableSlots = typeof maxItems === 'number' ? Math.max(maxItems - value.length, 0) : fileArray.length;
+    const files = fileArray.slice(0, availableSlots);
     if (files.length === 0) {
       toast.error(`Solo puedes cargar ${maxItems} imagen(es) en este campo.`);
       return;
@@ -1738,8 +1735,8 @@ const ImageDropzone = ({
     setIsUploading(true);
     try {
       const uploadedUrls = await Promise.all(files.map((file) => uploadImageToStorage(file, folder)));
-        const next = multiple ? [...currentItems, ...uploadedUrls] : [uploadedUrls[0]];
-        onChange(next);
+      const next = multiple ? [...value, ...uploadedUrls] : [uploadedUrls[0]];
+      onChange(next);
       toast.success(`${uploadedUrls.length} imagen(es) subida(s).`);
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -1750,7 +1747,7 @@ const ImageDropzone = ({
   };
 
   const removeImage = async (imageUrl: string) => {
-      onChange(value.filter((item) => item && item !== imageUrl));
+    onChange(value.filter((item) => item !== imageUrl));
     try {
       await deleteImageFromStorage(imageUrl);
     } catch (error) {
