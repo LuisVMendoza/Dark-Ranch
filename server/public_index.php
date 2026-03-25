@@ -301,8 +301,13 @@ function admin_user_to_client(array $user): array
         'id' => (int) $user['id'],
         'email' => (string) $user['email'],
         'name' => (string) $user['name'],
-        'role' => (string) $user['role'],
+        'role' => normalize_admin_role((string) ($user['role'] ?? 'editor')),
     ];
+}
+
+function normalize_admin_role(string $role): string
+{
+    return $role === 'admin' ? 'admin' : 'editor';
 }
 
 function activity_log_to_client(array $log): array
@@ -328,8 +333,16 @@ function current_actor_from_request(): array
         'id' => isset($_SERVER['HTTP_X_ADMIN_ACTOR_ID']) && $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] !== '' ? (int) $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] : null,
         'name' => trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] ?? '')) ?: 'Sistema',
         'email' => trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] ?? '')) ?: 'system@darkranch.local',
-        'role' => trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] ?? '')) ?: 'system',
+        'role' => normalize_admin_role(trim((string) ($_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] ?? '')) ?: 'editor'),
     ];
+}
+
+function ensure_admin_actor(): void
+{
+    $actor = current_actor_from_request();
+    if (($actor['role'] ?? 'editor') !== 'admin') {
+        throw new RuntimeException('Solo un admin puede editar o eliminar permisos.');
+    }
 }
 
 function next_activity_log_id_json(array $store): int
@@ -751,12 +764,13 @@ function get_bootstrap_payload(): array
 
 function get_admin_snapshot(): array
 {
+    $actor = current_actor_from_request();
     return [
         'categories' => get_categories(),
         'products' => get_admin_products(true),
         'orders' => get_admin_orders(),
         'adminUsers' => get_admin_users(),
-        'activityLogs' => get_activity_logs(),
+        'activityLogs' => ($actor['role'] ?? 'editor') === 'admin' ? get_activity_logs() : [],
         'settings' => get_settings(),
         'dashboard' => get_dashboard(),
     ];
@@ -1172,9 +1186,10 @@ function delete_admin_category(string $id): void
 
 function create_admin_user(array $payload): array
 {
+    ensure_admin_actor();
     $email = trim((string) ($payload['email'] ?? ''));
     $name = trim((string) ($payload['name'] ?? ''));
-    $role = trim((string) ($payload['role'] ?? 'admin')) ?: 'admin';
+    $role = normalize_admin_role(trim((string) ($payload['role'] ?? 'editor')) ?: 'editor');
     $password = (string) ($payload['password'] ?? '');
 
     if ($email === '' || $name === '' || $password === '') {
@@ -1210,9 +1225,10 @@ function create_admin_user(array $payload): array
 
 function update_admin_user(int $id, array $payload): array
 {
+    ensure_admin_actor();
     $email = trim((string) ($payload['email'] ?? ''));
     $name = trim((string) ($payload['name'] ?? ''));
-    $role = trim((string) ($payload['role'] ?? 'admin')) ?: 'admin';
+    $role = normalize_admin_role(trim((string) ($payload['role'] ?? 'editor')) ?: 'editor');
     $password = array_key_exists('password', $payload) ? (string) $payload['password'] : null;
 
     if ($email === '' || $name === '') {
@@ -1724,6 +1740,7 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/admin/activity/purge') {
+        ensure_admin_actor();
         $body = read_json_body();
         $retentionMonths = (int) ($body['retentionMonths'] ?? 0);
         json_response(200, purge_activity_logs($retentionMonths));

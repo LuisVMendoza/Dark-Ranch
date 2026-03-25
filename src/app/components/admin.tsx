@@ -97,8 +97,7 @@ const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid'
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ['Productos y categorías', 'Órdenes y tienda', 'Usuarios y permisos', 'Bitácora completa'],
-  editor: ['Productos y categorías', 'Storefront', 'Lectura de bitácora'],
-  operations: ['Órdenes y postventa', 'Inventario', 'Lectura de bitácora'],
+  editor: ['Productos y categorías', 'Storefront'],
 };
 
 const parseTags = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
@@ -235,6 +234,7 @@ export const AdminDashboard = ({
   const [isPurgingLogs, setIsPurgingLogs] = useState(false);
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
+  const canViewActivityLog = currentRole === 'admin';
 
   useEffect(() => {
     setSnapshot(initialSnapshot);
@@ -459,6 +459,12 @@ export const AdminDashboard = ({
   }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
 
   useEffect(() => {
+    if (activeTab === 'activity' && !canViewActivityLog) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, canViewActivityLog]);
+
+  useEffect(() => {
     setActivityPage((current) => Math.min(current, totalActivityPages));
   }, [totalActivityPages]);
 
@@ -527,11 +533,19 @@ export const AdminDashboard = ({
   };
 
   const openNewUserModal = () => {
+    if (!canManageTeam) {
+      toast.error('Solo un admin puede editar permisos del equipo.');
+      return;
+    }
     resetUserForm();
     setIsUserModalOpen(true);
   };
 
   const openEditUserModal = (user: AdminUser) => {
+    if (!canManageTeam) {
+      toast.error('Solo un admin puede editar permisos del equipo.');
+      return;
+    }
     setEditingUserId(user.id);
     setUserForm({ email: user.email, name: user.name, role: user.role, password: '' });
     setIsUserModalOpen(true);
@@ -582,6 +596,10 @@ export const AdminDashboard = ({
 
   const handleUserSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!canManageTeam) {
+      toast.error('Solo un admin puede editar permisos del equipo.');
+      return;
+    }
     try {
       if (editingUserId) {
         await updateAdminUser(editingUserId, userForm);
@@ -821,7 +839,7 @@ export const AdminDashboard = ({
     { key: 'categories', label: 'Categorías', icon: Boxes },
     { key: 'orders', label: 'Órdenes', icon: ShoppingBag },
     { key: 'team', label: 'Admin', icon: Users },
-    { key: 'activity', label: 'Bitácora', icon: ShieldCheck },
+    ...(canViewActivityLog ? [{ key: 'activity' as TabKey, label: 'Bitácora', icon: ShieldCheck }] : []),
     { key: 'storefront', label: 'Storefront', icon: Settings },
   ];
 
@@ -993,7 +1011,9 @@ export const AdminDashboard = ({
                         <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Últimos movimientos</p>
                         <h2 className="font-western uppercase text-3xl">Bitácora reciente</h2>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => setActiveTab('activity')}>Abrir bitácora</Button>
+                      {canViewActivityLog && (
+                        <Button size="sm" variant="outline" onClick={() => setActiveTab('activity')}>Abrir bitácora</Button>
+                      )}
                     </div>
                     <div className="space-y-3">
                       {snapshot.activityLogs.slice(0, 5).map((item) => (
@@ -1321,26 +1341,14 @@ export const AdminDashboard = ({
             )}
 
             {activeTab === 'team' && (
-              <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8">
+              <div className="grid grid-cols-1 gap-8">
                 <PaperCard>
                   <div className="flex items-center justify-between gap-4 mb-6">
                     <div>
                       <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Permisos</p>
-                      <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
+                      <h2 className="font-western uppercase text-3xl">Permisos equipo administrador</h2>
                     </div>
-                    <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
-                  </div>
-                  <div className="mb-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                    <div className="border-2 border-black bg-white p-4">
-                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500">Política de eliminación</p>
-                      <p className="mt-3 text-sm text-neutral-700 leading-relaxed">
-                        Se listan todas las cuentas con su rol. Solo las cuentas con rol <span className="font-header font-black uppercase">admin</span> pueden borrar otras cuentas, y nunca su propia sesión.
-                      </p>
-                    </div>
-                    <div className="border-2 border-black bg-[#1f130b] p-4 text-white">
-                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#d4c5b3]">Tu capacidad actual</p>
-                      <p className="mt-3 font-header font-black uppercase text-lg">{canManageTeam ? 'Puedes administrar y borrar otras cuentas' : 'Solo puedes consultar cuentas y roles'}</p>
-                    </div>
+                    {canManageTeam && <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>}
                   </div>
                   <div className="space-y-4">
                     {snapshot.adminUsers.map((user) => (
@@ -1363,7 +1371,7 @@ export const AdminDashboard = ({
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)}>Editar</Button>
+                            <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)} disabled={!canManageTeam}>Editar</Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1389,46 +1397,10 @@ export const AdminDashboard = ({
                   </div>
                 </PaperCard>
 
-                <PaperCard>
-                  <div>
-                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Cuentas</p>
-                    <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
-                  </div>
-                  <div className="mt-6 border-2 border-black bg-white p-5 space-y-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Nombre</p>
-                      <p className="font-header font-black text-xl mt-1">{currentAdminUser?.name || 'Sin sesión'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Correo</p>
-                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.email || 'No disponible'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Rol</p>
-                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.role || 'No disponible'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción de borrado</p>
-                      <p className="text-sm text-neutral-700 mt-1">
-                        {canManageTeam ? 'Puedes borrar otras cuentas listadas en el equipo.' : 'Tu rol no puede borrar cuentas; solo un admin puede hacerlo.'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-3">Permisos aplicados</p>
-                      <div className="flex flex-wrap gap-2">
-                        {getPermissionsForRole(currentAdminUser?.role || 'guest').map((permission) => (
-                          <span key={permission} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
-                            {permission}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </PaperCard>
               </div>
             )}
 
-            {activeTab === 'activity' && (
+            {activeTab === 'activity' && canViewActivityLog && (
               <PaperCard>
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
@@ -1656,7 +1628,6 @@ export const AdminDashboard = ({
                     <select value={userForm.role} onChange={(e) => setUserForm((current) => ({ ...current, role: e.target.value }))} className={INPUT_CLASS}>
                       <option value="admin">admin</option>
                       <option value="editor">editor</option>
-                      <option value="operations">operations</option>
                     </select>
                   </Field>
                   <Field label={editingUserId ? 'Nueva contraseña (opcional)' : 'Contraseña'}><input type="password" value={userForm.password || ''} onChange={(e) => setUserForm((current) => ({ ...current, password: e.target.value }))} className={INPUT_CLASS} /></Field>
