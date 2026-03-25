@@ -103,6 +103,122 @@ function read_json_body(): array
     return $decoded;
 }
 
+function sanitize_upload_folder(string $folder): string
+{
+    $clean = trim($folder);
+    $clean = str_replace('\\', '/', $clean);
+    $clean = preg_replace('/[^a-zA-Z0-9_\/-]/', '', $clean) ?? '';
+    $clean = trim((string) $clean, '/');
+    return $clean !== '' ? $clean : 'general';
+}
+
+function upload_public_url(string $relativePath): string
+{
+    return '/api/' . ltrim($relativePath, '/');
+}
+
+function save_admin_uploaded_image(): array
+{
+    if (!isset($_FILES['image']) || !is_array($_FILES['image'])) {
+        throw new RuntimeException('No se recibió ninguna imagen.');
+    }
+
+    $file = $_FILES['image'];
+    $uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        $message = match ($uploadError) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'La imagen excede el tamaño máximo permitido por el servidor.',
+            UPLOAD_ERR_PARTIAL => 'La imagen se subió parcialmente. Intenta de nuevo.',
+            UPLOAD_ERR_NO_FILE => 'No se recibió ninguna imagen.',
+            default => 'No se pudo subir la imagen.',
+        };
+        throw new RuntimeException($message);
+    }
+
+    $tmpPath = (string) ($file['tmp_name'] ?? '');
+    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+        throw new RuntimeException('Archivo inválido.');
+    }
+
+    $mime = mime_content_type($tmpPath) ?: '';
+    if (!str_starts_with($mime, 'image/')) {
+        throw new RuntimeException('Solo se permiten archivos de imagen.');
+    }
+
+    $maxBytes = 6 * 1024 * 1024;
+    if ((int) ($file['size'] ?? 0) > $maxBytes) {
+        throw new RuntimeException('La imagen excede el tamaño máximo de 6MB.');
+    }
+
+    $folder = sanitize_upload_folder((string) ($_POST['folder'] ?? 'general'));
+    $extension = pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION);
+    $extension = strtolower($extension !== '' ? $extension : 'jpg');
+    $fileName = sprintf('%s-%s.%s', date('YmdHis'), bin2hex(random_bytes(4)), $extension);
+
+    $relativeDir = 'uploads/' . $folder;
+    $absoluteDir = base_path('server/' . $relativeDir);
+    if (!is_dir($absoluteDir) && !mkdir($absoluteDir, 0777, true) && !is_dir($absoluteDir)) {
+        throw new RuntimeException('No se pudo preparar el directorio de carga.');
+    }
+
+    $absolutePath = $absoluteDir . '/' . $fileName;
+    if (!move_uploaded_file($tmpPath, $absolutePath)) {
+        throw new RuntimeException('No se pudo guardar la imagen.');
+    }
+
+    $relativePath = $relativeDir . '/' . $fileName;
+    return ['url' => upload_public_url($relativePath)];
+}
+
+function delete_admin_uploaded_image(array $payload): void
+{
+    $url = trim((string) ($payload['url'] ?? ''));
+    if ($url === '') {
+        return;
+    }
+
+    $path = parse_url($url, PHP_URL_PATH);
+    if (!is_string($path)) {
+        return;
+    }
+
+    if (str_starts_with($path, '/api/uploads/')) {
+        $path = substr($path, 4);
+    }
+
+    if (!str_starts_with($path, '/uploads/')) {
+        return;
+    }
+
+    $relativePath = ltrim($path, '/');
+    $absolutePath = base_path('server/' . $relativePath);
+    if (is_file($absolutePath)) {
+        @unlink($absolutePath);
+    }
+}
+
+function stream_uploaded_image(string $relativePath): void
+{
+    $cleanPath = preg_replace('/[^a-zA-Z0-9_\/\.-]/', '', $relativePath) ?? '';
+    $cleanPath = ltrim($cleanPath, '/');
+    if ($cleanPath === '' || str_contains($cleanPath, '..')) {
+        http_response_code(404);
+        exit;
+    }
+
+    $absolutePath = base_path('server/uploads/' . $cleanPath);
+    if (!is_file($absolutePath)) {
+        http_response_code(404);
+        exit;
+    }
+
+    $mime = mime_content_type($absolutePath) ?: 'application/octet-stream';
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: public, max-age=86400');
+    readfile($absolutePath);
+    exit;
+}
+
 function data_store_path(): string
 {
     return base_path('local-data/dark-ranch.json');
@@ -1719,6 +1835,10 @@ try {
         json_response(200, get_bootstrap_payload());
     }
 
+    if ($method === 'GET' && preg_match('#^/api/uploads/(.+)$#', $path, $matches) === 1) {
+        stream_uploaded_image($matches[1]);
+    }
+
     if ($method === 'GET' && $path === '/api/admin/snapshot') {
         json_response(200, get_admin_snapshot());
     }
@@ -1744,6 +1864,17 @@ try {
         $body = read_json_body();
         $retentionMonths = (int) ($body['retentionMonths'] ?? 0);
         json_response(200, purge_activity_logs($retentionMonths));
+    }
+
+    if ($method === 'POST' && $path === '/api/admin/uploads') {
+        ensure_admin_actor();
+        json_response(201, save_admin_uploaded_image());
+    }
+
+    if ($method === 'DELETE' && $path === '/api/admin/uploads') {
+        ensure_admin_actor();
+        delete_admin_uploaded_image(read_json_body());
+        json_response(200, ['ok' => true]);
     }
 
     if ($method === 'POST' && $path === '/api/login') {
