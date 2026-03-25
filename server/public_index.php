@@ -116,7 +116,34 @@ function upload_public_url(string $relativePath): string
 {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost:3001';
-    return sprintf('%s://%s/%s', $scheme, $host, ltrim($relativePath, '/'));
+    $cleanPath = ltrim($relativePath, '/');
+    if (str_starts_with($cleanPath, 'uploads/')) {
+        $cleanPath = substr($cleanPath, strlen('uploads/'));
+    }
+    return sprintf('%s://%s/api/uploads/%s', $scheme, $host, ltrim($cleanPath, '/'));
+}
+
+function normalize_uploaded_image_url(string $url): string
+{
+    $trimmed = trim($url);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $path = parse_url($trimmed, PHP_URL_PATH);
+    if (!is_string($path)) {
+        return $trimmed;
+    }
+
+    if (str_starts_with($path, '/uploads/')) {
+        return upload_public_url(ltrim($path, '/'));
+    }
+
+    if (str_starts_with($path, '/api/uploads/')) {
+        return upload_public_url('uploads/' . ltrim(substr($path, strlen('/api/uploads/')), '/'));
+    }
+
+    return $trimmed;
 }
 
 function save_admin_uploaded_image(): array
@@ -173,11 +200,18 @@ function delete_admin_uploaded_image(array $payload): void
     }
 
     $path = parse_url($url, PHP_URL_PATH);
-    if (!is_string($path) || !str_starts_with($path, '/uploads/')) {
-        return;
+    if (!is_string($path)) {
+        throw new RuntimeException('URL de imagen inválida.');
     }
 
-    $relativePath = ltrim($path, '/');
+    if (str_starts_with($path, '/api/uploads/')) {
+        $relativePath = 'uploads/' . ltrim(substr($path, strlen('/api/uploads/')), '/');
+    } elseif (str_starts_with($path, '/uploads/')) {
+        $relativePath = ltrim($path, '/');
+    } else {
+        throw new RuntimeException('URL de imagen inválida.');
+    }
+
     $absolutePath = base_path('server/' . $relativePath);
     if (is_file($absolutePath)) {
         @unlink($absolutePath);
@@ -316,7 +350,7 @@ function category_to_client(array $category): array
         'id' => (string) $category['id'],
         'name' => (string) $category['name'],
         'slug' => (string) $category['slug'],
-        'imageUrl' => (string) $category['imageUrl'],
+        'imageUrl' => normalize_uploaded_image_url((string) $category['imageUrl']),
     ];
 }
 
@@ -331,7 +365,10 @@ function product_to_client(array $product): array
         'salePrice' => $product['salePrice'] !== null ? (float) $product['salePrice'] : null,
         'category' => (string) $product['category'],
         'categoryId' => (string) $product['categoryId'],
-        'images' => array_values($product['images']),
+        'images' => array_values(array_map(
+            static fn (string $image): string => normalize_uploaded_image_url($image),
+            $product['images']
+        )),
         'sizes' => array_values($product['sizes']),
         'colors' => array_values($product['colors']),
         'tags' => array_values($product['tags']),
@@ -581,6 +618,17 @@ function get_categories(): array
     return $categories;
 }
 
+function get_admin_category_by_id(string $id): array
+{
+    foreach (get_categories() as $category) {
+        if ((string) ($category['id'] ?? '') === $id) {
+            return $category;
+        }
+    }
+
+    throw new RuntimeException('Categoría no encontrada.');
+}
+
 function get_admin_products(bool $includeInactive = true): array
 {
     if (database_mode() === 'mysql') {
@@ -632,6 +680,17 @@ function get_admin_products(bool $includeInactive = true): array
     return $products;
 }
 
+function get_admin_product_by_id(string $id): array
+{
+    foreach (get_admin_products(true) as $product) {
+        if ((string) ($product['id'] ?? '') === $id) {
+            return $product;
+        }
+    }
+
+    throw new RuntimeException('Producto no encontrado.');
+}
+
 function get_products(): array
 {
     return get_admin_products(false);
@@ -662,14 +721,14 @@ function get_settings(): array
             'hero' => [
                 'title' => $settings['hero_title'],
                 'subtitle' => $settings['hero_subtitle'],
-                'imageUrl' => $settings['hero_image_url'],
+                'imageUrl' => normalize_uploaded_image_url((string) $settings['hero_image_url']),
             ],
             'banners' => array_map(static fn (array $banner): array => [
                 'id' => $banner['id'],
                 'title' => $banner['title'],
                 'subtitle' => $banner['subtitle'],
                 'buttonText' => $banner['button_text'],
-                'imageUrl' => $banner['image_url'],
+                'imageUrl' => normalize_uploaded_image_url((string) $banner['image_url']),
                 'categoryLink' => $banner['category_name'] ?? '',
             ], $banners),
             'aboutText' => $settings['about_text'],
@@ -677,7 +736,21 @@ function get_settings(): array
         ];
     }
 
-    return read_json_store()['settings'];
+    $stored = read_json_store()['settings'];
+    $hero = is_array($stored['hero'] ?? null) ? $stored['hero'] : [];
+    $banners = is_array($stored['banners'] ?? null) ? $stored['banners'] : [];
+
+    return [
+        ...$stored,
+        'hero' => [
+            ...$hero,
+            'imageUrl' => normalize_uploaded_image_url((string) ($hero['imageUrl'] ?? '')),
+        ],
+        'banners' => array_map(static fn (array $banner): array => [
+            ...$banner,
+            'imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? '')),
+        ], $banners),
+    ];
 }
 
 function get_order_items_map(): array
@@ -1710,6 +1783,7 @@ function swagger_spec(): array
                 'post' => ['summary' => 'Crear producto', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Producto creado']]],
             ],
             '/api/admin/products/{id}' => [
+                'get' => ['summary' => 'Obtener producto por id', 'responses' => ['200' => ['description' => 'Producto']]],
                 'put' => ['summary' => 'Actualizar producto', 'responses' => ['200' => ['description' => 'Producto actualizado']]],
                 'delete' => ['summary' => 'Eliminar producto', 'responses' => ['200' => ['description' => 'Producto eliminado']]],
             ],
@@ -1718,6 +1792,7 @@ function swagger_spec(): array
                 'post' => ['summary' => 'Crear categoría', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Categoría creada']]],
             ],
             '/api/admin/categories/{id}' => [
+                'get' => ['summary' => 'Obtener categoría por id', 'responses' => ['200' => ['description' => 'Categoría']]],
                 'put' => ['summary' => 'Actualizar categoría', 'responses' => ['200' => ['description' => 'Categoría actualizada']]],
                 'delete' => ['summary' => 'Eliminar categoría', 'responses' => ['200' => ['description' => 'Categoría eliminada']]],
             ],
@@ -1879,6 +1954,9 @@ try {
 
     if (preg_match('#^/api/admin/products/([^/]+)$#', $path, $matches) === 1) {
         $productId = urldecode($matches[1]);
+        if ($method === 'GET') {
+            json_response(200, ['product' => get_admin_product_by_id($productId)]);
+        }
         if ($method === 'PUT') {
             json_response(200, ['product' => update_admin_product($productId, read_json_body())]);
         }
@@ -1895,6 +1973,9 @@ try {
 
     if (preg_match('#^/api/admin/categories/([^/]+)$#', $path, $matches) === 1) {
         $categoryId = urldecode($matches[1]);
+        if ($method === 'GET') {
+            json_response(200, ['category' => get_admin_category_by_id($categoryId)]);
+        }
         if ($method === 'PUT') {
             json_response(200, ['category' => update_admin_category($categoryId, read_json_body())]);
         }
