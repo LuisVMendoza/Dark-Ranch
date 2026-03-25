@@ -114,7 +114,9 @@ function sanitize_upload_folder(string $folder): string
 
 function upload_public_url(string $relativePath): string
 {
-    return '/api/' . ltrim($relativePath, '/');
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost:3001';
+    return sprintf('%s://%s/%s', $scheme, $host, ltrim($relativePath, '/'));
 }
 
 function save_admin_uploaded_image(): array
@@ -124,15 +126,8 @@ function save_admin_uploaded_image(): array
     }
 
     $file = $_FILES['image'];
-    $uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
-    if ($uploadError !== UPLOAD_ERR_OK) {
-        $message = match ($uploadError) {
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'La imagen excede el tamaño máximo permitido por el servidor.',
-            UPLOAD_ERR_PARTIAL => 'La imagen se subió parcialmente. Intenta de nuevo.',
-            UPLOAD_ERR_NO_FILE => 'No se recibió ninguna imagen.',
-            default => 'No se pudo subir la imagen.',
-        };
-        throw new RuntimeException($message);
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('No se pudo subir la imagen.');
     }
 
     $tmpPath = (string) ($file['tmp_name'] ?? '');
@@ -174,19 +169,11 @@ function delete_admin_uploaded_image(array $payload): void
 {
     $url = trim((string) ($payload['url'] ?? ''));
     if ($url === '') {
-        return;
+        throw new RuntimeException('URL de imagen inválida.');
     }
 
     $path = parse_url($url, PHP_URL_PATH);
-    if (!is_string($path)) {
-        return;
-    }
-
-    if (str_starts_with($path, '/api/uploads/')) {
-        $path = substr($path, 4);
-    }
-
-    if (!str_starts_with($path, '/uploads/')) {
+    if (!is_string($path) || !str_starts_with($path, '/uploads/')) {
         return;
     }
 
@@ -195,28 +182,6 @@ function delete_admin_uploaded_image(array $payload): void
     if (is_file($absolutePath)) {
         @unlink($absolutePath);
     }
-}
-
-function stream_uploaded_image(string $relativePath): void
-{
-    $cleanPath = preg_replace('/[^a-zA-Z0-9_\/\.-]/', '', $relativePath) ?? '';
-    $cleanPath = ltrim($cleanPath, '/');
-    if ($cleanPath === '' || str_contains($cleanPath, '..')) {
-        http_response_code(404);
-        exit;
-    }
-
-    $absolutePath = base_path('server/uploads/' . $cleanPath);
-    if (!is_file($absolutePath)) {
-        http_response_code(404);
-        exit;
-    }
-
-    $mime = mime_content_type($absolutePath) ?: 'application/octet-stream';
-    header('Content-Type: ' . $mime);
-    header('Cache-Control: public, max-age=86400');
-    readfile($absolutePath);
-    exit;
 }
 
 function data_store_path(): string
