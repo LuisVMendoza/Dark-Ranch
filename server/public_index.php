@@ -114,13 +114,11 @@ function sanitize_upload_folder(string $folder): string
 
 function upload_public_url(string $relativePath): string
 {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost:3001';
     $cleanPath = ltrim($relativePath, '/');
     if (str_starts_with($cleanPath, 'uploads/')) {
         $cleanPath = substr($cleanPath, strlen('uploads/'));
     }
-    return sprintf('%s://%s/api/uploads/%s', $scheme, $host, ltrim($cleanPath, '/'));
+    return '/api/uploads/' . ltrim($cleanPath, '/');
 }
 
 function normalize_uploaded_image_url(string $url): string
@@ -136,7 +134,7 @@ function normalize_uploaded_image_url(string $url): string
     }
 
     if (str_starts_with($path, '/uploads/')) {
-        return upload_public_url(ltrim($path, '/'));
+        return upload_public_url($path);
     }
 
     if (str_starts_with($path, '/api/uploads/')) {
@@ -144,6 +142,55 @@ function normalize_uploaded_image_url(string $url): string
     }
 
     return $trimmed;
+}
+
+function upload_url_to_relative_path(string $url): ?string
+{
+    $trimmed = trim($url);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $path = parse_url($trimmed, PHP_URL_PATH);
+    if (!is_string($path)) {
+        return null;
+    }
+
+    if (str_starts_with($path, '/api/uploads/')) {
+        $tail = ltrim(substr($path, strlen('/api/uploads/')), '/');
+        return $tail === '' ? null : 'uploads/' . $tail;
+    }
+
+    if (str_starts_with($path, '/uploads/')) {
+        $tail = ltrim(substr($path, strlen('/uploads/')), '/');
+        return $tail === '' ? null : 'uploads/' . $tail;
+    }
+
+    return null;
+}
+
+function stream_uploaded_image(string $relativeUploadPath): never
+{
+    $cleanRelative = trim((string) preg_replace('/[^a-zA-Z0-9_\/\.-]/', '', $relativeUploadPath));
+    $cleanRelative = ltrim(str_replace('\\', '/', $cleanRelative), '/');
+    if ($cleanRelative === '' || str_contains($cleanRelative, '..')) {
+        json_response(404, ['message' => 'Imagen no encontrada.']);
+    }
+
+    $absolutePath = base_path('server/uploads/' . $cleanRelative);
+    $uploadsBase = realpath(base_path('server/uploads'));
+    $resolvedPath = realpath($absolutePath);
+    if (!is_string($uploadsBase) || !is_string($resolvedPath) || !str_starts_with($resolvedPath, $uploadsBase) || !is_file($resolvedPath)) {
+        json_response(404, ['message' => 'Imagen no encontrada.']);
+    }
+
+    $mime = mime_content_type($resolvedPath) ?: 'application/octet-stream';
+    http_response_code(200);
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . (string) filesize($resolvedPath));
+    header('Cache-Control: public, max-age=31536000, immutable');
+    readfile($resolvedPath);
+    exit;
 }
 
 function save_admin_uploaded_image(): array
@@ -195,20 +242,8 @@ function save_admin_uploaded_image(): array
 function delete_admin_uploaded_image(array $payload): void
 {
     $url = trim((string) ($payload['url'] ?? ''));
-    if ($url === '') {
-        throw new RuntimeException('URL de imagen inválida.');
-    }
-
-    $path = parse_url($url, PHP_URL_PATH);
-    if (!is_string($path)) {
-        throw new RuntimeException('URL de imagen inválida.');
-    }
-
-    if (str_starts_with($path, '/api/uploads/')) {
-        $relativePath = 'uploads/' . ltrim(substr($path, strlen('/api/uploads/')), '/');
-    } elseif (str_starts_with($path, '/uploads/')) {
-        $relativePath = ltrim($path, '/');
-    } else {
+    $relativePath = upload_url_to_relative_path($url);
+    if ($relativePath === null) {
         throw new RuntimeException('URL de imagen inválida.');
     }
 
