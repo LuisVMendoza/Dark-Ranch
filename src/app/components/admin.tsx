@@ -229,11 +229,8 @@ export const AdminDashboard = ({
   const [activityDateFilter, setActivityDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
   const [activityActionFilter, setActivityActionFilter] = useState('all');
   const [activityEntityFilter, setActivityEntityFilter] = useState('all');
-  const [activitySearchTerm, setActivitySearchTerm] = useState('');
   const [activityPageSize, setActivityPageSize] = useState(25);
   const [activityPage, setActivityPage] = useState(1);
-  const [activityRetentionMonths, setActivityRetentionMonths] = useState(6);
-  const [activityAutoPurgeEnabled, setActivityAutoPurgeEnabled] = useState(true);
   const [isActivityCleanupModalOpen, setIsActivityCleanupModalOpen] = useState(false);
   const [isPurgingLogs, setIsPurgingLogs] = useState(false);
   const currentRole = currentAdminUser?.role || 'guest';
@@ -267,16 +264,12 @@ export const AdminDashboard = ({
         actionFilter?: string;
         entityFilter?: string;
         pageSize?: number;
-        retentionMonths?: number;
-        autoPurge?: boolean;
       };
 
       if (parsed.dateFilter) setActivityDateFilter(parsed.dateFilter);
       if (parsed.actionFilter) setActivityActionFilter(parsed.actionFilter);
       if (parsed.entityFilter) setActivityEntityFilter(parsed.entityFilter);
       if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setActivityPageSize(Math.max(10, Math.min(200, parsed.pageSize)));
-      if (parsed.retentionMonths && Number.isFinite(parsed.retentionMonths)) setActivityRetentionMonths(Math.max(1, Math.min(60, parsed.retentionMonths)));
-      if (typeof parsed.autoPurge === 'boolean') setActivityAutoPurgeEnabled(parsed.autoPurge);
     } catch {
       // ignorar config corrupta
     }
@@ -289,10 +282,8 @@ export const AdminDashboard = ({
       actionFilter: activityActionFilter,
       entityFilter: activityEntityFilter,
       pageSize: activityPageSize,
-      retentionMonths: activityRetentionMonths,
-      autoPurge: activityAutoPurgeEnabled,
     }));
-  }, [activityActionFilter, activityAutoPurgeEnabled, activityDateFilter, activityEntityFilter, activityPageSize, activityRetentionMonths]);
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
 
   const refreshSnapshot = async (successMessage?: string) => {
     setIsRefreshing(true);
@@ -316,14 +307,14 @@ export const AdminDashboard = ({
 
     setIsPurgingLogs(true);
     try {
-      const result = await purgeAdminActivityLogs(activityRetentionMonths);
+      const result = await purgeAdminActivityLogs(3);
       if (result.deleted > 0) {
         await refreshSnapshot();
         if (!silent) {
           toast.success(`${result.deleted} movimiento(s) eliminado(s) por política de retención.`);
         }
       } else if (!silent) {
-        toast.message('No hubo movimientos para depurar con la configuración actual.');
+        toast.message('No hubo movimientos para depurar en los últimos 3 meses.');
       }
     } catch (error) {
       if (!silent) toast.error(error instanceof Error ? error.message : 'No se pudo depurar la bitácora');
@@ -333,10 +324,10 @@ export const AdminDashboard = ({
   };
 
   useEffect(() => {
-    if (activeTab !== 'activity' || !activityAutoPurgeEnabled) return;
+    if (activeTab !== 'activity') return;
     void runActivityPurge({ silent: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, activityAutoPurgeEnabled, activityRetentionMonths]);
+  }, [activeTab]);
 
   const productMetrics = useMemo(() => {
     const activeProducts = snapshot.products.filter((product) => product.isActive !== false);
@@ -438,7 +429,6 @@ export const AdminDashboard = ({
   }, [snapshot.activityLogs]);
   const filteredActivityLogs = useMemo(() => {
     const now = new Date();
-    const search = activitySearchTerm.trim().toLowerCase();
     const dateThreshold = activityDateFilter === 'all'
       ? null
       : new Date(now.getTime() - (
@@ -449,19 +439,9 @@ export const AdminDashboard = ({
       if (activityActionFilter !== 'all' && item.action !== activityActionFilter) return false;
       if (activityEntityFilter !== 'all' && item.entityType !== activityEntityFilter) return false;
       if (dateThreshold && new Date(item.createdAt).getTime() < dateThreshold.getTime()) return false;
-      if (!search) return true;
-
-      return [
-        item.actorName,
-        item.actorEmail,
-        item.entityName,
-        item.entityId,
-        item.details,
-        humanizeAction(item.action),
-        humanizeEntity(item.entityType),
-      ].join(' ').toLowerCase().includes(search);
+      return true;
     });
-  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activitySearchTerm, snapshot.activityLogs]);
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, snapshot.activityLogs]);
   const totalActivityPages = Math.max(1, Math.ceil(filteredActivityLogs.length / activityPageSize));
   const paginatedActivityLogs = useMemo(() => {
     const start = (activityPage - 1) * activityPageSize;
@@ -476,7 +456,7 @@ export const AdminDashboard = ({
 
   useEffect(() => {
     setActivityPage(1);
-  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize, activitySearchTerm]);
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
 
   useEffect(() => {
     setActivityPage((current) => Math.min(current, totalActivityPages));
@@ -1461,7 +1441,7 @@ export const AdminDashboard = ({
                   </div>
                 </div>
 
-                <div className="border-2 border-black bg-white p-4 mb-5 grid gap-4 lg:grid-cols-6">
+                <div className="border-2 border-black bg-white p-4 mb-5 grid gap-4 lg:grid-cols-5">
                   <Field label="Rango de fechas">
                     <select value={activityDateFilter} onChange={(event) => setActivityDateFilter(event.target.value as 'today' | '7d' | '30d' | 'all')} className={INPUT_CLASS}>
                       <option value="today">Últimas 24 horas</option>
@@ -1486,9 +1466,6 @@ export const AdminDashboard = ({
                       ))}
                     </select>
                   </Field>
-                  <Field label="Buscar en bitácora">
-                    <input value={activitySearchTerm} onChange={(event) => setActivitySearchTerm(event.target.value)} className={INPUT_CLASS} placeholder="Cuenta, registro o detalle" />
-                  </Field>
                   <Field label="Filas por página">
                     <select value={activityPageSize} onChange={(event) => setActivityPageSize(Number(event.target.value))} className={INPUT_CLASS}>
                       {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
@@ -1498,26 +1475,6 @@ export const AdminDashboard = ({
                     <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Resultados</p>
                     <p className="font-header font-black text-lg mt-1">{filteredActivityLogs.length}</p>
                   </div>
-                </div>
-
-                <div className="border-2 border-black bg-[#1f130b] text-white p-4 mb-5 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
-                  <Field label="Retención automática (meses)">
-                    <input
-                      type="number"
-                      min={1}
-                      max={60}
-                      value={activityRetentionMonths}
-                      onChange={(event) => setActivityRetentionMonths(Math.max(1, Math.min(60, Number(event.target.value) || 1)))}
-                      className={`${INPUT_CLASS} bg-[#2b1b10] text-white border-white/60`}
-                    />
-                  </Field>
-                  <label className="flex items-center gap-3 border-2 border-white/40 px-3 py-2 mt-auto">
-                    <input type="checkbox" checked={activityAutoPurgeEnabled} onChange={(event) => setActivityAutoPurgeEnabled(event.target.checked)} />
-                    <span className="text-xs uppercase tracking-[0.15em]">Depurar automáticamente al abrir bitácora</span>
-                  </label>
-                  <Button size="sm" variant="outline" className="bg-white text-black hover:bg-[#f5efe8] mt-auto" onClick={() => void runActivityPurge()} disabled={isPurgingLogs}>
-                    <Trash2 size={14} className="mr-2" /> {isPurgingLogs ? 'Depurando…' : 'Depurar ahora'}
-                  </Button>
                 </div>
 
                 <div className="overflow-x-auto border-2 border-black bg-white">
