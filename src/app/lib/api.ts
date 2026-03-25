@@ -53,6 +53,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+async function requestFormData<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      ...getAdminHeaders(),
+    },
+    body: formData,
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.message || payload.detail || 'Error en la petición');
+  }
+
+  return payload as T;
+}
+
 export function getBootstrapData() {
   return request<BootstrapData>('/api/bootstrap');
 }
@@ -163,5 +181,19 @@ export function purgeAdminActivityLogs(retentionMonths: number) {
   return request<{ ok: boolean; deleted: number; retentionMonths: number; cutoffDate: string }>('/api/admin/activity/purge', {
     method: 'POST',
     body: JSON.stringify({ retentionMonths }),
+  });
+}
+
+export function uploadAdminImage(file: File, folder: string) {
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('folder', folder);
+  return requestFormData<{ url: string }>('/api/admin/uploads', formData).then((payload) => payload.url);
+}
+
+export function deleteAdminImage(url: string) {
+  return request<{ ok: boolean }>('/api/admin/uploads', {
+    method: 'DELETE',
+    body: JSON.stringify({ url }),
   });
 }

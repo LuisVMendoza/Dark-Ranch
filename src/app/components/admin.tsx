@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   LogOut,
   Trash2,
+  Upload,
   Users,
   Warehouse,
 } from 'lucide-react';
@@ -44,6 +45,8 @@ import {
   getAdminSnapshot,
   purgeAdminActivityLogs,
   saveStoreSettings,
+  uploadAdminImage,
+  deleteAdminImage,
   updateAdminCategory,
   updateAdminOrder,
   updateAdminProduct,
@@ -186,6 +189,14 @@ const renderBadge = (label: string, className: string) => (
     {label}
   </span>
 );
+
+const uploadImageToStorage = async (file: File, folder: string) => {
+  return uploadAdminImage(file, folder);
+};
+
+const deleteImageFromStorage = async (imageUrl: string) => {
+  await deleteAdminImage(imageUrl);
+};
 
 export const AdminDashboard = ({
   initialSnapshot,
@@ -1516,7 +1527,13 @@ export const AdminDashboard = ({
                   <div className="space-y-6">
                     <Field label="Hero título"><input value={settingsForm.hero.title} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, title: e.target.value } }))} className={INPUT_CLASS} /></Field>
                     <Field label="Hero subtítulo"><input value={settingsForm.hero.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, subtitle: e.target.value } }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Hero imagen URL"><input value={settingsForm.hero.imageUrl} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: e.target.value } }))} className={INPUT_CLASS} /></Field>
+                    <ImageDropzone
+                      label="Hero imagen"
+                      value={settingsForm.hero.imageUrl ? [settingsForm.hero.imageUrl] : []}
+                      maxItems={1}
+                      folder="storefront/hero"
+                      onChange={(images) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: images[0] ?? '' } }))}
+                    />
                     <Field label="About text"><textarea value={settingsForm.aboutText} onChange={(e) => setSettingsForm((current) => ({ ...current, aboutText: e.target.value }))} className={`${INPUT_CLASS} min-h-[160px]`} /></Field>
                     <Field label="Email de contacto"><input type="email" value={settingsForm.contactEmail} onChange={(e) => setSettingsForm((current) => ({ ...current, contactEmail: e.target.value }))} className={INPUT_CLASS} /></Field>
                   </div>
@@ -1528,7 +1545,16 @@ export const AdminDashboard = ({
                         <Field label="Título"><input value={banner.title} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, title: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
                         <Field label="Descripción"><textarea value={banner.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, subtitle: e.target.value } : item) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
                         <Field label="CTA"><input value={banner.buttonText} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, buttonText: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
-                        <Field label="Imagen URL"><input value={banner.imageUrl} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
+                        <ImageDropzone
+                          label="Imagen de banner"
+                          value={banner.imageUrl ? [banner.imageUrl] : []}
+                          maxItems={1}
+                          folder={`storefront/banners/${banner.id || index + 1}`}
+                          onChange={(images) => setSettingsForm((current) => ({
+                            ...current,
+                            banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: images[0] ?? '' } : item),
+                          }))}
+                        />
                         <Field label="Categoría"><select value={banner.categoryLink} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, categoryLink: e.target.value } : item) }))} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></Field>
                       </div>
                     ))}
@@ -1677,6 +1703,120 @@ export const AdminDashboard = ({
   );
 };
 
+const ImageDropzone = ({
+  label,
+  value,
+  multiple = false,
+  maxItems,
+  folder,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  multiple?: boolean;
+  maxItems?: number;
+  folder: string;
+  onChange: (urls: string[]) => void;
+}) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUpload = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const fileArray = Array.from(fileList);
+    const availableSlots = typeof maxItems === 'number' ? Math.max(maxItems - value.length, 0) : fileArray.length;
+    const files = fileArray.slice(0, availableSlots);
+    if (files.length === 0) {
+      toast.error(`Solo puedes cargar ${maxItems} imagen(es) en este campo.`);
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const uploadedUrls = await Promise.all(files.map((file) => uploadImageToStorage(file, folder)));
+      const next = multiple ? [...value, ...uploadedUrls] : [uploadedUrls[0]];
+      onChange(next);
+      toast.success(`${uploadedUrls.length} imagen(es) subida(s).`);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('No se pudo subir la imagen.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeImage = async (imageUrl: string) => {
+    onChange(value.filter((item) => item !== imageUrl));
+    try {
+      await deleteImageFromStorage(imageUrl);
+    } catch (error) {
+      console.error('Error deleting image:', error);
+    }
+  };
+
+  return (
+    <Field label={label}>
+      <div className="space-y-3">
+        <div
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            void handleUpload(event.dataTransfer.files);
+          }}
+          className={cn(
+            'rounded-none border-2 border-dashed border-black bg-white p-5 text-center transition-colors',
+            isDragging && 'bg-[#fff3e4]',
+          )}
+        >
+          <Upload size={18} className="mx-auto mb-2" />
+          <p className="text-xs uppercase tracking-[0.16em] font-black">Arrastra imágenes aquí</p>
+          <p className="mt-1 text-sm text-neutral-600">o súbelas desde tu dispositivo</p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            multiple={multiple}
+            className="hidden"
+            onChange={(event) => void handleUpload(event.target.files)}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="mt-3"
+            onClick={() => inputRef.current?.click()}
+            disabled={isUploading}
+          >
+            {isUploading ? 'Subiendo…' : 'Buscar en explorador'}
+          </Button>
+        </div>
+
+        {value.length > 0 && (
+          <div className={cn('grid gap-3', multiple ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
+            {value.map((url) => (
+              <div key={url} className="relative overflow-hidden border-2 border-black bg-neutral-100">
+                <img src={url} alt="Imagen cargada" className="h-36 w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => void removeImage(url)}
+                  className="absolute right-2 top-2 border-2 border-black bg-white p-1"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Field>
+  );
+};
+
 const ProductFormFields = ({
   form,
   categories,
@@ -1749,9 +1889,13 @@ const ProductFormFields = ({
 
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Imágenes</h3>
-            <Field label="Imágenes (URL, una por línea)">
-              <textarea value={form.images.join('\n')} onChange={(e) => onChange((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[180px]`} />
-            </Field>
+            <ImageDropzone
+              label="Imágenes de producto"
+              value={form.images}
+              multiple
+              folder={`products/${form.id || form.slug || 'nuevo'}`}
+              onChange={(images) => onChange((current) => ({ ...current, images }))}
+            />
           </section>
         </div>
 
@@ -1848,7 +1992,13 @@ const CategoryFormFields = ({
       />
     </Field>
     <Field label="Slug"><input value={form.slug || ''} readOnly className={`${INPUT_CLASS} bg-neutral-100 text-neutral-600`} /></Field>
-    <Field label="Imagen URL"><input required value={form.imageUrl} onChange={(e) => onChange((current) => ({ ...current, imageUrl: e.target.value }))} className={INPUT_CLASS} /></Field>
+    <ImageDropzone
+      label="Imagen de categoría"
+      value={form.imageUrl ? [form.imageUrl] : []}
+      maxItems={1}
+      folder={`categories/${form.id || form.slug || 'nueva'}`}
+      onChange={(images) => onChange((current) => ({ ...current, imageUrl: images[0] ?? '' }))}
+    />
     <Button type="submit" className="w-full justify-center">{submitLabel}</Button>
   </form>
 );
