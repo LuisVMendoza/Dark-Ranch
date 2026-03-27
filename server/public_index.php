@@ -784,17 +784,22 @@ function get_settings(): array
     $hero = is_array($stored['hero'] ?? null) ? $stored['hero'] : [];
     $banners = is_array($stored['banners'] ?? null) ? $stored['banners'] : [];
 
-    return [
-        ...$stored,
-        'hero' => [
-            ...$hero,
-            'imageUrl' => normalize_uploaded_image_url((string) ($hero['imageUrl'] ?? '')),
-        ],
-        'banners' => array_map(static fn (array $banner): array => [
-            ...$banner,
-            'imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? '')),
-        ], $banners),
-    ];
+    return array_merge(
+        $stored,
+        [
+            'hero' => array_merge(
+                $hero,
+                ['imageUrl' => normalize_uploaded_image_url((string) ($hero['imageUrl'] ?? ''))]
+            ),
+            'banners' => array_map(
+                static fn (array $banner): array => array_merge(
+                    $banner,
+                    ['imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? ''))]
+                ),
+                $banners
+            ),
+        ]
+    );
 }
 
 function get_order_items_map(): array
@@ -1121,7 +1126,10 @@ function update_admin_product(string $id, array $payload): array
             throw new RuntimeException('Producto no encontrado.');
         }
 
-        $record = product_payload_to_record([...$payload, 'id' => $id, 'createdAt' => $existing['created_at']], $id);
+        $record = product_payload_to_record(
+            array_merge($payload, ['id' => $id, 'createdAt' => $existing['created_at']]),
+            $id
+        );
         $conflict = db()->prepare('SELECT COUNT(*) FROM products WHERE slug = :slug AND id <> :id');
         $conflict->execute(['slug' => $record['slug'], 'id' => $id]);
         if ((int) $conflict->fetchColumn() > 0) {
@@ -1161,7 +1169,10 @@ function update_admin_product(string $id, array $payload): array
     foreach ($store['products'] as $index => $product) {
         if ((string) ($product['id'] ?? '') === $id) {
             $found = true;
-            $record = product_payload_to_record([...$payload, 'id' => $id, 'createdAt' => $product['createdAt'] ?? null], $id);
+            $record = product_payload_to_record(
+                array_merge($payload, ['id' => $id, 'createdAt' => $product['createdAt'] ?? null]),
+                $id
+            );
             foreach ($store['products'] as $candidate) {
                 if ((string) ($candidate['id'] ?? '') !== $id && ($candidate['slug'] ?? '') === $record['slug']) {
                     throw new RuntimeException('Ya existe otro producto con ese slug.');
@@ -1287,7 +1298,7 @@ function create_admin_category(array $payload): array
 
 function update_admin_category(string $id, array $payload): array
 {
-    $record = category_payload_to_record([...$payload, 'id' => $id], $id);
+    $record = category_payload_to_record(array_merge($payload, ['id' => $id]), $id);
 
     if (database_mode() === 'mysql') {
         $exists = db()->prepare('SELECT COUNT(*) FROM categories WHERE id = :id');
