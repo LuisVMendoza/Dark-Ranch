@@ -1,24 +1,18 @@
 import React, { useState } from 'react';
 import { Button, LOGO_HORIZONTAL, LOGO_CIRCULAR } from './ui';
-import { Mail, Lock, ArrowRight, Github } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { loginAdmin } from '../lib/api';
 import { AdminUser } from '../types';
 import { toast } from 'sonner';
 
 export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => void }) => {
-  const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('admin@darkranch.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (isRegister) {
-      toast.info('El registro público aún no está habilitado en esta fase local.');
-      return;
-    }
 
     setIsSubmitting(true);
     try {
@@ -57,11 +51,9 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => vo
         <div className="w-full max-w-md space-y-10">
           <div className="text-center lg:text-left">
             <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 w-auto mb-8 mx-auto lg:mx-0" />
-            <h1 className="text-4xl font-header font-black uppercase tracking-tight mb-2">
-              {isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
-            </h1>
+            <h1 className="text-4xl font-header font-black uppercase tracking-tight mb-2">Iniciar Sesión</h1>
             <p className="text-neutral-500 font-medium">
-              {isRegister ? 'Forma parte de la leyenda de Dark Ranch.' : 'Accede al panel conectado a la base local.'}
+              Accede al panel de administración.
             </p>
           </div>
 
@@ -74,11 +66,10 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => vo
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@darkranch.com"
+                placeholder="tu@email.com"
                 className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
                 required
               />
-              <p className="text-[10px] text-neutral-400 italic mt-1">Usuario local por defecto: admin@darkranch.com / admin123.</p>
             </div>
 
             <div className="space-y-2">
@@ -96,34 +87,9 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => vo
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full py-4 text-lg flex items-center justify-center gap-2 group">
-              {isSubmitting ? 'Validando...' : isRegister ? 'Registrarse' : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              {isSubmitting ? 'Validando...' : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </Button>
           </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-300"></div>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase font-header font-bold">
-              <span className="bg-[#fcf9f5] px-4 text-neutral-500">O continuar con</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            <button type="button" className="flex items-center justify-center gap-2 border-2 border-neutral-300 p-3 font-header font-bold uppercase hover:bg-white transition-colors">
-              <Github size={20} /> Github
-            </button>
-          </div>
-
-          <p className="text-center text-sm text-neutral-600 font-header uppercase">
-            {isRegister ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}{' '}
-            <button
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-black font-black hover:underline underline-offset-4"
-            >
-              {isRegister ? 'Inicia Sesión' : 'Regístrate'}
-            </button>
-          </p>
         </div>
       </div>
     </div>

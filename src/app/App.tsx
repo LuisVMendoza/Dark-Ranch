@@ -92,6 +92,14 @@ const App = () => {
     setCurrentView(user ? 'admin' : 'home');
   };
 
+  const handleAdminLogout = () => {
+    localStorage.removeItem('dark-ranch-admin-user');
+    setAdminUser(null);
+    setIsAdmin(false);
+    setCurrentView('home');
+    toast.success('Sesión cerrada');
+  };
+
   const navigateToCategory = (categoryName: string) => {
     setSelectedCategory(categoryName);
     setCurrentView('shop');
@@ -328,6 +336,7 @@ const App = () => {
               });
             }}
             onExit={() => setCurrentView('home')}
+            onLogout={handleAdminLogout}
           />
         ) : <LoginPage onLogin={handleLogin} />;
       default:

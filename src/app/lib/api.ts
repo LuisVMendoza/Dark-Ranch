@@ -11,6 +11,41 @@ import {
   StoreSettings,
 } from '../types';
 
+type ApiErrorPayload = {
+  message?: string;
+  detail?: string;
+  error?: string;
+  errors?: unknown;
+};
+
+function parseJsonSafe(value: string): unknown {
+  if (!value.trim()) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function isGenericErrorMessage(message?: string): boolean {
+  if (!message) return true;
+  const normalized = message.trim().toLowerCase();
+  return normalized === 'error interno del servidor' || normalized === 'error en la petición' || normalized === 'internal server error';
+}
+
+function buildRequestError(path: string, method: string, status: number, payload: ApiErrorPayload | null, rawBody: string): Error {
+  const baseMessage = payload?.message || payload?.detail || payload?.error || 'Error en la petición';
+  const detail = payload?.detail && payload?.detail !== payload?.message ? payload.detail : undefined;
+  const fallbackDetail = !detail && rawBody && !rawBody.trim().startsWith('<') ? rawBody.trim() : undefined;
+  const diagnostic = detail || fallbackDetail;
+
+  const message = isGenericErrorMessage(baseMessage) && diagnostic
+    ? `[${method} ${path}] HTTP ${status}: ${diagnostic}`
+    : `[${method} ${path}] HTTP ${status}: ${baseMessage}${diagnostic ? ` | detalle: ${diagnostic}` : ''}`;
+
+  return new Error(message);
+}
+
 function getAdminHeaders(): HeadersInit {
   if (typeof window === 'undefined') {
     return {};
@@ -35,6 +70,7 @@ function getAdminHeaders(): HeadersInit {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method || 'GET';
   const response = await fetch(path, {
     headers: {
       'Content-Type': 'application/json',
@@ -44,13 +80,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
 
-  const payload = await response.json();
+  const raw = await response.text();
+  const parsed = parseJsonSafe(raw);
+  const payload = (parsed && typeof parsed === 'object') ? (parsed as ApiErrorPayload) : null;
 
   if (!response.ok) {
-    throw new Error(payload.message || payload.detail || 'Error en la petición');
+    throw buildRequestError(path, method, response.status, payload, raw);
   }
 
-  return payload as T;
+  return parsed as T;
+}
+
+async function requestFormData<T>(path: string, formData: FormData): Promise<T> {
+  const method = 'POST';
+  const response = await fetch(path, {
+    method,
+    headers: {
+      ...getAdminHeaders(),
+    },
+    body: formData,
+  });
+
+  const raw = await response.text();
+  const parsed = parseJsonSafe(raw);
+  const payload = (parsed && typeof parsed === 'object') ? (parsed as ApiErrorPayload) : null;
+
+  if (!response.ok) {
+    throw buildRequestError(path, method, response.status, payload, raw);
+  }
+
+  return parsed as T;
 }
 
 export function getBootstrapData() {
@@ -156,5 +215,26 @@ export function updateAdminUser(id: number, payload: AdminUserPayload) {
 export function deleteAdminUser(id: number) {
   return request<{ ok: boolean }>(`/api/admin/users/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export function purgeAdminActivityLogs(retentionMonths: number) {
+  return request<{ ok: boolean; deleted: number; retentionMonths: number; cutoffDate: string }>('/api/admin/activity/purge', {
+    method: 'POST',
+    body: JSON.stringify({ retentionMonths }),
+  });
+}
+
+export function uploadAdminImage(file: File, folder: string) {
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('folder', folder);
+  return requestFormData<{ url: string }>('/api/admin/uploads', formData).then((payload) => payload.url);
+}
+
+export function deleteAdminImage(url: string) {
+  return request<{ ok: boolean }>('/api/admin/uploads', {
+    method: 'DELETE',
+    body: JSON.stringify({ url }),
   });
 }

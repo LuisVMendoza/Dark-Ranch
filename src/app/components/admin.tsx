@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -9,11 +9,14 @@ import {
   Pencil,
   Plus,
   Printer,
+  ShieldAlert,
   Save,
   Settings,
   ShieldCheck,
   ShoppingBag,
+  LogOut,
   Trash2,
+  Upload,
   Users,
   Warehouse,
 } from 'lucide-react';
@@ -40,7 +43,10 @@ import {
   deleteAdminProduct,
   deleteAdminUser,
   getAdminSnapshot,
+  purgeAdminActivityLogs,
   saveStoreSettings,
+  uploadAdminImage,
+  deleteAdminImage,
   updateAdminCategory,
   updateAdminOrder,
   updateAdminProduct,
@@ -65,7 +71,7 @@ const EMPTY_PRODUCT: AdminProductPayload = {
   price: 0,
   salePrice: null,
   categoryId: '',
-  images: [''],
+  images: [],
   sizes: ['CH', 'M', 'G'],
   colors: ['Negro', 'Café'],
   tags: ['western', 'cuero'],
@@ -94,8 +100,7 @@ const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid'
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ['Productos y categorías', 'Órdenes y tienda', 'Usuarios y permisos', 'Bitácora completa'],
-  editor: ['Productos y categorías', 'Storefront', 'Lectura de bitácora'],
-  operations: ['Órdenes y postventa', 'Inventario', 'Lectura de bitácora'],
+  editor: ['Productos y categorías', 'Storefront'],
 };
 
 const parseTags = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
@@ -185,16 +190,26 @@ const renderBadge = (label: string, className: string) => (
   </span>
 );
 
+const uploadImageToStorage = async (file: File, folder: string) => {
+  return uploadAdminImage(file, folder);
+};
+
+const deleteImageFromStorage = async (imageUrl: string) => {
+  await deleteAdminImage(imageUrl);
+};
+
 export const AdminDashboard = ({
   initialSnapshot,
   onSnapshotUpdated,
   currentAdminUser,
   onExit,
+  onLogout,
 }: {
   initialSnapshot: AdminSnapshot;
   onSnapshotUpdated: (snapshot: AdminSnapshot) => void;
   currentAdminUser: AdminUser | null;
   onExit: () => void;
+  onLogout: () => void;
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [snapshot, setSnapshot] = useState<AdminSnapshot>(initialSnapshot);
@@ -221,8 +236,16 @@ export const AdminDashboard = ({
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialSnapshot.orders[0]?.id ?? null);
+  const [activityDateFilter, setActivityDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
+  const [activityActionFilter, setActivityActionFilter] = useState('all');
+  const [activityEntityFilter, setActivityEntityFilter] = useState('all');
+  const [activityPageSize, setActivityPageSize] = useState(25);
+  const [activityPage, setActivityPage] = useState(1);
+  const [isActivityCleanupModalOpen, setIsActivityCleanupModalOpen] = useState(false);
+  const [isPurgingLogs, setIsPurgingLogs] = useState(false);
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
+  const canViewActivityLog = currentRole === 'admin';
 
   useEffect(() => {
     setSnapshot(initialSnapshot);
@@ -241,6 +264,38 @@ export const AdminDashboard = ({
     }
   }, [snapshot.categories, productForm.categoryId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rawConfig = window.localStorage.getItem('dark-ranch-activity-config');
+    if (!rawConfig) return;
+
+    try {
+      const parsed = JSON.parse(rawConfig) as {
+        dateFilter?: 'today' | '7d' | '30d' | 'all';
+        actionFilter?: string;
+        entityFilter?: string;
+        pageSize?: number;
+      };
+
+      if (parsed.dateFilter) setActivityDateFilter(parsed.dateFilter);
+      if (parsed.actionFilter) setActivityActionFilter(parsed.actionFilter);
+      if (parsed.entityFilter) setActivityEntityFilter(parsed.entityFilter);
+      if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setActivityPageSize(Math.max(10, Math.min(200, parsed.pageSize)));
+    } catch {
+      // ignorar config corrupta
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('dark-ranch-activity-config', JSON.stringify({
+      dateFilter: activityDateFilter,
+      actionFilter: activityActionFilter,
+      entityFilter: activityEntityFilter,
+      pageSize: activityPageSize,
+    }));
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
+
   const refreshSnapshot = async (successMessage?: string) => {
     setIsRefreshing(true);
     try {
@@ -257,6 +312,33 @@ export const AdminDashboard = ({
       setIsRefreshing(false);
     }
   };
+
+  const runActivityPurge = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (isPurgingLogs) return;
+
+    setIsPurgingLogs(true);
+    try {
+      const result = await purgeAdminActivityLogs(3);
+      if (result.deleted > 0) {
+        await refreshSnapshot();
+        if (!silent) {
+          toast.success(`${result.deleted} movimiento(s) eliminado(s) por política de retención.`);
+        }
+      } else if (!silent) {
+        toast.message('No hubo movimientos para depurar en los últimos 3 meses.');
+      }
+    } catch (error) {
+      if (!silent) toast.error(error instanceof Error ? error.message : 'No se pudo depurar la bitácora');
+    } finally {
+      setIsPurgingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'activity') return;
+    void runActivityPurge({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const productMetrics = useMemo(() => {
     const activeProducts = snapshot.products.filter((product) => product.isActive !== false);
@@ -339,11 +421,63 @@ export const AdminDashboard = ({
     });
   }, [productCategoryFilter, productSearchTerm, snapshot.categories, snapshot.products]);
 
+  const activityActionOptions = useMemo(
+    () => [...new Set(snapshot.activityLogs.map((item) => item.action))].sort((left, right) => left.localeCompare(right)),
+    [snapshot.activityLogs],
+  );
+  const activityEntityOptions = useMemo(
+    () => [...new Set(snapshot.activityLogs.map((item) => item.entityType))].sort((left, right) => left.localeCompare(right)),
+    [snapshot.activityLogs],
+  );
+  const activityTodayCount = useMemo(() => {
+    const now = new Date();
+    return snapshot.activityLogs.filter((item) => {
+      const date = new Date(item.createdAt);
+      return date.getFullYear() === now.getFullYear()
+        && date.getMonth() === now.getMonth()
+        && date.getDate() === now.getDate();
+    }).length;
+  }, [snapshot.activityLogs]);
+  const filteredActivityLogs = useMemo(() => {
+    const now = new Date();
+    const dateThreshold = activityDateFilter === 'all'
+      ? null
+      : new Date(now.getTime() - (
+        activityDateFilter === 'today' ? 24 * 60 * 60 * 1000 : activityDateFilter === '7d' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000
+      ));
+
+    return snapshot.activityLogs.filter((item) => {
+      if (activityActionFilter !== 'all' && item.action !== activityActionFilter) return false;
+      if (activityEntityFilter !== 'all' && item.entityType !== activityEntityFilter) return false;
+      if (dateThreshold && new Date(item.createdAt).getTime() < dateThreshold.getTime()) return false;
+      return true;
+    });
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, snapshot.activityLogs]);
+  const totalActivityPages = Math.max(1, Math.ceil(filteredActivityLogs.length / activityPageSize));
+  const paginatedActivityLogs = useMemo(() => {
+    const start = (activityPage - 1) * activityPageSize;
+    return filteredActivityLogs.slice(start, start + activityPageSize);
+  }, [activityPage, activityPageSize, filteredActivityLogs]);
+
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
     () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? snapshot.orders[0] ?? null,
     [selectedOrderId, snapshot.orders],
   );
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityActionFilter, activityDateFilter, activityEntityFilter, activityPageSize]);
+
+  useEffect(() => {
+    if (activeTab === 'activity' && !canViewActivityLog) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, canViewActivityLog]);
+
+  useEffect(() => {
+    setActivityPage((current) => Math.min(current, totalActivityPages));
+  }, [totalActivityPages]);
 
   const resetProductForm = () => {
     setEditingProductId(null);
@@ -410,11 +544,19 @@ export const AdminDashboard = ({
   };
 
   const openNewUserModal = () => {
+    if (!canManageTeam) {
+      toast.error('Solo un admin puede editar permisos del equipo.');
+      return;
+    }
     resetUserForm();
     setIsUserModalOpen(true);
   };
 
   const openEditUserModal = (user: AdminUser) => {
+    if (!canManageTeam) {
+      toast.error('Solo un admin puede editar permisos del equipo.');
+      return;
+    }
     setEditingUserId(user.id);
     setUserForm({ email: user.email, name: user.name, role: user.role, password: '' });
     setIsUserModalOpen(true);
@@ -465,6 +607,10 @@ export const AdminDashboard = ({
 
   const handleUserSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!canManageTeam) {
+      toast.error('Solo un admin puede editar permisos del equipo.');
+      return;
+    }
     try {
       if (editingUserId) {
         await updateAdminUser(editingUserId, userForm);
@@ -704,7 +850,7 @@ export const AdminDashboard = ({
     { key: 'categories', label: 'Categorías', icon: Boxes },
     { key: 'orders', label: 'Órdenes', icon: ShoppingBag },
     { key: 'team', label: 'Admin', icon: Users },
-    { key: 'activity', label: 'Bitácora', icon: ShieldCheck },
+    ...(canViewActivityLog ? [{ key: 'activity' as TabKey, label: 'Bitácora', icon: ShieldCheck }] : []),
     { key: 'storefront', label: 'Storefront', icon: Settings },
   ];
 
@@ -729,6 +875,9 @@ export const AdminDashboard = ({
               </Button>
               <Button className="mt-3 w-full justify-center" variant="outline" onClick={onExit}>
                 <ArrowLeft size={16} className="mr-2" /> Volver a la tienda
+              </Button>
+              <Button className="mt-3 w-full justify-center" variant="outline" onClick={onLogout}>
+                <LogOut size={16} className="mr-2" /> Cerrar sesión
               </Button>
             </div>
 
@@ -758,6 +907,9 @@ export const AdminDashboard = ({
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" onClick={onExit}>
                   <ArrowLeft size={16} className="mr-2" /> Regresar a página principal
+                </Button>
+                <Button variant="outline" onClick={onLogout}>
+                  <LogOut size={16} className="mr-2" /> Cerrar sesión
                 </Button>
                 <Button onClick={() => refreshSnapshot('Panel sincronizado')} disabled={isRefreshing}>
                   {isRefreshing ? 'Sincronizando…' : 'Actualizar panel'}
@@ -870,7 +1022,9 @@ export const AdminDashboard = ({
                         <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Últimos movimientos</p>
                         <h2 className="font-western uppercase text-3xl">Bitácora reciente</h2>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => setActiveTab('activity')}>Abrir bitácora</Button>
+                      {canViewActivityLog && (
+                        <Button size="sm" variant="outline" onClick={() => setActiveTab('activity')}>Abrir bitácora</Button>
+                      )}
                     </div>
                     <div className="space-y-3">
                       {snapshot.activityLogs.slice(0, 5).map((item) => (
@@ -1198,26 +1352,14 @@ export const AdminDashboard = ({
             )}
 
             {activeTab === 'team' && (
-              <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8">
+              <div className="grid grid-cols-1 gap-8">
                 <PaperCard>
                   <div className="flex items-center justify-between gap-4 mb-6">
                     <div>
                       <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Permisos</p>
-                      <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
+                      <h2 className="font-western uppercase text-3xl">Permisos equipo administrador</h2>
                     </div>
-                    <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>
-                  </div>
-                  <div className="mb-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                    <div className="border-2 border-black bg-white p-4">
-                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-neutral-500">Política de eliminación</p>
-                      <p className="mt-3 text-sm text-neutral-700 leading-relaxed">
-                        Se listan todas las cuentas con su rol. Solo las cuentas con rol <span className="font-header font-black uppercase">admin</span> pueden borrar otras cuentas, y nunca su propia sesión.
-                      </p>
-                    </div>
-                    <div className="border-2 border-black bg-[#1f130b] p-4 text-white">
-                      <p className="text-[11px] font-header uppercase tracking-[0.2em] font-black text-[#d4c5b3]">Tu capacidad actual</p>
-                      <p className="mt-3 font-header font-black uppercase text-lg">{canManageTeam ? 'Puedes administrar y borrar otras cuentas' : 'Solo puedes consultar cuentas y roles'}</p>
-                    </div>
+                    {canManageTeam && <Button size="sm" onClick={openNewUserModal}><Plus size={16} className="mr-2" /> Nuevo acceso</Button>}
                   </div>
                   <div className="space-y-4">
                     {snapshot.adminUsers.map((user) => (
@@ -1240,7 +1382,7 @@ export const AdminDashboard = ({
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)}>Editar</Button>
+                            <Button size="sm" variant="outline" onClick={() => openEditUserModal(user)} disabled={!canManageTeam}>Editar</Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1266,46 +1408,10 @@ export const AdminDashboard = ({
                   </div>
                 </PaperCard>
 
-                <PaperCard>
-                  <div>
-                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Cuentas</p>
-                    <h2 className="font-western uppercase text-3xl">Equipo administrador</h2>
-                  </div>
-                  <div className="mt-6 border-2 border-black bg-white p-5 space-y-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Nombre</p>
-                      <p className="font-header font-black text-xl mt-1">{currentAdminUser?.name || 'Sin sesión'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Correo</p>
-                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.email || 'No disponible'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Rol</p>
-                      <p className="text-sm text-neutral-700 mt-1">{currentAdminUser?.role || 'No disponible'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción de borrado</p>
-                      <p className="text-sm text-neutral-700 mt-1">
-                        {canManageTeam ? 'Puedes borrar otras cuentas listadas en el equipo.' : 'Tu rol no puede borrar cuentas; solo un admin puede hacerlo.'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-3">Permisos aplicados</p>
-                      <div className="flex flex-wrap gap-2">
-                        {getPermissionsForRole(currentAdminUser?.role || 'guest').map((permission) => (
-                          <span key={permission} className="px-3 py-2 text-xs font-header uppercase border-2 border-black bg-[#fcf9f5]">
-                            {permission}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </PaperCard>
               </div>
             )}
 
-            {activeTab === 'activity' && (
+            {activeTab === 'activity' && canViewActivityLog && (
               <PaperCard>
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
@@ -1314,6 +1420,43 @@ export const AdminDashboard = ({
                   </div>
                   <div className="text-right text-sm text-neutral-500">
                     <p>{snapshot.activityLogs.length} movimiento(s) registrados</p>
+                    <p className="text-xs mt-1">{activityTodayCount} movimiento(s) registrados el día de hoy</p>
+                  </div>
+                </div>
+
+                <div className="border-2 border-black bg-white p-4 mb-5 grid gap-4 lg:grid-cols-5">
+                  <Field label="Rango de fechas">
+                    <select value={activityDateFilter} onChange={(event) => setActivityDateFilter(event.target.value as 'today' | '7d' | '30d' | 'all')} className={INPUT_CLASS}>
+                      <option value="today">Últimas 24 horas</option>
+                      <option value="7d">Últimos 7 días</option>
+                      <option value="30d">Últimos 30 días</option>
+                      <option value="all">Todo el histórico</option>
+                    </select>
+                  </Field>
+                  <Field label="Tipo de acción">
+                    <select value={activityActionFilter} onChange={(event) => setActivityActionFilter(event.target.value)} className={INPUT_CLASS}>
+                      <option value="all">Todas</option>
+                      {activityActionOptions.map((action) => (
+                        <option key={action} value={action}>{humanizeAction(action)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Entidad">
+                    <select value={activityEntityFilter} onChange={(event) => setActivityEntityFilter(event.target.value)} className={INPUT_CLASS}>
+                      <option value="all">Todas</option>
+                      {activityEntityOptions.map((entity) => (
+                        <option key={entity} value={entity}>{humanizeEntity(entity)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Filas por página">
+                    <select value={activityPageSize} onChange={(event) => setActivityPageSize(Number(event.target.value))} className={INPUT_CLASS}>
+                      {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </Field>
+                  <div className="border-2 border-black bg-[#fcf9f5] p-3 self-end">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Resultados</p>
+                    <p className="font-header font-black text-lg mt-1">{filteredActivityLogs.length}</p>
                   </div>
                 </div>
 
@@ -1330,7 +1473,7 @@ export const AdminDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200">
-                      {snapshot.activityLogs.map((item: AdminActivityLog) => (
+                      {paginatedActivityLogs.map((item: AdminActivityLog) => (
                         <tr key={String(item.id)}>
                           <td className="px-4 py-3 text-sm">{new Date(item.createdAt).toLocaleString()}</td>
                           <td className="px-4 py-3">
@@ -1348,8 +1491,24 @@ export const AdminDashboard = ({
                           <td className="px-4 py-3 text-sm text-neutral-700">{item.details}</td>
                         </tr>
                       ))}
+                      {paginatedActivityLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-500">
+                            No hay movimientos para los filtros seleccionados.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+                  <p className="text-xs uppercase tracking-[0.15em] text-neutral-500">
+                    Página {activityPage} de {totalActivityPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setActivityPage((current) => Math.max(1, current - 1))} disabled={activityPage <= 1}>Anterior</Button>
+                    <Button size="sm" variant="outline" onClick={() => setActivityPage((current) => Math.min(totalActivityPages, current + 1))} disabled={activityPage >= totalActivityPages}>Siguiente</Button>
+                  </div>
                 </div>
               </PaperCard>
             )}
@@ -1368,7 +1527,13 @@ export const AdminDashboard = ({
                   <div className="space-y-6">
                     <Field label="Hero título"><input value={settingsForm.hero.title} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, title: e.target.value } }))} className={INPUT_CLASS} /></Field>
                     <Field label="Hero subtítulo"><input value={settingsForm.hero.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, subtitle: e.target.value } }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Hero imagen URL"><input value={settingsForm.hero.imageUrl} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: e.target.value } }))} className={INPUT_CLASS} /></Field>
+                    <ImageDropzone
+                      label="Hero imagen"
+                      value={settingsForm.hero.imageUrl ? [settingsForm.hero.imageUrl] : []}
+                      maxItems={1}
+                      folder="storefront/hero"
+                      onChange={(images) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: images[0] ?? '' } }))}
+                    />
                     <Field label="About text"><textarea value={settingsForm.aboutText} onChange={(e) => setSettingsForm((current) => ({ ...current, aboutText: e.target.value }))} className={`${INPUT_CLASS} min-h-[160px]`} /></Field>
                     <Field label="Email de contacto"><input type="email" value={settingsForm.contactEmail} onChange={(e) => setSettingsForm((current) => ({ ...current, contactEmail: e.target.value }))} className={INPUT_CLASS} /></Field>
                   </div>
@@ -1380,7 +1545,16 @@ export const AdminDashboard = ({
                         <Field label="Título"><input value={banner.title} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, title: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
                         <Field label="Descripción"><textarea value={banner.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, subtitle: e.target.value } : item) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
                         <Field label="CTA"><input value={banner.buttonText} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, buttonText: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
-                        <Field label="Imagen URL"><input value={banner.imageUrl} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
+                        <ImageDropzone
+                          label="Imagen de banner"
+                          value={banner.imageUrl ? [banner.imageUrl] : []}
+                          maxItems={1}
+                          folder={`storefront/banners/${banner.id || index + 1}`}
+                          onChange={(images) => setSettingsForm((current) => ({
+                            ...current,
+                            banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: images[0] ?? '' } : item),
+                          }))}
+                        />
                         <Field label="Categoría"><select value={banner.categoryLink} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, categoryLink: e.target.value } : item) }))} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></Field>
                       </div>
                     ))}
@@ -1389,6 +1563,37 @@ export const AdminDashboard = ({
               </PaperCard>
             )}
           </main>
+
+          <Dialog open={isActivityCleanupModalOpen} onOpenChange={setIsActivityCleanupModalOpen}>
+            <DialogContent className="max-w-xl border-2 border-black bg-[#fcf9f5]">
+              <DialogHeader>
+                <DialogTitle className="font-western uppercase text-2xl">Mantenimiento de bitácora</DialogTitle>
+                <DialogDescription className="text-sm text-neutral-700">
+                  Limpia la bitácora y conserva solamente los movimientos de los últimos 3 meses.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 border-2 border-black bg-white p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Acción disponible</p>
+                <p className="font-header font-black uppercase mt-2">Limpiar la bitácora</p>
+                <p className="text-sm text-neutral-700 mt-2">
+                  Se eliminarán de forma permanente todos los registros anteriores a 3 meses. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <Button variant="outline" size="sm" onClick={() => setIsActivityCleanupModalOpen(false)}>Cancelar</Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    await runActivityPurge();
+                    setIsActivityCleanupModalOpen(false);
+                  }}
+                  disabled={isPurgingLogs}
+                >
+                  <Trash2 size={14} className="mr-2" /> {isPurgingLogs ? 'Limpiando…' : 'Limpiar la bitácora'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
 <Dialog open={isProductModalOpen} onOpenChange={(open) => { if (!open) closeProductModal(); }}>
   <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
@@ -1449,7 +1654,6 @@ export const AdminDashboard = ({
                     <select value={userForm.role} onChange={(e) => setUserForm((current) => ({ ...current, role: e.target.value }))} className={INPUT_CLASS}>
                       <option value="admin">admin</option>
                       <option value="editor">editor</option>
-                      <option value="operations">operations</option>
                     </select>
                   </Field>
                   <Field label={editingUserId ? 'Nueva contraseña (opcional)' : 'Contraseña'}><input type="password" value={userForm.password || ''} onChange={(e) => setUserForm((current) => ({ ...current, password: e.target.value }))} className={INPUT_CLASS} /></Field>
@@ -1496,6 +1700,120 @@ export const AdminDashboard = ({
         </div>
       </div>
     </div>
+  );
+};
+
+const ImageDropzone = ({
+  label,
+  value,
+  multiple = false,
+  maxItems,
+  folder,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  multiple?: boolean;
+  maxItems?: number;
+  folder: string;
+  onChange: (urls: string[]) => void;
+}) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUpload = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const fileArray = Array.from(fileList);
+    const availableSlots = typeof maxItems === 'number' ? Math.max(maxItems - value.length, 0) : fileArray.length;
+    const files = fileArray.slice(0, availableSlots);
+    if (files.length === 0) {
+      toast.error(`Solo puedes cargar ${maxItems} imagen(es) en este campo.`);
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const uploadedUrls = await Promise.all(files.map((file) => uploadImageToStorage(file, folder)));
+      const next = multiple ? [...value, ...uploadedUrls] : [uploadedUrls[0]];
+      onChange(next);
+      toast.success(`${uploadedUrls.length} imagen(es) subida(s).`);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeImage = async (imageUrl: string) => {
+    onChange(value.filter((item) => item !== imageUrl));
+    try {
+      await deleteImageFromStorage(imageUrl);
+    } catch (error) {
+      console.error('Error deleting image:', error);
+    }
+  };
+
+  return (
+    <Field label={label}>
+      <div className="space-y-3">
+        <div
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            void handleUpload(event.dataTransfer.files);
+          }}
+          className={cn(
+            'rounded-none border-2 border-dashed border-black bg-white p-5 text-center transition-colors',
+            isDragging && 'bg-[#fff3e4]',
+          )}
+        >
+          <Upload size={18} className="mx-auto mb-2" />
+          <p className="text-xs uppercase tracking-[0.16em] font-black">Arrastra imágenes aquí</p>
+          <p className="mt-1 text-sm text-neutral-600">o súbelas desde tu dispositivo</p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            multiple={multiple}
+            className="hidden"
+            onChange={(event) => void handleUpload(event.target.files)}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="mt-3"
+            onClick={() => inputRef.current?.click()}
+            disabled={isUploading}
+          >
+            {isUploading ? 'Subiendo…' : 'Buscar en explorador'}
+          </Button>
+        </div>
+
+        {value.length > 0 && (
+          <div className={cn('grid gap-3', multiple ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
+            {value.map((url) => (
+              <div key={url} className="relative overflow-hidden border-2 border-black bg-neutral-100">
+                <img src={url} alt="Imagen cargada" className="h-36 w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => void removeImage(url)}
+                  className="absolute right-2 top-2 border-2 border-black bg-white p-1"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Field>
   );
 };
 
@@ -1571,9 +1889,13 @@ const ProductFormFields = ({
 
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Imágenes</h3>
-            <Field label="Imágenes (URL, una por línea)">
-              <textarea value={form.images.join('\n')} onChange={(e) => onChange((current) => ({ ...current, images: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} className={`${INPUT_CLASS} min-h-[180px]`} />
-            </Field>
+            <ImageDropzone
+              label="Imágenes de producto"
+              value={form.images}
+              multiple
+              folder={`products/${form.id || form.slug || 'nuevo'}`}
+              onChange={(images) => onChange((current) => ({ ...current, images }))}
+            />
           </section>
         </div>
 
@@ -1670,7 +1992,13 @@ const CategoryFormFields = ({
       />
     </Field>
     <Field label="Slug"><input value={form.slug || ''} readOnly className={`${INPUT_CLASS} bg-neutral-100 text-neutral-600`} /></Field>
-    <Field label="Imagen URL"><input required value={form.imageUrl} onChange={(e) => onChange((current) => ({ ...current, imageUrl: e.target.value }))} className={INPUT_CLASS} /></Field>
+    <ImageDropzone
+      label="Imagen de categoría"
+      value={form.imageUrl ? [form.imageUrl] : []}
+      maxItems={1}
+      folder={`categories/${form.id || form.slug || 'nueva'}`}
+      onChange={(images) => onChange((current) => ({ ...current, imageUrl: images[0] ?? '' }))}
+    />
     <Button type="submit" className="w-full justify-center">{submitLabel}</Button>
   </form>
 );
