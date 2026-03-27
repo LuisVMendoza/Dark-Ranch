@@ -103,6 +103,15 @@ function read_json_body(): array
     return $decoded;
 }
 
+function unwrap_payload(array $payload, string $key): array
+{
+    if (isset($payload[$key]) && is_array($payload[$key])) {
+        return $payload[$key];
+    }
+
+    return $payload;
+}
+
 function sanitize_upload_folder(string $folder): string
 {
     $clean = trim($folder);
@@ -1046,8 +1055,8 @@ function create_admin_product(array $payload): array
         }
 
         $statement = $pdo->prepare(
-            'INSERT INTO products (id, name, slug, description, price, sale_price, category_id, images_json, sizes_json, colors_json, tags_json, stock, is_new, is_featured, is_active, created_at, updated_at)
-             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at, CURRENT_TIMESTAMP)'
+            'INSERT INTO products (id, name, slug, description, price, sale_price, category_id, images_json, sizes_json, colors_json, tags_json, stock, is_new, is_featured, is_active, created_at)
+             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at)'
         );
         $statement->execute([
             'id' => $record['id'],
@@ -1123,7 +1132,7 @@ function update_admin_product(string $id, array $payload): array
             'UPDATE products
              SET name = :name, slug = :slug, description = :description, price = :price, sale_price = :sale_price, category_id = :category_id,
                  images_json = :images_json, sizes_json = :sizes_json, colors_json = :colors_json, tags_json = :tags_json,
-                 stock = :stock, is_new = :is_new, is_featured = :is_featured, is_active = :is_active, updated_at = CURRENT_TIMESTAMP
+                 stock = :stock, is_new = :is_new, is_featured = :is_featured, is_active = :is_active
              WHERE id = :id'
         );
         $update->execute([
@@ -1983,7 +1992,7 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/admin/products') {
-        $product = create_admin_product(read_json_body());
+        $product = create_admin_product(unwrap_payload(read_json_body(), 'product'));
         json_response(201, ['product' => $product]);
     }
 
@@ -1993,7 +2002,7 @@ try {
             json_response(200, ['product' => get_admin_product_by_id($productId)]);
         }
         if ($method === 'PUT') {
-            json_response(200, ['product' => update_admin_product($productId, read_json_body())]);
+            json_response(200, ['product' => update_admin_product($productId, unwrap_payload(read_json_body(), 'product'))]);
         }
         if ($method === 'DELETE') {
             delete_admin_product($productId);

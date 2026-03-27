@@ -100,7 +100,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       toast.success(`${uploadedUrls.length} imagen(es) subida(s)`);
     } catch (error) {
       console.error('Error uploading images:', error);
-      toast.error('Error al subir imágenes');
+      toast.error(error instanceof Error ? error.message : 'Error al subir imágenes');
     } finally {
       setIsUploading(false);
     }
@@ -117,7 +117,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       toast.success('Imagen eliminada');
     } catch (error) {
       console.error('Error deleting image:', error);
-      toast.error('Error al eliminar imagen');
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar imagen');
     }
   };
 
@@ -169,7 +169,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       onSuccess?.();
     } catch (error) {
       console.error('Error saving product:', error);
-      toast.error('Error al guardar el producto');
+      toast.error(error instanceof Error ? error.message : 'Error al guardar el producto');
     } finally {
       setIsSaving(false);
     }
