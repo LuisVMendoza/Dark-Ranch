@@ -1740,7 +1740,7 @@ const ImageDropzone = ({
       toast.success(`${uploadedUrls.length} imagen(es) subida(s).`);
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error('No se pudo subir la imagen.');
+      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen.');
     } finally {
       setIsUploading(false);
     }
