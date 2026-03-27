@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  BadgePercent,
   Boxes,
   DollarSign,
   Eye,
@@ -17,9 +18,11 @@ import {
   ShoppingBag,
   LogOut,
   Trash2,
+  Tags,
   Upload,
   Users,
   Warehouse,
+  X,
 } from 'lucide-react';
 import { Button, PaperCard, cn } from './ui';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
@@ -1919,6 +1922,14 @@ const ProductFormFields = ({
 
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Imágenes</h3>
+            <Field label="Imagen principal URL (opcional)">
+              <input
+                value={form.images[0] || ''}
+                onChange={(e) => onChange((current) => ({ ...current, images: [e.target.value, ...current.images.slice(1)] }))}
+                placeholder="https://..."
+                className={INPUT_CLASS}
+              />
+            </Field>
             <ImageDropzone
               label="Galería de imágenes"
               value={form.images}
@@ -1956,14 +1967,8 @@ const ProductFormFields = ({
                 onChange={(colors) => onChange((current) => ({ ...current, colors }))}
               />
             </div>
-          </section>
-
-          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
-            <h3 className="font-western text-xl uppercase sm:text-2xl">Estado</h3>
-            <div className="grid gap-2 sm:grid-cols-3 text-[11px] font-header uppercase font-black">
-              <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
-              <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
-              <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+            <div className="flex justify-end border-t-2 border-black bg-white px-5 py-3">
+              <Button type="button" onClick={() => setIsVisualToolsOpen(false)}>Listo</Button>
             </div>
           </section>
             <div className="sticky bottom-0 z-20 border-2 border-black bg-[#1f130b] p-3">
