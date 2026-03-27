@@ -1854,7 +1854,7 @@ const ProductFormFields = ({
                   {form.isNew && <FlagBadge label="Novedad" active />}
                   {hasDiscount && <FlagBadge label="Oferta" active />}
                 </div>
-                <div className="relative h-[360px] overflow-hidden border-b-2 border-black bg-neutral-100">
+                <div className="relative aspect-[4/5] overflow-hidden border-b-2 border-black bg-neutral-100 p-2">
                   {form.images[0] ? (
                     <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-contain bg-white" />
                   ) : (
@@ -1886,9 +1886,6 @@ const ProductFormFields = ({
           </aside>
 
           <div className="order-2 space-y-5">
-          <section className="border-2 border-dashed border-black/40 bg-[#fcf9f5] p-3">
-            <p className="text-[10px] font-header font-black uppercase tracking-[0.2em] text-neutral-600">Panel de edición (derecha)</p>
-          </section>
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Datos básicos</h3>
             <div className="grid gap-4 md:grid-cols-2">
