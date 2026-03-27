@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  BadgePercent,
   Boxes,
   DollarSign,
   Eye,
@@ -17,9 +18,11 @@ import {
   ShoppingBag,
   LogOut,
   Trash2,
+  Tags,
   Upload,
   Users,
   Warehouse,
+  X,
 } from 'lucide-react';
 import { Button, PaperCard, cn } from './ui';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
@@ -1837,32 +1840,9 @@ const ProductFormFields = ({
   onCancel: () => void;
   submitLabel: string;
 }) => {
-  const [isUploadingPreviewImage, setIsUploadingPreviewImage] = useState(false);
-  const previewFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isVisualToolsOpen, setIsVisualToolsOpen] = useState(false);
   const selectedCategoryName = categories.find((category) => category.id === form.categoryId)?.name || 'Sin categoría';
   const hasDiscount = typeof form.salePrice === 'number' && form.salePrice > 0 && form.salePrice < form.price;
-  const uploadPreviewImage = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-
-    setIsUploadingPreviewImage(true);
-    try {
-      const uploadedUrl = await uploadImageToStorage(file, `products/${form.id || form.slug || 'nuevo'}`);
-      onChange((current) => {
-        const currentImages = current.images || [];
-        const nextImages = currentImages.length > 0
-          ? [uploadedUrl, ...currentImages.slice(1)]
-          : [uploadedUrl];
-        return { ...current, images: nextImages };
-      });
-      toast.success('Imagen principal actualizada.');
-    } catch (error) {
-      console.error('Error uploading preview image:', error);
-      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen principal.');
-    } finally {
-      setIsUploadingPreviewImage(false);
-    }
-  };
 
   return (
     <form onSubmit={onSubmit} className="relative flex h-full min-h-0 flex-col">
@@ -1916,15 +1896,37 @@ const ProductFormFields = ({
               </div>
             </section>
 
+            <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+              <h3 className="font-western text-xl uppercase sm:text-2xl">Imágenes</h3>
+              <ImageDropzone
+                label="Imágenes de producto"
+                value={form.images}
+                multiple
+                folder={`products/${form.id || form.slug || 'nuevo'}`}
+                onChange={(images) => onChange((current) => ({ ...current, images }))}
+              />
+            </section>
           </div>
 
           <div className="space-y-5">
             <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
-              <h3 className="font-western text-xl uppercase sm:text-2xl">Constructor visual de tarjeta</h3>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-western text-xl uppercase sm:text-2xl">Preview de tarjeta</h3>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-black bg-[#fcf9f5]"
+                  onClick={() => setIsVisualToolsOpen(true)}
+                >
+                  <Tags size={14} className="mr-2" />
+                  Editar tags y descuento
+                </Button>
+              </div>
               <p className="text-xs text-neutral-600">
-                Construye la tarjeta directamente aquí: imagen, nombre, tags, descuentos, estados y atributos sin cambiar de sección.
+                Simula exactamente cómo se verá la tarjeta en tienda y permite ajustar campos clave sin salir del modal.
               </p>
-              <div className="space-y-4 overflow-hidden border-2 border-black bg-[#fcf9f5] p-3">
+              <div className="relative overflow-hidden border-2 border-black bg-[#fcf9f5] p-3">
                 <div className="group relative overflow-hidden border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                   <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
                     {form.isNew && <FlagBadge label="Novedad" active />}
@@ -1939,30 +1941,6 @@ const ProductFormFields = ({
                         <p className="text-[11px] font-header uppercase tracking-[0.2em]">Sin imagen principal</p>
                       </div>
                     )}
-                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/65 px-3 py-2 text-white">
-                      <p className="text-[10px] font-header font-black uppercase tracking-[0.16em]">{form.images[0] ? 'Imagen principal lista' : 'Sube la portada'}</p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 border-white bg-white/10 px-2 text-[10px] text-white hover:bg-white hover:text-black"
-                        onClick={() => previewFileInputRef.current?.click()}
-                        disabled={isUploadingPreviewImage}
-                      >
-                        <Upload size={12} className="mr-1" />
-                        {isUploadingPreviewImage ? 'Subiendo...' : 'Cargar imagen'}
-                      </Button>
-                      <input
-                        ref={previewFileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          void uploadPreviewImage(e.target.files);
-                          e.target.value = '';
-                        }}
-                      />
-                    </div>
                     <div className="absolute bottom-2 right-2 border border-black bg-white/90 px-2 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em]">
                       {form.stock > 0 ? `Stock ${form.stock}` : 'Agotado'}
                     </div>
@@ -1982,87 +1960,106 @@ const ProductFormFields = ({
                     </div>
                   </div>
                 </div>
-
-                <div className="grid gap-3">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Field label="Nombre en tarjeta">
-                      <input
-                        value={form.name}
-                        onChange={(e) => {
-                          const name = e.target.value;
-                          onChange((current) => ({ ...current, name, slug: generateProductSlug(name) }));
-                        }}
-                        className={INPUT_CLASS}
-                      />
-                    </Field>
-                    <Field label="Imagen principal URL (opcional)">
-                      <input
-                        value={form.images[0] || ''}
-                        onChange={(e) => onChange((current) => ({ ...current, images: [e.target.value, ...current.images.slice(1)] }))}
-                        placeholder="https://..."
-                        className={INPUT_CLASS}
-                      />
-                    </Field>
-                  </div>
-
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <Field label="Precio base">
-                      <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => onChange((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} />
-                    </Field>
-                    <Field label="Precio descuento">
-                      <input type="number" min="0" step="0.01" value={form.salePrice ?? ''} onChange={(e) => onChange((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} />
-                    </Field>
-                  </div>
-
-                  <AttributeTagPicker
-                    label="Tags de la tarjeta"
-                    value={form.tags}
-                    fieldKey="tags"
-                    suggestions={ATTRIBUTE_DEFAULTS.tags}
-                    existingOptions={existingAttributeOptions.tags}
-                    onChange={(tags) => onChange((current) => ({ ...current, tags }))}
-                  />
-
-                  <div className="grid gap-2 sm:grid-cols-3 text-[11px] font-header uppercase font-black">
-                    <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
-                    <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
-                    <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
-                  </div>
-
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <AttributeTagPicker
-                      label="Tallas"
-                      value={form.sizes}
-                      fieldKey="sizes"
-                      suggestions={ATTRIBUTE_DEFAULTS.sizes}
-                      existingOptions={existingAttributeOptions.sizes}
-                      onChange={(sizes) => onChange((current) => ({ ...current, sizes }))}
-                    />
-                    <AttributeTagPicker
-                      label="Colores"
-                      value={form.colors}
-                      fieldKey="colors"
-                      suggestions={ATTRIBUTE_DEFAULTS.colors}
-                      existingOptions={existingAttributeOptions.colors}
-                      onChange={(colors) => onChange((current) => ({ ...current, colors }))}
-                    />
-                  </div>
-
-                  <Field label="Stock en tarjeta">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <Field label="Editar nombre sobre preview">
                     <input
-                      type="number"
-                      min="0"
-                      value={form.stock}
-                      onChange={(e) => onChange((current) => ({ ...current, stock: Number(e.target.value) }))}
+                      value={form.name}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        onChange((current) => ({ ...current, name, slug: generateProductSlug(name) }));
+                      }}
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                  <Field label="Imagen principal (URL)">
+                    <input
+                      value={form.images[0] || ''}
+                      onChange={(e) => onChange((current) => ({ ...current, images: [e.target.value, ...current.images.slice(1)] }))}
+                      placeholder="https://..."
                       className={INPUT_CLASS}
                     />
                   </Field>
                 </div>
               </div>
             </section>
+
+            <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+              <h3 className="font-western text-xl uppercase sm:text-2xl">Atributos generales</h3>
+              <div className="grid gap-4">
+                <AttributeTagPicker
+                  label="Tallas"
+                  value={form.sizes}
+                  fieldKey="sizes"
+                  suggestions={ATTRIBUTE_DEFAULTS.sizes}
+                  existingOptions={existingAttributeOptions.sizes}
+                  onChange={(sizes) => onChange((current) => ({ ...current, sizes }))}
+                />
+                <AttributeTagPicker
+                  label="Colores"
+                  value={form.colors}
+                  fieldKey="colors"
+                  suggestions={ATTRIBUTE_DEFAULTS.colors}
+                  existingOptions={existingAttributeOptions.colors}
+                  onChange={(colors) => onChange((current) => ({ ...current, colors }))}
+                />
+              </div>
+            </section>
+
+            <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+              <h3 className="font-western text-xl uppercase sm:text-2xl">Estado</h3>
+              <div className="grid gap-2 sm:grid-cols-3 text-[11px] font-header uppercase font-black">
+                <Toggle label="Nuevo" description="Muestra badge en catálogo" checked={form.isNew} onChange={(checked) => onChange((current) => ({ ...current, isNew: checked }))} />
+                <Toggle label="Destacado" description="Aparece en destacados" checked={form.isFeatured} onChange={(checked) => onChange((current) => ({ ...current, isFeatured: checked }))} />
+                <Toggle label="Activo" description="Visible para clientes" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+              </div>
+            </section>
           </div>
         </div>
       </div>
+
+      {isVisualToolsOpen && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 p-5">
+          <div className="w-full max-w-3xl border-2 border-black bg-[#fcf9f5] shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center justify-between border-b-2 border-black bg-white px-5 py-4">
+              <div>
+                <p className="text-[10px] font-header font-black uppercase tracking-[0.2em] text-[#C4A484]">Ventana dentro del modal</p>
+                <h4 className="font-western text-2xl uppercase">Tags y descuentos</h4>
+              </div>
+              <button type="button" onClick={() => setIsVisualToolsOpen(false)} className="border-2 border-black p-2 hover:bg-neutral-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid gap-4 p-5 md:grid-cols-2">
+              <div className="space-y-4 border-2 border-black bg-white p-4">
+                <p className="flex items-center gap-2 font-header text-xs font-black uppercase tracking-[0.2em] text-neutral-600"><Tags size={14} /> Tags de la tarjeta</p>
+                <AttributeTagPicker
+                  label="Tags visuales"
+                  value={form.tags}
+                  fieldKey="tags"
+                  suggestions={ATTRIBUTE_DEFAULTS.tags}
+                  existingOptions={existingAttributeOptions.tags}
+                  onChange={(tags) => onChange((current) => ({ ...current, tags }))}
+                />
+              </div>
+              <div className="space-y-4 border-2 border-black bg-white p-4">
+                <p className="flex items-center gap-2 font-header text-xs font-black uppercase tracking-[0.2em] text-neutral-600"><BadgePercent size={14} /> Precio y promoción</p>
+                <Field label="Precio base">
+                  <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => onChange((current) => ({ ...current, price: Number(e.target.value) }))} className={INPUT_CLASS} />
+                </Field>
+                <Field label="Precio con descuento">
+                  <input type="number" min="0" step="0.01" value={form.salePrice ?? ''} onChange={(e) => onChange((current) => ({ ...current, salePrice: e.target.value === '' ? null : Number(e.target.value) }))} className={INPUT_CLASS} />
+                </Field>
+                <p className="rounded-sm border border-black bg-[#f7eee6] px-3 py-2 text-xs text-neutral-700">
+                  Tip: deja vacío <strong>precio con descuento</strong> para ocultar la etiqueta de oferta en la tarjeta.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end border-t-2 border-black bg-white px-5 py-3">
+              <Button type="button" onClick={() => setIsVisualToolsOpen(false)}>Listo</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="border-t-2 border-black bg-[#1f130b] px-5 py-4 text-white sm:px-8">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
