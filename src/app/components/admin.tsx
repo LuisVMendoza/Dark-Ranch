@@ -1840,32 +1840,8 @@ const ProductFormFields = ({
   onCancel: () => void;
   submitLabel: string;
 }) => {
-  const [isUploadingPreviewImage, setIsUploadingPreviewImage] = useState(false);
-  const previewFileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedCategoryName = categories.find((category) => category.id === form.categoryId)?.name || 'Sin categoría';
   const hasDiscount = typeof form.salePrice === 'number' && form.salePrice > 0 && form.salePrice < form.price;
-  const uploadPreviewImage = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-
-    setIsUploadingPreviewImage(true);
-    try {
-      const uploadedUrl = await uploadImageToStorage(file, `products/${form.id || form.slug || 'nuevo'}`);
-      onChange((current) => {
-        const currentImages = current.images || [];
-        const nextImages = currentImages.length > 0
-          ? [uploadedUrl, ...currentImages.slice(1)]
-          : [uploadedUrl];
-        return { ...current, images: nextImages };
-      });
-      toast.success('Imagen principal actualizada.');
-    } catch (error) {
-      console.error('Error uploading preview image:', error);
-      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen principal.');
-    } finally {
-      setIsUploadingPreviewImage(false);
-    }
-  };
 
   return (
     <form onSubmit={onSubmit} className="relative flex h-full min-h-0 flex-col">
@@ -1873,50 +1849,20 @@ const ProductFormFields = ({
         <div className="grid gap-5 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] lg:items-start">
           <aside className="order-1 space-y-4 lg:sticky lg:top-4">
             <section className="space-y-4 border-2 border-black bg-white p-4 shadow-[0_6px_0_0_rgba(0,0,0,0.12)] sm:p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-western text-xl uppercase sm:text-2xl">Preview de tarjeta</h3>
-                <span className="inline-flex w-fit items-center border-2 border-black bg-[#fcf9f5] px-3 py-2 text-[11px] font-header font-black uppercase tracking-[0.2em]">
-                  {isEditing ? 'Modo edición' : 'Alta de producto'}
-                </span>
-              </div>
               <div className="group relative overflow-hidden border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
                   {form.isNew && <FlagBadge label="Novedad" active />}
                   {hasDiscount && <FlagBadge label="Oferta" active />}
                 </div>
-                <div className="relative aspect-[4/5] overflow-hidden border-b-2 border-black bg-neutral-100">
+                <div className="relative h-[360px] overflow-hidden border-b-2 border-black bg-neutral-100">
                   {form.images[0] ? (
-                    <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-cover sepia-[0.15]" />
+                    <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-contain bg-white" />
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-500">
                       <ImageIcon size={32} />
                       <p className="text-[11px] font-header uppercase tracking-[0.2em]">Sin imagen principal</p>
                     </div>
                   )}
-                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/65 px-3 py-2 text-white">
-                    <p className="text-[10px] font-header font-black uppercase tracking-[0.16em]">{form.images[0] ? 'Imagen principal lista' : 'Sube la portada'}</p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-8 border-white bg-white/10 px-2 text-[10px] text-white hover:bg-white hover:text-black"
-                      onClick={() => previewFileInputRef.current?.click()}
-                      disabled={isUploadingPreviewImage}
-                    >
-                      <Upload size={12} className="mr-1" />
-                      {isUploadingPreviewImage ? 'Subiendo...' : 'Cargar imagen'}
-                    </Button>
-                    <input
-                      ref={previewFileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        void uploadPreviewImage(e.target.files);
-                        e.target.value = '';
-                      }}
-                    />
-                  </div>
                   <div className="absolute bottom-2 right-2 border border-black bg-white/90 px-2 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em]">
                     {form.stock > 0 ? `Stock ${form.stock}` : 'Agotado'}
                   </div>
