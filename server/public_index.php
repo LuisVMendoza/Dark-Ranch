@@ -103,6 +103,15 @@ function read_json_body(): array
     return $decoded;
 }
 
+function unwrap_payload(array $payload, string $key): array
+{
+    if (isset($payload[$key]) && is_array($payload[$key])) {
+        return $payload[$key];
+    }
+
+    return $payload;
+}
+
 function sanitize_upload_folder(string $folder): string
 {
     $clean = trim($folder);
@@ -1983,7 +1992,7 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/admin/products') {
-        $product = create_admin_product(read_json_body());
+        $product = create_admin_product(unwrap_payload(read_json_body(), 'product'));
         json_response(201, ['product' => $product]);
     }
 
@@ -1993,7 +2002,7 @@ try {
             json_response(200, ['product' => get_admin_product_by_id($productId)]);
         }
         if ($method === 'PUT') {
-            json_response(200, ['product' => update_admin_product($productId, read_json_body())]);
+            json_response(200, ['product' => update_admin_product($productId, unwrap_payload(read_json_body(), 'product'))]);
         }
         if ($method === 'DELETE') {
             delete_admin_product($productId);
