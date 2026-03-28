@@ -1973,6 +1973,14 @@ const ProductFormFields = ({
           </div>
         </div>
       </div>
+      <div className="border-t-2 border-black bg-[#1f130b] p-3 sm:px-8">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="justify-center">{submitLabel}</Button>
+        </div>
+      </div>
     </form>
   );
 };
