@@ -1674,7 +1674,6 @@ export const AdminDashboard = ({
               <div className="overflow-y-auto p-8">
                 <CategoryFormFields
                   form={categoryForm}
-                  isEditing={Boolean(editingCategoryId)}
                   onChange={setCategoryForm}
                   onSubmit={handleCategorySubmit}
                   submitLabel={editingCategoryId ? 'Guardar categoría' : 'Crear categoría'}
@@ -2091,25 +2090,16 @@ const ProductFormFields = ({
 
 const CategoryFormFields = ({
   form,
-  isEditing,
   onChange,
   onSubmit,
   submitLabel,
 }: {
   form: AdminCategoryPayload;
-  isEditing: boolean;
   onChange: React.Dispatch<React.SetStateAction<AdminCategoryPayload>>;
   onSubmit: (event: React.FormEvent) => void;
   submitLabel: string;
 }) => (
   <form onSubmit={onSubmit} className="space-y-4">
-    <Field label="ID">
-      <input
-        value={isEditing ? form.id : 'Auto-generado al crear'}
-        disabled
-        className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
-      />
-    </Field>
     <Field label="Nombre">
       <input
         required
@@ -2121,7 +2111,6 @@ const CategoryFormFields = ({
         className={INPUT_CLASS}
       />
     </Field>
-    <Field label="Slug"><input value={form.slug || ''} readOnly className={`${INPUT_CLASS} bg-neutral-100 text-neutral-600`} /></Field>
     <ImageDropzone
       label="Imagen de categoría"
       value={form.imageUrl ? [form.imageUrl] : []}
