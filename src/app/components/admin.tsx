@@ -2038,10 +2038,10 @@ const ProductFormFields = ({
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
                   className={cn(
-                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
                     form.isNew
-                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
-                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
                   Nuevo
@@ -2050,10 +2050,10 @@ const ProductFormFields = ({
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isFeatured: !current.isFeatured }))}
                   className={cn(
-                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
                     form.isFeatured
-                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
-                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
                   Destacado
@@ -2062,10 +2062,10 @@ const ProductFormFields = ({
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isActive: !current.isActive }))}
                   className={cn(
-                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
                     form.isActive
-                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
-                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
                   Activo
