@@ -2031,10 +2031,9 @@ const ProductFormFields = ({
             </div>
           </section>
 
-          <section className="flex justify-end">
-            <div className="space-y-2 border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-              <p className="text-right text-[10px] font-header font-black uppercase tracking-[0.18em] text-[#c4a484]">Flags</p>
-              <div className="flex flex-wrap justify-end gap-2">
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Flags</h3>
+            <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
@@ -2065,7 +2064,6 @@ const ProductFormFields = ({
                 >
                   Activo
                 </button>
-              </div>
             </div>
           </section>
           </div>
