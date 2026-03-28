@@ -56,6 +56,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   
   // Inputs temporales para arrays
   const [sizeInput, setSizeInput] = useState('');
@@ -119,6 +120,21 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       console.error('Error deleting image:', error);
       toast.error(error instanceof Error ? error.message : 'Error al eliminar imagen');
     }
+  };
+
+  // Reordenar imágenes (la primera será la principal para la tarjeta)
+  const handleImageDrop = (targetIndex: number) => {
+    if (draggedImageIndex === null || draggedImageIndex === targetIndex) return;
+
+    const currentImages = [...(formData.images || [])];
+    const [draggedImage] = currentImages.splice(draggedImageIndex, 1);
+    currentImages.splice(targetIndex, 0, draggedImage);
+
+    setFormData(prev => ({
+      ...prev,
+      images: currentImages,
+    }));
+    setDraggedImageIndex(null);
   };
 
   // Agregar item a array
@@ -320,11 +336,29 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             <h3 className="font-header uppercase font-bold text-sm text-[#C4A484]">
               Imágenes
             </h3>
+            <p className="text-xs text-neutral-600">
+              Arrastra para reordenar. La primera imagen será la que se muestre en la tarjeta del producto.
+            </p>
             
             <div className="flex flex-wrap gap-4">
               {formData.images?.map((url, idx) => (
-                <div key={idx} className="relative w-32 h-32 border-2 border-black group">
+                <div
+                  key={url}
+                  draggable
+                  onDragStart={() => setDraggedImageIndex(idx)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleImageDrop(idx)}
+                  onDragEnd={() => setDraggedImageIndex(null)}
+                  className={`relative w-32 h-32 border-2 border-black group cursor-move transition-opacity ${
+                    draggedImageIndex === idx ? 'opacity-50' : 'opacity-100'
+                  }`}
+                >
                   <img src={url} alt="" className="w-full h-full object-cover" />
+                  {idx === 0 && (
+                    <span className="absolute top-1 left-1 bg-black text-white text-[10px] px-1.5 py-0.5 font-header uppercase">
+                      Principal
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleRemoveImage(url)}
