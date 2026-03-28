@@ -2030,11 +2030,53 @@ const ProductFormFields = ({
               />
             </div>
           </section>
+
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Flags</h3>
+            <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
+                  className={cn(
+                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    form.isNew
+                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
+                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
+                  )}
+                >
+                  Nuevo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isFeatured: !current.isFeatured }))}
+                  className={cn(
+                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    form.isFeatured
+                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
+                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
+                  )}
+                >
+                  Destacado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isActive: !current.isActive }))}
+                  className={cn(
+                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    form.isActive
+                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
+                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
+                  )}
+                >
+                  Activo
+                </button>
+            </div>
+          </section>
           </div>
         </div>
       </div>
       <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+        <div className="pointer-events-auto space-y-2 border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
               Cancelar
@@ -2043,37 +2085,6 @@ const ProductFormFields = ({
           </div>
         </div>
       </div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="justify-center">{submitLabel}</Button>
-          </div>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="justify-center">{submitLabel}</Button>
-          </div>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="justify-center">{submitLabel}</Button>
-          </div>
-        </div>
-      </div>
-      
     </form>
   );
 };
