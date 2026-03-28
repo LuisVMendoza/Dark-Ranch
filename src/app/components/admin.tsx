@@ -2038,8 +2038,10 @@ const ProductFormFields = ({
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
                   className={cn(
-                    'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
-                    form.isNew ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
+                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    form.isNew
+                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
+                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
                   )}
                 >
                   Nuevo
@@ -2048,8 +2050,10 @@ const ProductFormFields = ({
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isFeatured: !current.isFeatured }))}
                   className={cn(
-                    'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
-                    form.isFeatured ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
+                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    form.isFeatured
+                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
+                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
                   )}
                 >
                   Destacado
@@ -2058,8 +2062,10 @@ const ProductFormFields = ({
                   type="button"
                   onClick={() => onChange((current) => ({ ...current, isActive: !current.isActive }))}
                   className={cn(
-                    'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
-                    form.isActive ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
+                    'min-w-[132px] border-2 px-4 py-3 text-xs font-header font-black uppercase tracking-[0.22em] transition-all',
+                    form.isActive
+                      ? 'border-[#ffcc66] bg-[#ffcc66] text-black shadow-[0_0_0_2px_rgba(0,0,0,0.15)]'
+                      : 'border-black bg-[#171717] text-white hover:bg-[#2a2a2a]',
                   )}
                 >
                   Activo
