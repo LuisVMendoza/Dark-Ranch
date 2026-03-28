@@ -1845,18 +1845,18 @@ const ProductFormFields = ({
 
   return (
     <form onSubmit={onSubmit} className="relative flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">
-        <div className="grid gap-5 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] lg:items-start">
-          <aside className="order-1 space-y-4 lg:sticky lg:top-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 pb-24 sm:px-8 sm:py-6 sm:pb-28 lg:overflow-hidden lg:pb-6">
+        <div className="grid gap-5 lg:h-full lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] lg:items-start">
+          <aside className="order-1 space-y-4">
             <section className="space-y-4 border-2 border-black bg-white p-4 shadow-[0_6px_0_0_rgba(0,0,0,0.12)] sm:p-5">
               <div className="group relative overflow-hidden border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
                   {form.isNew && <FlagBadge label="Novedad" active />}
                   {hasDiscount && <FlagBadge label="Oferta" active />}
                 </div>
-                <div className="relative aspect-[4/5] overflow-hidden border-b-2 border-black bg-neutral-100 p-2">
+                <div className="relative aspect-[4/5] overflow-hidden border-b-2 border-black bg-neutral-100">
                   {form.images[0] ? (
-                    <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-contain bg-white" />
+                    <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-cover bg-white" />
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-500">
                       <ImageIcon size={32} />
@@ -1885,7 +1885,7 @@ const ProductFormFields = ({
             </section>
           </aside>
 
-          <div className="order-2 space-y-5">
+          <div className="order-2 space-y-5 lg:min-h-0 lg:overflow-y-auto lg:pb-28 lg:pr-1">
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Datos básicos</h3>
             <div className="grid gap-4 md:grid-cols-2">
@@ -1922,14 +1922,6 @@ const ProductFormFields = ({
 
           <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
             <h3 className="font-western text-xl uppercase sm:text-2xl">Imágenes</h3>
-            <Field label="Imagen principal URL (opcional)">
-              <input
-                value={form.images[0] || ''}
-                onChange={(e) => onChange((current) => ({ ...current, images: [e.target.value, ...current.images.slice(1)] }))}
-                placeholder="https://..."
-                className={INPUT_CLASS}
-              />
-            </Field>
             <ImageDropzone
               label="Galería de imágenes"
               value={form.images}
@@ -1967,18 +1959,17 @@ const ProductFormFields = ({
                 onChange={(colors) => onChange((current) => ({ ...current, colors }))}
               />
             </div>
-            <div className="flex justify-end border-t-2 border-black bg-white px-5 py-3">
-              <Button type="button" onClick={() => setIsVisualToolsOpen(false)}>Listo</Button>
-            </div>
           </section>
-            <div className="sticky bottom-0 z-20 border-2 border-black bg-[#1f130b] p-3">
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-                  Cancelar
-                </Button>
-                <Button type="submit" className="justify-center">{submitLabel}</Button>
-              </div>
-            </div>
+          </div>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
+        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="justify-center">{submitLabel}</Button>
           </div>
         </div>
       </div>
