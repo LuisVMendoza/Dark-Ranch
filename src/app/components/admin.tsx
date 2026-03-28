@@ -1765,6 +1765,7 @@ const ImageDropzone = ({
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleUpload = async (fileList: FileList | null) => {
@@ -1798,6 +1799,15 @@ const ImageDropzone = ({
     } catch (error) {
       console.error('Error deleting image:', error);
     }
+  };
+
+  const moveImage = (targetIndex: number) => {
+    if (draggedImageIndex === null || draggedImageIndex === targetIndex) return;
+    const next = [...value];
+    const [draggedImage] = next.splice(draggedImageIndex, 1);
+    next.splice(targetIndex, 0, draggedImage);
+    onChange(next);
+    setDraggedImageIndex(null);
   };
 
   return (
@@ -1842,10 +1852,28 @@ const ImageDropzone = ({
         </div>
 
         {value.length > 0 && (
-          <div className={cn('grid gap-3', multiple ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
-            {value.map((url) => (
-              <div key={url} className="relative overflow-hidden border-2 border-black bg-neutral-100">
+          <>
+            <p className="text-xs text-neutral-600">Arrastra los recuadros para cambiar el orden de visualización. La primera imagen será la principal.</p>
+            <div className={cn('grid gap-3', multiple ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
+            {value.map((url, index) => (
+              <div
+                key={`${url}-${index}`}
+                draggable
+                onDragStart={() => setDraggedImageIndex(index)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => moveImage(index)}
+                onDragEnd={() => setDraggedImageIndex(null)}
+                className={cn(
+                  'relative overflow-hidden border-2 border-black bg-neutral-100 transition-opacity',
+                  draggedImageIndex === index ? 'cursor-grabbing opacity-60' : 'cursor-grab',
+                )}
+              >
                 <img src={url} alt="Imagen cargada" className="h-36 w-full object-cover" />
+                {index === 0 && (
+                  <span className="absolute left-2 top-2 border border-black bg-black px-2 py-1 text-[10px] font-header uppercase text-white">
+                    Principal
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => void removeImage(url)}
@@ -1855,7 +1883,8 @@ const ImageDropzone = ({
                 </button>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </Field>
