@@ -2040,8 +2040,8 @@ const ProductFormFields = ({
                   className={cn(
                     'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
                     form.isNew
-                      ? 'border-emerald-700 bg-emerald-500 text-emerald-950 shadow-[0_0_0_3px_rgba(16,185,129,0.28)]'
-                      : 'border-neutral-600 bg-neutral-100 text-neutral-700 hover:bg-neutral-200',
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
                   Nuevo · {form.isNew ? 'ON' : 'OFF'}
@@ -2052,8 +2052,8 @@ const ProductFormFields = ({
                   className={cn(
                     'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
                     form.isFeatured
-                      ? 'border-amber-700 bg-amber-400 text-amber-950 shadow-[0_0_0_3px_rgba(251,191,36,0.3)]'
-                      : 'border-neutral-600 bg-neutral-100 text-neutral-700 hover:bg-neutral-200',
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
                   Destacado · {form.isFeatured ? 'ON' : 'OFF'}
@@ -2064,8 +2064,8 @@ const ProductFormFields = ({
                   className={cn(
                     'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
                     form.isActive
-                      ? 'border-sky-700 bg-sky-400 text-sky-950 shadow-[0_0_0_3px_rgba(56,189,248,0.3)]'
-                      : 'border-neutral-600 bg-neutral-100 text-neutral-700 hover:bg-neutral-200',
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
                   Activo · {form.isActive ? 'ON' : 'OFF'}
