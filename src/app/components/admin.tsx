@@ -2030,43 +2030,49 @@ const ProductFormFields = ({
               />
             </div>
           </section>
+
+          <section className="flex justify-end">
+            <div className="space-y-2 border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+              <p className="text-right text-[10px] font-header font-black uppercase tracking-[0.18em] text-[#c4a484]">Flags</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
+                  className={cn(
+                    'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
+                    form.isNew ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
+                  )}
+                >
+                  Nuevo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isFeatured: !current.isFeatured }))}
+                  className={cn(
+                    'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
+                    form.isFeatured ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
+                  )}
+                >
+                  Destacado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isActive: !current.isActive }))}
+                  className={cn(
+                    'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
+                    form.isActive ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
+                  )}
+                >
+                  Activo
+                </button>
+              </div>
+            </div>
+          </section>
           </div>
         </div>
       </div>
       <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
         <div className="pointer-events-auto space-y-2 border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
-              className={cn(
-                'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
-                form.isNew ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
-              )}
-            >
-              Nuevo
-            </button>
-            <button
-              type="button"
-              onClick={() => onChange((current) => ({ ...current, isFeatured: !current.isFeatured }))}
-              className={cn(
-                'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
-                form.isFeatured ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
-              )}
-            >
-              Destacado
-            </button>
-            <button
-              type="button"
-              onClick={() => onChange((current) => ({ ...current, isActive: !current.isActive }))}
-              className={cn(
-                'border-2 px-3 py-2 text-[10px] font-header font-black uppercase tracking-[0.18em] transition-colors',
-                form.isActive ? 'border-[#c4a484] bg-[#c4a484] text-black' : 'border-white bg-black text-white hover:bg-white hover:text-black',
-              )}
-            >
-              Activo
-            </button>
-          </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
               Cancelar
