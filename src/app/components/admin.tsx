@@ -1973,6 +1973,44 @@ const ProductFormFields = ({
           </div>
         </div>
       </div>
+      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
+        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="justify-center">{submitLabel}</Button>
+          </div>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
+        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="justify-center">{submitLabel}</Button>
+          </div>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
+        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="justify-center">{submitLabel}</Button>
+          </div>
+        </div>
+      </div>
+      <div className="border-t-2 border-black bg-[#1f130b] p-3 sm:px-8">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="justify-center">{submitLabel}</Button>
+        </div>
+      </div>
     </form>
   );
 };
