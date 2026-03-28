@@ -1854,9 +1854,9 @@ const ProductFormFields = ({
                   {form.isNew && <FlagBadge label="Novedad" active />}
                   {hasDiscount && <FlagBadge label="Oferta" active />}
                 </div>
-                <div className="relative aspect-[4/5] overflow-hidden border-b-2 border-black bg-neutral-100 p-2">
+                <div className="relative aspect-[4/5] overflow-hidden border-b-2 border-black bg-neutral-100">
                   {form.images[0] ? (
-                    <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-contain bg-white" />
+                    <img src={form.images[0]} alt={form.name || 'Producto'} className="h-full w-full object-cover bg-white" />
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-neutral-500">
                       <ImageIcon size={32} />
@@ -1967,19 +1967,16 @@ const ProductFormFields = ({
                 onChange={(colors) => onChange((current) => ({ ...current, colors }))}
               />
             </div>
-            <div className="flex justify-end border-t-2 border-black bg-white px-5 py-3">
-              <Button type="button" onClick={() => setIsVisualToolsOpen(false)}>Listo</Button>
-            </div>
           </section>
-            <div className="sticky bottom-0 z-20 border-2 border-black bg-[#1f130b] p-3">
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-                  Cancelar
-                </Button>
-                <Button type="submit" className="justify-center">{submitLabel}</Button>
-              </div>
-            </div>
           </div>
+        </div>
+      </div>
+      <div className="border-t-2 border-black bg-[#1f130b] p-3 sm:px-8">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="justify-center">{submitLabel}</Button>
         </div>
       </div>
     </form>
