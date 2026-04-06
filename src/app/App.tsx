@@ -6,7 +6,7 @@ import { ProductCard, CategoryCard } from './components/product';
 import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
-import { AuthUser, LoginPage } from './components/auth';
+import { AuthUser, CustomerLoginDialog, LoginPage } from './components/auth';
 import { AboutPage, ContactPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
 import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
@@ -427,14 +427,7 @@ const App = () => {
 
         {currentView !== 'login' && currentView !== 'admin' && <Footer />}
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
-        <CustomerLoginDialog
-          isOpen={isCustomerLoginOpen}
-          onClose={() => setIsCustomerLoginOpen(false)}
-          onLogin={(customer) => {
-            setCustomerSession(customer);
-            localStorage.setItem('dark-ranch-customer-session', JSON.stringify(customer));
-          }}
-        />
+        <CustomerLoginDialog isOpen={false} />
       </div>
     </CartProvider>
   );

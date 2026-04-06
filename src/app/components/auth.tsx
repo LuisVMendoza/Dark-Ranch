@@ -128,4 +128,8 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) =>
 
 // Compatibilidad temporal: evita romper clientes con bundles viejos que aún
 // intentan renderizar CustomerLoginDialog.
-export const CustomerLoginDialog = () => null;
+export const CustomerLoginDialog = (_props: {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onLogin?: (user: AuthUser) => void;
+}) => null;
