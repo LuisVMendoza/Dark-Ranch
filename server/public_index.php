@@ -997,6 +997,214 @@ function login_admin(string $email, string $password): ?array
     return null;
 }
 
+function ensure_customer_data_shape(array &$store): void
+{
+    if (!isset($store['customerUsers']) || !is_array($store['customerUsers'])) {
+        $store['customerUsers'] = [];
+    }
+    if (!isset($store['customerSessions']) || !is_array($store['customerSessions'])) {
+        $store['customerSessions'] = [];
+    }
+    if (!isset($store['productComments']) || !is_array($store['productComments'])) {
+        $store['productComments'] = [];
+    }
+}
+
+function register_customer_user(string $name, string $email, string $password): array
+{
+    $cleanName = trim($name);
+    $cleanEmail = mb_strtolower(trim($email));
+    $cleanPassword = trim($password);
+
+    if ($cleanName === '' || $cleanEmail === '' || $cleanPassword === '') {
+        throw new RuntimeException('Nombre, email y contraseña son obligatorios');
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    foreach (($store['adminUsers'] ?? []) as $admin) {
+        if (mb_strtolower((string) ($admin['email'] ?? '')) === $cleanEmail) {
+            throw new RuntimeException('Ese email ya está registrado');
+        }
+    }
+
+    foreach ($store['customerUsers'] as $customer) {
+        if (mb_strtolower((string) ($customer['email'] ?? '')) === $cleanEmail) {
+            throw new RuntimeException('Ese email ya está registrado');
+        }
+    }
+
+    $newUser = [
+        'id' => 'cus_' . bin2hex(random_bytes(5)),
+        'name' => $cleanName,
+        'email' => $cleanEmail,
+        'password' => $cleanPassword,
+        'role' => 'customer',
+        'createdAt' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+    ];
+
+    $store['customerUsers'][] = $newUser;
+    write_json_store($store);
+
+    return [
+        'id' => $newUser['id'],
+        'name' => $newUser['name'],
+        'email' => $newUser['email'],
+        'role' => $newUser['role'],
+    ];
+}
+
+function login_customer_user(string $email, string $password): ?array
+{
+    $cleanEmail = mb_strtolower(trim($email));
+    $cleanPassword = trim($password);
+    if ($cleanEmail === '' || $cleanPassword === '') {
+        return null;
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    foreach ($store['customerUsers'] as $customer) {
+        if (mb_strtolower((string) ($customer['email'] ?? '')) === $cleanEmail && (string) ($customer['password'] ?? '') === $cleanPassword) {
+            return [
+                'id' => (string) ($customer['id'] ?? ''),
+                'name' => (string) ($customer['name'] ?? ''),
+                'email' => (string) ($customer['email'] ?? ''),
+                'role' => 'customer',
+            ];
+        }
+    }
+
+    return null;
+}
+
+function login_customer(string $name, string $email): array
+{
+    $cleanName = trim($name);
+    $cleanEmail = mb_strtolower(trim($email));
+    if ($cleanName === '' || $cleanEmail === '') {
+        throw new RuntimeException('Nombre y email son obligatorios');
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    foreach ($store['customerSessions'] as &$session) {
+        if (mb_strtolower((string) ($session['email'] ?? '')) === $cleanEmail) {
+            $session['name'] = $cleanName;
+            $session['lastLoginAt'] = (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
+            write_json_store($store);
+            return $session;
+        }
+    }
+    unset($session);
+
+    $newSession = [
+        'id' => 'cus_' . bin2hex(random_bytes(5)),
+        'name' => $cleanName,
+        'email' => $cleanEmail,
+        'lastLoginAt' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+    ];
+    $store['customerSessions'][] = $newSession;
+    write_json_store($store);
+    return $newSession;
+}
+
+function get_customer_orders_by_token_or_email(string $token, string $email): array
+{
+    $cleanToken = trim($token);
+    $cleanEmail = mb_strtolower(trim($email));
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    $orders = array_values(array_filter(($store['orders'] ?? []), static function (array $order) use ($cleanToken, $cleanEmail): bool {
+        $orderToken = trim((string) ($order['customer_token'] ?? ''));
+        $orderEmail = mb_strtolower(trim((string) ($order['customer_email'] ?? '')));
+        if ($cleanToken !== '' && $orderToken === $cleanToken) {
+            return true;
+        }
+        return $cleanEmail !== '' && $orderEmail === $cleanEmail;
+    }));
+
+    usort($orders, static fn (array $a, array $b): int => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+    return array_map(static function (array $order) use ($store): array {
+        $orderId = (int) ($order['id'] ?? 0);
+        $items = array_values(array_filter(($store['orderItems'] ?? []), static fn (array $item): bool => (int) ($item['orderId'] ?? 0) === $orderId));
+        return [
+            'id' => $orderId,
+            'orderNumber' => (string) ($order['order_number'] ?? ''),
+            'customerName' => (string) ($order['customer_name'] ?? ''),
+            'customerEmail' => (string) ($order['customer_email'] ?? ''),
+            'status' => (string) ($order['status'] ?? 'pending'),
+            'paymentStatus' => (string) ($order['payment_status'] ?? 'pending'),
+            'total' => (float) ($order['total'] ?? 0),
+            'createdAt' => (string) ($order['created_at'] ?? ''),
+            'items' => array_map(static fn (array $item): array => [
+                'productId' => (string) ($item['productId'] ?? ''),
+                'productName' => (string) ($item['productName'] ?? ''),
+                'price' => (float) ($item['price'] ?? 0),
+                'quantity' => (int) ($item['quantity'] ?? 0),
+                'selectedSize' => $item['selectedSize'] ?? null,
+                'selectedColor' => $item['selectedColor'] ?? null,
+            ], $items),
+        ];
+    }, $orders);
+}
+
+function get_product_comments_by_product_id(string $productId): array
+{
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+    $comments = array_values(array_filter($store['productComments'], static fn (array $comment): bool => (string) ($comment['productId'] ?? '') === $productId));
+    usort($comments, static fn (array $a, array $b): int => strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? '')));
+    return $comments;
+}
+
+function create_product_comment(string $productId, array $payload): array
+{
+    $content = trim((string) ($payload['content'] ?? ''));
+    if ($content === '') {
+        throw new RuntimeException('El comentario no puede estar vacío');
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    $newComment = [
+        'id' => 'com_' . bin2hex(random_bytes(5)),
+        'productId' => $productId,
+        'customerId' => (string) ($payload['customerId'] ?? ''),
+        'customerName' => (string) ($payload['customerName'] ?? 'Cliente'),
+        'customerEmail' => (string) ($payload['customerEmail'] ?? ''),
+        'content' => $content,
+        'images' => array_values(array_filter(array_map(static fn ($url) => trim((string) $url), (array) ($payload['images'] ?? [])), static fn (string $url): bool => $url !== '')),
+        'createdAt' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+    ];
+
+    $store['productComments'][] = $newComment;
+    write_json_store($store);
+    return $newComment;
+}
+
+function delete_product_comment(string $productId, string $commentId): bool
+{
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+    $before = count($store['productComments']);
+    $store['productComments'] = array_values(array_filter(
+        $store['productComments'],
+        static fn (array $comment): bool => !((string) ($comment['productId'] ?? '') === $productId && (string) ($comment['id'] ?? '') === $commentId)
+    ));
+    if (count($store['productComments']) === $before) {
+        return false;
+    }
+    write_json_store($store);
+    return true;
+}
+
 function ensure_category_exists(string $categoryId): array
 {
     foreach (get_categories() as $category) {
@@ -1690,6 +1898,7 @@ function create_order(array $payload): array
         'order_number' => $orderNumber,
         'customer_name' => $customerName,
         'customer_email' => $payload['email'] ?? '',
+        'customer_token' => trim((string) ($payload['customerToken'] ?? '')) ?: ('guest-' . ($payload['email'] ?? '')),
         'address' => $payload['address'] ?? '',
         'city' => $payload['city'] ?? '',
         'zip' => $payload['zip'] ?? '',
@@ -1974,16 +2183,72 @@ try {
 
     if ($method === 'POST' && $path === '/api/login') {
         $body = read_json_body();
-        $user = login_admin((string) ($body['email'] ?? ''), (string) ($body['password'] ?? ''));
-        if ($user === null) {
-            json_response(401, ['message' => 'Credenciales inválidas']);
+        $email = (string) ($body['email'] ?? '');
+        $password = (string) ($body['password'] ?? '');
+        $admin = login_admin($email, $password);
+        if ($admin !== null) {
+            $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] = (string) $admin['id'];
+            $_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] = $admin['name'];
+            $_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] = $admin['email'];
+            $_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] = $admin['role'];
+            log_activity('login', 'auth', (string) $admin['id'], $admin['name'], 'Inicio de sesión exitoso.');
+            json_response(200, ['user' => $admin]);
         }
-        $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] = (string) $user['id'];
-        $_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] = $user['name'];
-        $_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] = $user['email'];
-        $_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] = $user['role'];
-        log_activity('login', 'auth', (string) $user['id'], $user['name'], 'Inicio de sesión exitoso.');
-        json_response(200, ['user' => $user]);
+
+        $customer = login_customer_user($email, $password);
+        if ($customer !== null) {
+            json_response(200, ['user' => $customer]);
+        }
+
+        json_response(401, ['message' => 'Credenciales inválidas']);
+    }
+
+    if ($method === 'POST' && $path === '/api/register') {
+        $body = read_json_body();
+        $customer = register_customer_user(
+            (string) ($body['name'] ?? ''),
+            (string) ($body['email'] ?? ''),
+            (string) ($body['password'] ?? '')
+        );
+        json_response(201, ['user' => $customer]);
+    }
+
+    if ($method === 'POST' && $path === '/api/customer/login') {
+        $body = read_json_body();
+        $customer = login_customer((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''));
+        json_response(200, ['customer' => ['id' => $customer['id'], 'name' => $customer['name'], 'email' => $customer['email']]]);
+    }
+
+    if ($method === 'GET' && $path === '/api/orders/my') {
+        $token = (string) ($_GET['token'] ?? '');
+        $email = (string) ($_GET['email'] ?? '');
+        if (trim($token) === '' && trim($email) === '') {
+            json_response(400, ['message' => 'Debes enviar token o email']);
+        }
+        json_response(200, ['orders' => get_customer_orders_by_token_or_email($token, $email)]);
+    }
+
+    if (preg_match('#^/api/products/([^/]+)/comments$#', $path, $matches) === 1) {
+        $productId = urldecode($matches[1]);
+        if ($method === 'GET') {
+            json_response(200, ['comments' => get_product_comments_by_product_id($productId)]);
+        }
+        if ($method === 'POST') {
+            $comment = create_product_comment($productId, read_json_body());
+            json_response(201, ['comment' => $comment]);
+        }
+    }
+
+    if (preg_match('#^/api/products/([^/]+)/comments/([^/]+)$#', $path, $matches) === 1 && $method === 'DELETE') {
+        $actor = current_actor_from_request();
+        if (($actor['role'] ?? '') !== 'admin') {
+            json_response(403, ['message' => 'Solo admin puede borrar comentarios']);
+        }
+        $ok = delete_product_comment(urldecode($matches[1]), urldecode($matches[2]));
+        if (!$ok) {
+            json_response(404, ['message' => 'Comentario no encontrado']);
+        }
+        json_response(200, ['ok' => true]);
     }
 
     if ($method === 'POST' && $path === '/api/orders') {

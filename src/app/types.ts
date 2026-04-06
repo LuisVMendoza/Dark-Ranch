@@ -103,6 +103,7 @@ export interface CheckoutPayload {
   cardNumber: string;
   expiry: string;
   cvc: string;
+  customerToken?: string;
   items: Array<{
     id: string;
     name: string;
@@ -111,6 +112,35 @@ export interface CheckoutPayload {
     selectedSize?: string;
     selectedColor?: string;
   }>;
+}
+
+export interface CustomerSession {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface ProductComment {
+  id: string;
+  productId: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  content: string;
+  images: string[];
+  createdAt: string;
+}
+
+export interface CustomerOrder {
+  id: number;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  status: AdminOrder['status'];
+  paymentStatus: AdminOrder['paymentStatus'];
+  total: number;
+  createdAt: string;
+  items: AdminOrderItem[];
 }
 
 export interface AdminOrderItem {
