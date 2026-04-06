@@ -109,12 +109,53 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
 const parseTags = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 const serializeList = (list: string[]) => list.join(', ');
+const normalizeAttribute = (value: string) => value.replace(/\s+/g, ' ').trim();
 const ATTRIBUTE_DEFAULTS = {
   sizes: ['CH', 'M', 'G', 'EG', '28', '30', '32', '34'],
   colors: ['Negro', 'Café', 'Miel', 'Azul mezclilla', 'Arena', 'Vino'],
   tags: ['western', 'cuero', 'artesanal', 'edición limitada', 'nuevo ingreso', 'bestseller'],
 } as const;
 type AttributeFieldKey = keyof typeof ATTRIBUTE_DEFAULTS;
+type StructuralSuggestionBucket = {
+  id: string;
+  label: string;
+  items: string[];
+};
+
+const getStructuralSuggestionBuckets = (items: string[], selectedItems: string[]): StructuralSuggestionBucket[] => {
+  const selected = new Set(selectedItems.map((item) => item.toLowerCase()));
+  const seen = new Set<string>();
+  const candidates = items
+    .map(normalizeAttribute)
+    .filter(Boolean)
+    .filter((item) => {
+      const normalized = item.toLowerCase();
+      if (selected.has(normalized) || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+
+  const hasVisualNoise = (item: string) => /[\d]|[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/.test(item) || (item === item.toUpperCase() && /[A-ZÁÉÍÓÚÜÑ]/.test(item));
+  const hasCalloutPattern = (item: string) => /^[A-ZÁÉÍÓÚÜÑ]/.test(item) || /[a-záéíóúüñ][A-ZÁÉÍÓÚÜÑ]/.test(item);
+
+  return [
+    {
+      id: 'short',
+      label: 'Cortas (3-5 caracteres)',
+      items: candidates.filter((item) => item.length >= 3 && item.length <= 5),
+    },
+    {
+      id: 'noise',
+      label: 'Visualmente llamativas',
+      items: candidates.filter(hasVisualNoise),
+    },
+    {
+      id: 'pattern',
+      label: 'Patrones de escritura',
+      items: candidates.filter(hasCalloutPattern),
+    },
+  ].filter((bucket) => bucket.items.length > 0);
+};
 const statCardClass = 'bg-white border-2 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]';
 const INPUT_CLASS = 'w-full border-2 border-black bg-white px-3 py-3 outline-none focus:bg-[#fffdfa]';
 const generateSlug = (value: string) => value
@@ -1633,7 +1674,6 @@ export const AdminDashboard = ({
               <div className="overflow-y-auto p-8">
                 <CategoryFormFields
                   form={categoryForm}
-                  isEditing={Boolean(editingCategoryId)}
                   onChange={setCategoryForm}
                   onSubmit={handleCategorySubmit}
                   submitLabel={editingCategoryId ? 'Guardar categoría' : 'Crear categoría'}
@@ -1724,6 +1764,7 @@ const ImageDropzone = ({
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleUpload = async (fileList: FileList | null) => {
@@ -1757,6 +1798,15 @@ const ImageDropzone = ({
     } catch (error) {
       console.error('Error deleting image:', error);
     }
+  };
+
+  const moveImage = (targetIndex: number) => {
+    if (draggedImageIndex === null || draggedImageIndex === targetIndex) return;
+    const next = [...value];
+    const [draggedImage] = next.splice(draggedImageIndex, 1);
+    next.splice(targetIndex, 0, draggedImage);
+    onChange(next);
+    setDraggedImageIndex(null);
   };
 
   return (
@@ -1801,10 +1851,28 @@ const ImageDropzone = ({
         </div>
 
         {value.length > 0 && (
-          <div className={cn('grid gap-3', multiple ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
-            {value.map((url) => (
-              <div key={url} className="relative overflow-hidden border-2 border-black bg-neutral-100">
+          <>
+            <p className="text-xs text-neutral-600">Arrastra los recuadros para cambiar el orden de visualización. La primera imagen será la principal.</p>
+            <div className={cn('grid gap-3', multiple ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1')}>
+            {value.map((url, index) => (
+              <div
+                key={`${url}-${index}`}
+                draggable
+                onDragStart={() => setDraggedImageIndex(index)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => moveImage(index)}
+                onDragEnd={() => setDraggedImageIndex(null)}
+                className={cn(
+                  'relative overflow-hidden border-2 border-black bg-neutral-100 transition-opacity',
+                  draggedImageIndex === index ? 'cursor-grabbing opacity-60' : 'cursor-grab',
+                )}
+              >
                 <img src={url} alt="Imagen cargada" className="h-36 w-full object-cover" />
+                {index === 0 && (
+                  <span className="absolute left-2 top-2 border border-black bg-black px-2 py-1 text-[10px] font-header uppercase text-white">
+                    Principal
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => void removeImage(url)}
@@ -1814,7 +1882,8 @@ const ImageDropzone = ({
                 </button>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </Field>
@@ -1960,11 +2029,53 @@ const ProductFormFields = ({
               />
             </div>
           </section>
+
+          <section className="space-y-4 border-2 border-black bg-white p-4 sm:p-5">
+            <h3 className="font-western text-xl uppercase sm:text-2xl">Flags</h3>
+            <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isNew: !current.isNew }))}
+                  className={cn(
+                    'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
+                    form.isNew
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
+                  )}
+                >
+                  Nuevo 
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isFeatured: !current.isFeatured }))}
+                  className={cn(
+                    'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
+                    form.isFeatured
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
+                  )}
+                >
+                  Destacado 
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange((current) => ({ ...current, isActive: !current.isActive }))}
+                  className={cn(
+                    'min-w-[160px] rounded-sm border-2 px-5 py-3.5 text-sm font-header font-black uppercase tracking-[0.16em] transition-all duration-200',
+                    form.isActive
+                      ? 'border-[#8f6f53] bg-[#c4a484] text-black shadow-[0_0_0_3px_rgba(196,164,132,0.28)]'
+                      : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
+                  )}
+                >
+                  Activo 
+                </button>
+            </div>
+          </section>
           </div>
         </div>
       </div>
       <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
+        <div className="pointer-events-auto space-y-2 border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
               Cancelar
@@ -1973,62 +2084,22 @@ const ProductFormFields = ({
           </div>
         </div>
       </div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="justify-center">{submitLabel}</Button>
-          </div>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="justify-center">{submitLabel}</Button>
-          </div>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-30 sm:right-8">
-        <div className="pointer-events-auto border-2 border-black bg-[#1f130b] p-3 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="border-white text-white hover:bg-white hover:text-black" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="justify-center">{submitLabel}</Button>
-          </div>
-        </div>
-      </div>
-      
     </form>
   );
 };
 
 const CategoryFormFields = ({
   form,
-  isEditing,
   onChange,
   onSubmit,
   submitLabel,
 }: {
   form: AdminCategoryPayload;
-  isEditing: boolean;
   onChange: React.Dispatch<React.SetStateAction<AdminCategoryPayload>>;
   onSubmit: (event: React.FormEvent) => void;
   submitLabel: string;
 }) => (
   <form onSubmit={onSubmit} className="space-y-4">
-    <Field label="ID">
-      <input
-        value={isEditing ? form.id : 'Auto-generado al crear'}
-        disabled
-        className={`${INPUT_CLASS} border-neutral-300 bg-neutral-100 text-neutral-500`}
-      />
-    </Field>
     <Field label="Nombre">
       <input
         required
@@ -2040,7 +2111,6 @@ const CategoryFormFields = ({
         className={INPUT_CLASS}
       />
     </Field>
-    <Field label="Slug"><input value={form.slug || ''} readOnly className={`${INPUT_CLASS} bg-neutral-100 text-neutral-600`} /></Field>
     <ImageDropzone
       label="Imagen de categoría"
       value={form.imageUrl ? [form.imageUrl] : []}
@@ -2109,19 +2179,41 @@ const AttributeTagPicker = ({
   const normalizedItems = parseTags(serializeList(value));
   const suggestedItems = suggestions.filter((item) => !normalizedItems.includes(item));
   const existingItems = existingOptions.filter((item) => !normalizedItems.includes(item));
+  const structuralBuckets = getStructuralSuggestionBuckets(
+    [...existingOptions, ...suggestions, ...normalizedItems],
+    normalizedItems,
+  );
+  const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [newAttribute, setNewAttribute] = useState('');
 
   const addSuggestion = (item: string) => {
-    if (normalizedItems.includes(item)) return;
-    onChange([...normalizedItems, item]);
+    const cleaned = normalizeAttribute(item);
+    if (!cleaned || normalizedItems.includes(cleaned)) return;
+    onChange([...normalizedItems, cleaned]);
   };
 
   const removeItem = (item: string) => {
     onChange(normalizedItems.filter((current) => current !== item));
   };
 
+  const addCustomAttribute = () => {
+    addSuggestion(newAttribute);
+    setNewAttribute('');
+  };
+
   return (
     <Field label={label}>
       <div className="space-y-3">
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setIsManagerOpen(true)}
+            className="inline-flex items-center gap-1 border border-black/20 bg-transparent px-2 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] text-neutral-600 transition-colors hover:border-black hover:text-black"
+          >
+            <Settings size={12} />
+            Administrar
+          </button>
+        </div>
         <input
           value={serializeList(normalizedItems)}
           onChange={(e) => onChange(parseTags(e.target.value))}
@@ -2165,23 +2257,82 @@ const AttributeTagPicker = ({
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-[10px] font-header font-black uppercase tracking-[0.18em] text-neutral-500">Sugeridos rápidos</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedItems.map((item) => (
-                  <button
-                    key={`${fieldKey}-suggested-${item}`}
-                    type="button"
-                    onClick={() => addSuggestion(item)}
-                    className="border border-black bg-[#fffdfa] px-2.5 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] transition-colors hover:bg-black hover:text-white"
-                  >
-                    {item}
-                  </button>
+              <p className="text-[10px] font-header font-black uppercase tracking-[0.18em] text-neutral-500">Sugeridos rápidos (por reglas)</p>
+              <div className="space-y-3">
+                {structuralBuckets.map((bucket) => (
+                  <div key={`${fieldKey}-structural-${bucket.id}`} className="space-y-1">
+                    <p className="text-[10px] text-neutral-500">{bucket.label}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {bucket.items.map((item) => (
+                        <button
+                          key={`${fieldKey}-suggested-${bucket.id}-${item}`}
+                          type="button"
+                          onClick={() => addSuggestion(item)}
+                          className="border border-black bg-[#fffdfa] px-2.5 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] transition-colors hover:bg-black hover:text-white"
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
+                {structuralBuckets.length === 0 && suggestedItems.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedItems.map((item) => (
+                      <button
+                        key={`${fieldKey}-suggested-fallback-${item}`}
+                        type="button"
+                        onClick={() => addSuggestion(item)}
+                        className="border border-black bg-[#fffdfa] px-2.5 py-1 text-[10px] font-header font-black uppercase tracking-[0.16em] transition-colors hover:bg-black hover:text-white"
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </details>
       </div>
+      <Dialog open={isManagerOpen} onOpenChange={setIsManagerOpen}>
+        <DialogContent className="max-w-2xl border-2 border-black p-0">
+          <DialogHeader className="border-b border-black/20 p-5">
+            <DialogTitle className="font-western uppercase text-2xl text-black">Administrar atributos</DialogTitle>
+            <DialogDescription className="text-neutral-600">
+              Agrega o elimina atributos para {label.toLowerCase()} sin salir del formulario.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 p-5">
+            <div className="flex gap-2">
+              <input
+                value={newAttribute}
+                onChange={(e) => setNewAttribute(e.target.value)}
+                placeholder="Nuevo atributo"
+                className={INPUT_CLASS}
+              />
+              <Button type="button" onClick={addCustomAttribute}>Agregar</Button>
+            </div>
+            <div className="max-h-[260px] space-y-2 overflow-y-auto border border-dashed border-black/30 bg-[#fcf9f5] p-3">
+              {normalizedItems.length > 0 ? normalizedItems.map((item) => (
+                <div key={`${fieldKey}-manager-${item}`} className="flex items-center justify-between gap-2 border border-black/20 bg-white px-3 py-2">
+                  <span className="text-sm text-neutral-700">{item}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(item)}
+                    className="inline-flex h-7 w-7 items-center justify-center border border-black/30 text-neutral-600 transition-colors hover:border-black hover:bg-black hover:text-white"
+                    aria-label={`Eliminar atributo ${item}`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )) : (
+                <p className="text-sm text-neutral-500">Aún no hay atributos seleccionados.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Field>
   );
 };
