@@ -125,3 +125,59 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) =>
     </div>
   );
 };
+
+export const CustomerLoginDialog = ({
+  isOpen,
+  onClose,
+  onLogin,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onLogin: (customer: CustomerSession) => void;
+}) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-6">
+      <div className="w-full max-w-lg bg-[#fcf9f5] border-2 border-black p-8 space-y-6">
+        <div className="space-y-2">
+          <h2 className="font-header font-black uppercase text-2xl">Acceso de cliente</h2>
+          <p className="text-sm text-neutral-600">Solo te pedimos nombre y email para identificar tus pedidos y comentarios.</p>
+        </div>
+        <div className="space-y-4">
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Tu nombre" className="w-full border-2 border-black p-3 bg-white" />
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@ejemplo.com" className="w-full border-2 border-black p-3 bg-white" />
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={isSubmitting}
+            onClick={async () => {
+              if (!name.trim() || !email.trim()) {
+                toast.error('Nombre y email son obligatorios');
+                return;
+              }
+              setIsSubmitting(true);
+              try {
+                const response = await loginCustomer(name.trim(), email.trim());
+                onLogin(response.customer);
+                toast.success('Sesión de cliente iniciada');
+                onClose();
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'No se pudo iniciar sesión');
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}
+          >
+            {isSubmitting ? 'Entrando...' : 'Continuar'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
