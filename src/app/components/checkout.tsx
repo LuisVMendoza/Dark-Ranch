@@ -4,16 +4,17 @@ import { Button, cn } from './ui';
 import { CreditCard, Truck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { createOrder } from '../lib/api';
+import { CustomerSession } from '../types';
 
-export const CheckoutPage = ({ onBack, onOrderCreated }: { onBack: () => void; onOrderCreated?: () => void }) => {
+export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBack: () => void; onOrderCreated?: () => void; customerSession: CustomerSession | null }) => {
   const { cart, clearCart } = useCart();
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
   const [step, setStep] = useState(1);
   const [orderNumber, setOrderNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
-    firstName: '',
+    email: customerSession?.email ?? '',
+    firstName: customerSession?.name?.split(' ')[0] ?? '',
     lastName: '',
     address: '',
     city: '',
@@ -44,6 +45,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated }: { onBack: () => void; o
     try {
       const response = await createOrder({
         ...formData,
+        customerToken: customerSession?.id,
         items: cart.map((item) => ({
           id: item.id,
           name: item.name,
