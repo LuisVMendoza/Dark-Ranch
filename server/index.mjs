@@ -52,12 +52,17 @@ const defaultStore = {
   adminUsers: [
     { id: 1, email: 'admin@darkranch.com', password: 'admin123', name: 'Admin Dark Ranch', role: 'admin' },
   ],
+  customerUsers: [
+    { id: 'cus_seed_01', email: 'cliente@darkranch.com', password: 'cliente123', name: 'Cliente Dark Ranch', role: 'customer', createdAt: '2026-01-01T00:00:00Z' },
+  ],
+  customerSessions: [],
+  productComments: [],
   orders: [
-    { id: 1, order_number: 'DR-2026-00021', customer_name: 'María López', customer_email: 'maria@example.com', address: 'Calle 1 #45', city: 'Monterrey', zip: '64000', status: 'delivered', payment_status: 'paid', total: 189.99, created_at: '2026-01-14T10:35:00Z', cancellation_reason: null, refund_amount: null, cancelled_at: null },
-    { id: 2, order_number: 'DR-2026-00022', customer_name: 'Javier Ruiz', customer_email: 'javier@example.com', address: 'Av. Sierra 180', city: 'Saltillo', zip: '25000', status: 'shipped', payment_status: 'paid', total: 230, created_at: '2026-01-15T13:10:00Z', cancellation_reason: null, refund_amount: null, cancelled_at: null },
-    { id: 3, order_number: 'DR-2026-00023', customer_name: 'Ana Torres', customer_email: 'ana@example.com', address: 'Bosques 904', city: 'Chihuahua', zip: '31000', status: 'cancelled', payment_status: 'refunded', total: 145, created_at: '2026-01-15T18:45:00Z', cancellation_reason: 'Cambio de talla', refund_amount: 145, cancelled_at: '2026-01-15T20:10:00Z' },
-    { id: 4, order_number: 'DR-2026-00024', customer_name: 'Ricardo Pérez', customer_email: 'ricardo@example.com', address: 'Centro 12', city: 'Hermosillo', zip: '83000', status: 'paid', payment_status: 'paid', total: 95, created_at: '2026-01-16T09:05:00Z', cancellation_reason: null, refund_amount: null, cancelled_at: null },
-    { id: 5, order_number: 'DR-2026-00019', customer_name: 'Luis Mena', customer_email: 'luis@example.com', address: 'Norte 88', city: 'Torreón', zip: '27000', status: 'cancelled', payment_status: 'refunded', total: 89, created_at: '2026-01-13T09:10:00Z', cancellation_reason: 'Pago duplicado', refund_amount: 89, cancelled_at: '2026-01-13T11:30:00Z' },
+    { id: 1, order_number: 'DR-2026-00021', customer_name: 'María López', customer_email: 'maria@example.com', customer_token: 'guest-demo-maria', address: 'Calle 1 #45', city: 'Monterrey', zip: '64000', status: 'delivered', payment_status: 'paid', total: 189.99, created_at: '2026-01-14T10:35:00Z', cancellation_reason: null, refund_amount: null, cancelled_at: null },
+    { id: 2, order_number: 'DR-2026-00022', customer_name: 'Javier Ruiz', customer_email: 'javier@example.com', customer_token: 'guest-demo-javier', address: 'Av. Sierra 180', city: 'Saltillo', zip: '25000', status: 'shipped', payment_status: 'paid', total: 230, created_at: '2026-01-15T13:10:00Z', cancellation_reason: null, refund_amount: null, cancelled_at: null },
+    { id: 3, order_number: 'DR-2026-00023', customer_name: 'Ana Torres', customer_email: 'ana@example.com', customer_token: 'guest-demo-ana', address: 'Bosques 904', city: 'Chihuahua', zip: '31000', status: 'cancelled', payment_status: 'refunded', total: 145, created_at: '2026-01-15T18:45:00Z', cancellation_reason: 'Cambio de talla', refund_amount: 145, cancelled_at: '2026-01-15T20:10:00Z' },
+    { id: 4, order_number: 'DR-2026-00024', customer_name: 'Ricardo Pérez', customer_email: 'ricardo@example.com', customer_token: 'guest-demo-ricardo', address: 'Centro 12', city: 'Hermosillo', zip: '83000', status: 'paid', payment_status: 'paid', total: 95, created_at: '2026-01-16T09:05:00Z', cancellation_reason: null, refund_amount: null, cancelled_at: null },
+    { id: 5, order_number: 'DR-2026-00019', customer_name: 'Luis Mena', customer_email: 'luis@example.com', customer_token: 'guest-demo-luis', address: 'Norte 88', city: 'Torreón', zip: '27000', status: 'cancelled', payment_status: 'refunded', total: 89, created_at: '2026-01-13T09:10:00Z', cancellation_reason: 'Pago duplicado', refund_amount: 89, cancelled_at: '2026-01-13T11:30:00Z' },
   ],
   orderItems: [
     { orderId: 1, productId: 'dr-001', productName: 'Bota Vaquera Cuero Negro', price: 189.99, quantity: 1, selectedSize: '10', selectedColor: 'Negro' },
@@ -207,6 +212,7 @@ function createOrder(store, payload) {
     order_number: orderNumber,
     customer_name: customerName,
     customer_email: payload.email,
+    customer_token: payload.customerToken || `guest-${payload.email}`,
     address: payload.address,
     city: payload.city,
     zip: payload.zip,
@@ -238,6 +244,141 @@ function createOrder(store, payload) {
 
   writeStore(store);
   return { orderNumber, total };
+}
+
+function normalizeStore(store) {
+  store.customerUsers = Array.isArray(store.customerUsers) ? store.customerUsers : [];
+  store.customerSessions = Array.isArray(store.customerSessions) ? store.customerSessions : [];
+  store.productComments = Array.isArray(store.productComments) ? store.productComments : [];
+  store.orders = (store.orders || []).map((order) => ({
+    ...order,
+    customer_token: order.customer_token || `guest-${order.customer_email}`,
+  }));
+  return store;
+}
+
+function registerCustomer(store, payload) {
+  const email = String(payload.email || '').trim().toLowerCase();
+  const name = String(payload.name || '').trim();
+  const password = String(payload.password || '').trim();
+
+  if (!email || !name || !password) {
+    throw new Error('Nombre, email y contraseña son obligatorios');
+  }
+
+  const emailInUse = store.adminUsers.some((entry) => entry.email.toLowerCase() === email)
+    || store.customerUsers.some((entry) => entry.email.toLowerCase() === email);
+
+  if (emailInUse) {
+    throw new Error('Ese email ya está registrado');
+  }
+
+  const customer = {
+    id: `cus_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    email,
+    password,
+    name,
+    role: 'customer',
+    createdAt: new Date().toISOString(),
+  };
+
+  store.customerUsers.push(customer);
+  writeStore(store);
+  return customer;
+}
+
+function loginCustomer(store, payload) {
+  const email = String(payload.email || '').trim().toLowerCase();
+  const name = String(payload.name || '').trim();
+  if (!email || !name) {
+    throw new Error('Nombre y email son obligatorios');
+  }
+
+  const existing = store.customerSessions.find((entry) => entry.email === email);
+  if (existing) {
+    existing.name = name;
+    existing.lastLoginAt = new Date().toISOString();
+    writeStore(store);
+    return existing;
+  }
+
+  const customer = {
+    id: `cus_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    name,
+    email,
+    lastLoginAt: new Date().toISOString(),
+  };
+  store.customerSessions.push(customer);
+  writeStore(store);
+  return customer;
+}
+
+function getCustomerOrders(store, token, email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return store.orders
+    .filter((order) => {
+      if (token && order.customer_token === token) return true;
+      return normalizedEmail ? String(order.customer_email || '').toLowerCase() === normalizedEmail : false;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((order) => ({
+      id: order.id,
+      orderNumber: order.order_number,
+      customerName: order.customer_name,
+      customerEmail: order.customer_email,
+      status: order.status,
+      paymentStatus: order.payment_status,
+      total: Number(order.total),
+      createdAt: order.created_at,
+      items: store.orderItems
+        .filter((item) => Number(item.orderId) === Number(order.id))
+        .map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          price: Number(item.price),
+          quantity: Number(item.quantity),
+          selectedSize: item.selectedSize ?? null,
+          selectedColor: item.selectedColor ?? null,
+        })),
+    }));
+}
+
+function getProductComments(store, productId) {
+  return [...store.productComments]
+    .filter((entry) => entry.productId === productId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+function createComment(store, productId, payload) {
+  const content = String(payload.content || '').trim();
+  if (!payload.customerId || !payload.customerName || !payload.customerEmail || !content) {
+    throw new Error('Datos incompletos para comentar');
+  }
+
+  const comment = {
+    id: `com_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    productId,
+    customerId: payload.customerId,
+    customerName: payload.customerName,
+    customerEmail: payload.customerEmail,
+    content,
+    images: Array.isArray(payload.images) ? payload.images.filter(Boolean).slice(0, 4) : [],
+    createdAt: new Date().toISOString(),
+  };
+
+  store.productComments.push(comment);
+  writeStore(store);
+  return comment;
+}
+
+function deleteComment(store, productId, commentId) {
+  const originalLength = store.productComments.length;
+  store.productComments = store.productComments.filter((entry) => !(entry.productId === productId && entry.id === commentId));
+  if (store.productComments.length !== originalLength) {
+    writeStore(store);
+    return true;
+  }
+  return false;
 }
 
 function updateStoreSettings(store, payload) {
@@ -276,8 +417,8 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role',
   });
   response.end(JSON.stringify(payload));
 }
@@ -290,15 +431,15 @@ const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role',
     });
     response.end();
     return;
   }
 
   try {
-    const store = readStore();
+    const store = normalizeStore(readStore());
 
     if (request.method === 'GET' && url.pathname === '/api/health') {
       sendJson(response, 200, { ok: true, dataExists: existsSync(dataPath) });
@@ -310,16 +451,38 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'POST' && url.pathname === '/api/customer/login') {
+      const body = await readBody(request);
+      const customer = loginCustomer(store, body);
+      sendJson(response, 200, { customer: { id: customer.id, name: customer.name, email: customer.email } });
+      return;
+    }
+
     if (request.method === 'POST' && url.pathname === '/api/login') {
       const body = await readBody(request);
-      const user = store.adminUsers.find((entry) => entry.email === body.email && entry.password === body.password);
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '').trim();
+      const admin = store.adminUsers.find((entry) => entry.email.toLowerCase() === email && entry.password === password);
 
-      if (!user) {
+      if (admin) {
+        sendJson(response, 200, { user: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } });
+        return;
+      }
+
+      const customer = store.customerUsers.find((entry) => entry.email.toLowerCase() === email && entry.password === password);
+      if (!customer) {
         sendJson(response, 401, { message: 'Credenciales inválidas' });
         return;
       }
 
-      sendJson(response, 200, { user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+      sendJson(response, 200, { user: { id: customer.id, email: customer.email, name: customer.name, role: customer.role } });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/register') {
+      const body = await readBody(request);
+      const customer = registerCustomer(store, body);
+      sendJson(response, 201, { user: { id: customer.id, email: customer.email, name: customer.name, role: customer.role } });
       return;
     }
 
@@ -331,6 +494,46 @@ const server = createServer(async (request, response) => {
       }
       const order = createOrder(store, body);
       sendJson(response, 201, { order, dashboard: getDashboard(readStore()), products: getProducts(readStore()) });
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/orders/my') {
+      const token = url.searchParams.get('token') || '';
+      const email = url.searchParams.get('email') || '';
+      if (!token && !email) {
+        sendJson(response, 400, { message: 'Debes enviar token o email' });
+        return;
+      }
+      sendJson(response, 200, { orders: getCustomerOrders(store, token, email) });
+      return;
+    }
+
+    const productCommentsMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/comments$/);
+    if (productCommentsMatch && request.method === 'GET') {
+      const productId = decodeURIComponent(productCommentsMatch[1]);
+      sendJson(response, 200, { comments: getProductComments(store, productId) });
+      return;
+    }
+
+    if (productCommentsMatch && request.method === 'POST') {
+      const productId = decodeURIComponent(productCommentsMatch[1]);
+      const body = await readBody(request);
+      const comment = createComment(store, productId, body);
+      sendJson(response, 201, { comment });
+      return;
+    }
+
+    const deleteCommentMatch = url.pathname.match(/^\/api\/products\/([^/]+)\/comments\/([^/]+)$/);
+    if (deleteCommentMatch && request.method === 'DELETE') {
+      const actorRole = String(request.headers['x-admin-actor-role'] || '').toLowerCase();
+      if (actorRole !== 'admin') {
+        sendJson(response, 403, { message: 'Solo admin puede borrar comentarios' });
+        return;
+      }
+      const productId = decodeURIComponent(deleteCommentMatch[1]);
+      const commentId = decodeURIComponent(deleteCommentMatch[2]);
+      const ok = deleteComment(store, productId, commentId);
+      sendJson(response, ok ? 200 : 404, ok ? { ok: true } : { message: 'Comentario no encontrado' });
       return;
     }
 
