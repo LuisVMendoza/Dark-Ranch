@@ -427,6 +427,14 @@ const App = () => {
 
         {currentView !== 'login' && currentView !== 'admin' && <Footer />}
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
+        <CustomerLoginDialog
+          isOpen={isCustomerLoginOpen}
+          onClose={() => setIsCustomerLoginOpen(false)}
+          onLogin={(customer) => {
+            setCustomerSession(customer);
+            localStorage.setItem('dark-ranch-customer-session', JSON.stringify(customer));
+          }}
+        />
       </div>
     </CartProvider>
   );
