@@ -10,7 +10,18 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
   const { addToCart } = useCart();
 
   return (
-    <div className="group relative bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_0px_rgba(196,164,132,0.4)] transition-all duration-500 overflow-hidden">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onQuickView?.(product)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onQuickView?.(product);
+        }
+      }}
+      className="group relative bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_0px_rgba(196,164,132,0.4)] transition-all duration-500 overflow-hidden text-left w-full"
+    >
       {/* Badge */}
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
         {product.isNew && <Badge className="bg-[#C4A484] text-black border border-black">Novedad</Badge>}
@@ -27,14 +38,20 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
         
         {/* Hover Actions */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-          <button 
-            onClick={() => onQuickView?.(product)}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onQuickView?.(product);
+            }}
             className="w-14 h-14 bg-white border-2 border-black rotate-45 flex items-center justify-center hover:bg-[#C4A484] transition-colors group/btn"
           >
             <Eye size={24} className="-rotate-45" />
           </button>
-          <button 
-            onClick={() => {
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
               addToCart(product);
               toast.success(`Añadido: ${product.name}`);
             }}

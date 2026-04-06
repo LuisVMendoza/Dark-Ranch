@@ -6,8 +6,11 @@ import {
   AdminUserPayload,
   BootstrapData,
   CheckoutPayload,
+  CustomerOrder,
+  CustomerSession,
   DashboardData,
   Product,
+  ProductComment,
   StoreSettings,
 } from '../types';
 
@@ -142,6 +145,39 @@ export function createOrder(payload: CheckoutPayload) {
   }>('/api/orders', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export function loginCustomer(name: string, email: string) {
+  return request<{ customer: CustomerSession }>('/api/customer/login', {
+    method: 'POST',
+    body: JSON.stringify({ name, email }),
+  });
+}
+
+export function getMyOrders(customerToken: string, email?: string) {
+  const search = new URLSearchParams({ token: customerToken });
+  if (email) search.set('email', email);
+  return request<{ orders: CustomerOrder[] }>(`/api/orders/my?${search.toString()}`);
+}
+
+export function getProductComments(productId: string) {
+  return request<{ comments: ProductComment[] }>(`/api/products/${encodeURIComponent(productId)}/comments`);
+}
+
+export function createProductComment(
+  productId: string,
+  payload: { customerId: string; customerName: string; customerEmail: string; content: string; images: string[] },
+) {
+  return request<{ comment: ProductComment }>(`/api/products/${encodeURIComponent(productId)}/comments`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProductComment(productId: string, commentId: string) {
+  return request<{ ok: boolean }>(`/api/products/${encodeURIComponent(productId)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'DELETE',
   });
 }
 

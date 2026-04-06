@@ -6,16 +6,18 @@ import { ProductCard, CategoryCard } from './components/product';
 import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
-import { LoginPage } from './components/auth';
+import { CustomerLoginDialog, LoginPage } from './components/auth';
 import { AboutPage, ContactPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
-import { AdminSnapshot, AdminUser, BootstrapData, StoreSettings } from './types';
+import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
 import { ArrowRight, RefreshCw, Filter, Search, ShieldCheck, Truck } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'motion/react';
 import { getBootstrapData } from './lib/api';
+import { ProductDetailPage } from './components/product-detail';
+import { OrdersPage } from './components/orders';
 
-type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin';
+type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -26,6 +28,9 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [adminSnapshot, setAdminSnapshot] = useState<AdminSnapshot | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
+  const [isCustomerLoginOpen, setIsCustomerLoginOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -69,6 +74,19 @@ const App = () => {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      const rawCustomer = localStorage.getItem('dark-ranch-customer-session');
+      if (!rawCustomer) return;
+      const parsed = JSON.parse(rawCustomer) as CustomerSession;
+      if (parsed?.id && parsed?.email) {
+        setCustomerSession(parsed);
+      }
+    } catch {
+      localStorage.removeItem('dark-ranch-customer-session');
+    }
+  }, []);
+
 
   const filteredProducts = useMemo(() => {
     if (!bootstrap) return [];
@@ -104,6 +122,16 @@ const App = () => {
     setSelectedCategory(categoryName);
     setCurrentView('shop');
     window.scrollTo(0, 0);
+  };
+
+  const navigateToProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setCurrentView('product');
+    window.scrollTo(0, 0);
+  };
+
+  const handleOpenUserArea = () => {
+    setCurrentView('orders');
   };
 
   const renderLoadingState = () => (
@@ -216,7 +244,7 @@ const App = () => {
                 </div>
                 <div className="grid grid-cols-1 sm:row-2 lg:grid-cols-4 gap-12">
                   {featuredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <ProductCard key={product.id} product={product} onQuickView={navigateToProduct} />
                   ))}
                 </div>
               </div>
@@ -296,7 +324,7 @@ const App = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                     {filteredProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                      <ProductCard key={product.id} product={product} onQuickView={navigateToProduct} />
                     ))}
                   </div>
                 </div>
@@ -310,7 +338,26 @@ const App = () => {
       case 'contact':
         return <ContactPage email={storeSettings.contactEmail} />;
       case 'checkout':
-        return <CheckoutPage onBack={() => setCurrentView('home')} onOrderCreated={loadData} />;
+        return <CheckoutPage onBack={() => setCurrentView('home')} onOrderCreated={loadData} customerSession={customerSession} />;
+      case 'product':
+        return selectedProduct ? (
+          <ProductDetailPage
+            product={selectedProduct}
+            customer={customerSession}
+            isAdmin={isAdmin}
+            onBack={() => setCurrentView('shop')}
+            onRequireLogin={() => setIsCustomerLoginOpen(true)}
+          />
+        ) : null;
+      case 'orders':
+        return (
+          <OrdersPage
+            customer={customerSession}
+            onBack={() => setCurrentView('home')}
+            onRequireLogin={() => setIsCustomerLoginOpen(true)}
+            onOpenAdmin={() => setCurrentView(isAdmin ? 'admin' : 'login')}
+          />
+        );
       case 'login':
         return <LoginPage onLogin={handleLogin} />;
       case 'admin':
@@ -351,7 +398,7 @@ const App = () => {
         {currentView !== 'login' && currentView !== 'admin' && (
           <Navbar
             onOpenCart={() => setIsCartOpen(true)}
-            onOpenAuth={() => setCurrentView(isAdmin ? 'admin' : 'login')}
+            onOpenAuth={handleOpenUserArea}
             onNavigate={(view: View) => setCurrentView(view)}
             currentView={currentView}
           />
@@ -361,6 +408,14 @@ const App = () => {
 
         {currentView !== 'login' && currentView !== 'admin' && <Footer />}
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
+        <CustomerLoginDialog
+          isOpen={isCustomerLoginOpen}
+          onClose={() => setIsCustomerLoginOpen(false)}
+          onLogin={(customer) => {
+            setCustomerSession(customer);
+            localStorage.setItem('dark-ranch-customer-session', JSON.stringify(customer));
+          }}
+        />
       </div>
     </CartProvider>
   );
