@@ -6,7 +6,7 @@ import { ProductCard, CategoryCard } from './components/product';
 import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
-import { CustomerLoginDialog, LoginPage } from './components/auth';
+import { AuthUser, LoginPage } from './components/auth';
 import { AboutPage, ContactPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
 import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
@@ -30,7 +30,6 @@ const App = () => {
   const [adminSnapshot, setAdminSnapshot] = useState<AdminSnapshot | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
-  const [isCustomerLoginOpen, setIsCustomerLoginOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -104,10 +103,23 @@ const App = () => {
 
   const storeSettings: StoreSettings | null = bootstrap?.settings ?? null;
 
-  const handleLogin = (user: AdminUser | null) => {
-    setAdminUser(user);
-    setIsAdmin(Boolean(user));
-    setCurrentView(user ? 'admin' : 'home');
+  const handleLogin = (user: AuthUser) => {
+    if (user.role === 'admin') {
+      const nextAdminUser: AdminUser = { id: Number(user.id), email: user.email, name: user.name, role: user.role };
+      localStorage.setItem('dark-ranch-admin-user', JSON.stringify(nextAdminUser));
+      setAdminUser(nextAdminUser);
+      setIsAdmin(true);
+      setCurrentView('admin');
+      return;
+    }
+
+    const nextCustomer: CustomerSession = { id: String(user.id), name: user.name, email: user.email };
+    localStorage.removeItem('dark-ranch-admin-user');
+    setAdminUser(null);
+    setIsAdmin(false);
+    localStorage.setItem('dark-ranch-customer-session', JSON.stringify(nextCustomer));
+    setCustomerSession(nextCustomer);
+    setCurrentView('orders');
   };
 
   const handleAdminLogout = () => {
@@ -131,7 +143,15 @@ const App = () => {
   };
 
   const handleOpenUserArea = () => {
-    setCurrentView('orders');
+    if (isAdmin) {
+      setCurrentView('admin');
+      return;
+    }
+    if (customerSession) {
+      setCurrentView('orders');
+      return;
+    }
+    setCurrentView('login');
   };
 
   const renderLoadingState = () => (
@@ -346,7 +366,7 @@ const App = () => {
             customer={customerSession}
             isAdmin={isAdmin}
             onBack={() => setCurrentView('shop')}
-            onRequireLogin={() => setIsCustomerLoginOpen(true)}
+            onRequireLogin={() => setCurrentView('login')}
           />
         ) : null;
       case 'orders':
@@ -354,8 +374,7 @@ const App = () => {
           <OrdersPage
             customer={customerSession}
             onBack={() => setCurrentView('home')}
-            onRequireLogin={() => setIsCustomerLoginOpen(true)}
-            onOpenAdmin={() => setCurrentView(isAdmin ? 'admin' : 'login')}
+            onRequireLogin={() => setCurrentView('login')}
           />
         );
       case 'login':

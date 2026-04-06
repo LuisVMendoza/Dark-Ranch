@@ -123,10 +123,17 @@ export function getAdminSnapshot() {
   return request<AdminSnapshot>('/api/admin/snapshot');
 }
 
-export function loginAdmin(email: string, password: string) {
-  return request<{ user: { id: number; email: string; name: string; role: string } }>('/api/login', {
+export function loginUser(email: string, password: string) {
+  return request<{ user: { id: number | string; email: string; name: string; role: string } }>('/api/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+  });
+}
+
+export function registerUser(name: string, email: string, password: string) {
+  return request<{ user: { id: number | string; email: string; name: string; role: string } }>('/api/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password }),
   });
 }
 

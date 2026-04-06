@@ -52,6 +52,9 @@ const defaultStore = {
   adminUsers: [
     { id: 1, email: 'admin@darkranch.com', password: 'admin123', name: 'Admin Dark Ranch', role: 'admin' },
   ],
+  customerUsers: [
+    { id: 'cus_seed_01', email: 'cliente@darkranch.com', password: 'cliente123', name: 'Cliente Dark Ranch', role: 'customer', createdAt: '2026-01-01T00:00:00Z' },
+  ],
   customerSessions: [],
   productComments: [],
   orders: [
@@ -244,6 +247,7 @@ function createOrder(store, payload) {
 }
 
 function normalizeStore(store) {
+  store.customerUsers = Array.isArray(store.customerUsers) ? store.customerUsers : [];
   store.customerSessions = Array.isArray(store.customerSessions) ? store.customerSessions : [];
   store.productComments = Array.isArray(store.productComments) ? store.productComments : [];
   store.orders = (store.orders || []).map((order) => ({
@@ -251,6 +255,36 @@ function normalizeStore(store) {
     customer_token: order.customer_token || `guest-${order.customer_email}`,
   }));
   return store;
+}
+
+function registerCustomer(store, payload) {
+  const email = String(payload.email || '').trim().toLowerCase();
+  const name = String(payload.name || '').trim();
+  const password = String(payload.password || '').trim();
+
+  if (!email || !name || !password) {
+    throw new Error('Nombre, email y contraseña son obligatorios');
+  }
+
+  const emailInUse = store.adminUsers.some((entry) => entry.email.toLowerCase() === email)
+    || store.customerUsers.some((entry) => entry.email.toLowerCase() === email);
+
+  if (emailInUse) {
+    throw new Error('Ese email ya está registrado');
+  }
+
+  const customer = {
+    id: `cus_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    email,
+    password,
+    name,
+    role: 'customer',
+    createdAt: new Date().toISOString(),
+  };
+
+  store.customerUsers.push(customer);
+  writeStore(store);
+  return customer;
 }
 
 function loginCustomer(store, payload) {
@@ -426,14 +460,29 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'POST' && url.pathname === '/api/login') {
       const body = await readBody(request);
-      const user = store.adminUsers.find((entry) => entry.email === body.email && entry.password === body.password);
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '').trim();
+      const admin = store.adminUsers.find((entry) => entry.email.toLowerCase() === email && entry.password === password);
 
-      if (!user) {
+      if (admin) {
+        sendJson(response, 200, { user: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } });
+        return;
+      }
+
+      const customer = store.customerUsers.find((entry) => entry.email.toLowerCase() === email && entry.password === password);
+      if (!customer) {
         sendJson(response, 401, { message: 'Credenciales inválidas' });
         return;
       }
 
-      sendJson(response, 200, { user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+      sendJson(response, 200, { user: { id: customer.id, email: customer.email, name: customer.name, role: customer.role } });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/register') {
+      const body = await readBody(request);
+      const customer = registerCustomer(store, body);
+      sendJson(response, 201, { user: { id: customer.id, email: customer.email, name: customer.name, role: customer.role } });
       return;
     }
 

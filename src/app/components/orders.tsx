@@ -9,12 +9,10 @@ export const OrdersPage = ({
   customer,
   onBack,
   onRequireLogin,
-  onOpenAdmin,
 }: {
   customer: CustomerSession | null;
   onBack: () => void;
   onRequireLogin: () => void;
-  onOpenAdmin: () => void;
 }) => {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,12 +40,9 @@ export const OrdersPage = ({
         <button onClick={onBack} className="font-header uppercase text-xs tracking-wider flex items-center gap-2 hover:text-[#C4A484] transition-colors">
           <ArrowLeft size={16} /> Volver
         </button>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
+        <div>
           <h1 className="font-western text-5xl uppercase">Mis pedidos</h1>
           <p className="text-neutral-600 mt-2">Aquí verás tus compras sin necesidad de crear cuenta tradicional.</p>
-          </div>
-          <Button variant="outline" onClick={onOpenAdmin}>Acceso admin</Button>
         </div>
 
         {!customer ? (
