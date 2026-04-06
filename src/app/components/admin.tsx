@@ -2043,7 +2043,7 @@ const ProductFormFields = ({
                       : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
-                  Nuevo · {form.isNew ? 'ON' : 'OFF'}
+                  Nuevo 
                 </button>
                 <button
                   type="button"
@@ -2055,7 +2055,7 @@ const ProductFormFields = ({
                       : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
-                  Destacado · {form.isFeatured ? 'ON' : 'OFF'}
+                  Destacado 
                 </button>
                 <button
                   type="button"
@@ -2067,7 +2067,7 @@ const ProductFormFields = ({
                       : 'border-black bg-white text-neutral-700 hover:bg-[#f5efe8]',
                   )}
                 >
-                  Activo · {form.isActive ? 'ON' : 'OFF'}
+                  Activo 
                 </button>
             </div>
           </section>
