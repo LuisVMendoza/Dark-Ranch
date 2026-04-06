@@ -9,10 +9,12 @@ export const OrdersPage = ({
   customer,
   onBack,
   onRequireLogin,
+  onLogout,
 }: {
   customer: CustomerSession | null;
   onBack: () => void;
   onRequireLogin: () => void;
+  onLogout: () => void;
 }) => {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,9 +42,16 @@ export const OrdersPage = ({
         <button onClick={onBack} className="font-header uppercase text-xs tracking-wider flex items-center gap-2 hover:text-[#C4A484] transition-colors">
           <ArrowLeft size={16} /> Volver
         </button>
-        <div>
-          <h1 className="font-western text-5xl uppercase">Mis pedidos</h1>
-          <p className="text-neutral-600 mt-2">Aquí verás tus compras sin necesidad de crear cuenta tradicional.</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="font-western text-5xl uppercase">Mis pedidos</h1>
+            <p className="text-neutral-600 mt-2">Aquí verás tus compras sin necesidad de crear cuenta tradicional.</p>
+          </div>
+          {customer && (
+            <Button variant="outline" onClick={onLogout}>
+              Cerrar sesión
+            </Button>
+          )}
         </div>
 
         {!customer ? (

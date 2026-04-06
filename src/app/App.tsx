@@ -130,6 +130,13 @@ const App = () => {
     toast.success('Sesión cerrada');
   };
 
+  const handleCustomerLogout = () => {
+    localStorage.removeItem('dark-ranch-customer-session');
+    setCustomerSession(null);
+    setCurrentView('home');
+    toast.success('Sesión de cliente cerrada');
+  };
+
   const navigateToCategory = (categoryName: string) => {
     setSelectedCategory(categoryName);
     setCurrentView('shop');
@@ -375,6 +382,7 @@ const App = () => {
             customer={customerSession}
             onBack={() => setCurrentView('home')}
             onRequireLogin={() => setCurrentView('login')}
+            onLogout={handleCustomerLogout}
           />
         );
       case 'login':
