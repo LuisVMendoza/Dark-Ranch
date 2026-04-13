@@ -900,10 +900,10 @@ export const AdminDashboard = ({
   ];
 
   return (
-    <div className="min-h-screen bg-[#f7f2eb] pt-24 pb-20">
-      <div className="container mx-auto px-6 space-y-8">
-        <div className="flex flex-col xl:flex-row xl:items-start gap-6 xl:gap-8">
-          <aside className="xl:w-72 space-y-4">
+    <div className="min-h-screen bg-[#f7f2eb] pt-20 pb-14 lg:pt-24 lg:pb-20">
+      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 space-y-6 lg:space-y-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[clamp(300px,20vw,380px)_minmax(0,1fr)] items-start gap-6 xl:gap-8 2xl:gap-10">
+          <aside className="space-y-4 xl:sticky xl:top-28">
             <div className="bg-[#1f130b] text-white border-2 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <p className="font-header uppercase text-xs tracking-[0.3em] text-[#d4c5b3]">Dark Ranch Admin</p>
               <h1 className="font-western text-4xl uppercase mt-3">Centro de mando</h1>
@@ -943,7 +943,7 @@ export const AdminDashboard = ({
             </div>
           </aside>
 
-          <main className="flex-1 space-y-8">
+          <main className="min-w-0 space-y-6 lg:space-y-8">
             <section className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <p className="font-header uppercase text-xs tracking-[0.25em] text-[#8c6844]">Sección de administración</p>
@@ -962,7 +962,7 @@ export const AdminDashboard = ({
               </div>
             </section>
 
-            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            <section className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-5 xl:grid-cols-3 gap-4">
               {[
                 { label: 'Ventas', value: currency.format(Number(snapshot.dashboard.stats.totalSales)), icon: DollarSign },
                 { label: 'Órdenes hoy', value: String(snapshot.dashboard.stats.ordersToday), icon: ShoppingBag },
@@ -982,7 +982,7 @@ export const AdminDashboard = ({
             </section>
 
             {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-8">
+              <div className="grid grid-cols-1 2xl:grid-cols-[1.45fr_1fr] gap-6 2xl:gap-8">
                 <div className="space-y-8">
                   <PaperCard>
                     <div className="flex items-center justify-between gap-4 mb-6">
