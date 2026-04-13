@@ -32,6 +32,9 @@ export interface BannerSettings {
   subtitle: string;
   buttonText: string;
   imageUrl: string;
+  galleryImages?: string[];
+  backgroundColor?: string;
+  backgroundImageUrl?: string;
   categoryLink: string;
 }
 

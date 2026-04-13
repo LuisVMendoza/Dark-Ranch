@@ -742,6 +742,21 @@ function get_products(): array
 
 function get_settings(): array
 {
+    $decodeBannerSubtitle = static function (string $rawSubtitle): array {
+        $marker = "\n[[DR_META]]";
+        $position = strpos($rawSubtitle, $marker);
+        if ($position === false) {
+            return ['subtitle' => $rawSubtitle, 'meta' => []];
+        }
+
+        $plainSubtitle = substr($rawSubtitle, 0, $position);
+        $rawMeta = substr($rawSubtitle, $position + strlen($marker));
+        $decoded = json_decode($rawMeta, true);
+        $meta = is_array($decoded) ? $decoded : [];
+
+        return ['subtitle' => $plainSubtitle, 'meta' => $meta];
+    };
+
     if (database_mode() === 'mysql') {
         $settings = db()->query('SELECT * FROM store_settings WHERE id = 1 LIMIT 1')->fetch();
         if (!$settings) {
@@ -767,14 +782,23 @@ function get_settings(): array
                 'subtitle' => $settings['hero_subtitle'],
                 'imageUrl' => normalize_uploaded_image_url((string) $settings['hero_image_url']),
             ],
-            'banners' => array_map(static fn (array $banner): array => [
-                'id' => $banner['id'],
-                'title' => $banner['title'],
-                'subtitle' => $banner['subtitle'],
-                'buttonText' => $banner['button_text'],
-                'imageUrl' => normalize_uploaded_image_url((string) $banner['image_url']),
-                'categoryLink' => $banner['category_name'] ?? '',
-            ], $banners),
+            'banners' => array_map(static function (array $banner) use ($decodeBannerSubtitle): array {
+                $decoded = $decodeBannerSubtitle((string) ($banner['subtitle'] ?? ''));
+                $meta = $decoded['meta'];
+
+                return [
+                    'id' => $banner['id'],
+                    'type' => $meta['type'] ?? 'promo_banner',
+                    'title' => $banner['title'],
+                    'subtitle' => $decoded['subtitle'],
+                    'buttonText' => $banner['button_text'],
+                    'imageUrl' => normalize_uploaded_image_url((string) $banner['image_url']),
+                    'galleryImages' => array_values(array_filter(is_array($meta['galleryImages'] ?? null) ? $meta['galleryImages'] : [])),
+                    'backgroundColor' => $meta['backgroundColor'] ?? '#1f130b',
+                    'backgroundImageUrl' => normalize_uploaded_image_url((string) ($meta['backgroundImageUrl'] ?? '')),
+                    'categoryLink' => $banner['category_name'] ?? '',
+                ];
+            }, $banners),
             'aboutText' => $settings['about_text'],
             'contactEmail' => $settings['contact_email'],
         ];
@@ -794,7 +818,13 @@ function get_settings(): array
             'banners' => array_map(
                 static fn (array $banner): array => array_merge(
                     $banner,
-                    ['imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? ''))]
+                    [
+                        'type' => $banner['type'] ?? 'promo_banner',
+                        'imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? '')),
+                        'galleryImages' => array_map('normalize_uploaded_image_url', is_array($banner['galleryImages'] ?? null) ? $banner['galleryImages'] : []),
+                        'backgroundColor' => $banner['backgroundColor'] ?? '#1f130b',
+                        'backgroundImageUrl' => normalize_uploaded_image_url((string) ($banner['backgroundImageUrl'] ?? '')),
+                    ]
                 ),
                 $banners
             ),
@@ -1959,6 +1989,17 @@ function category_id_by_name(?string $name): ?string
 
 function save_store_settings(array $payload): array
 {
+    $encodeBannerSubtitle = static function (array $banner): string {
+        $meta = [
+            'type' => $banner['type'] ?? 'promo_banner',
+            'galleryImages' => array_values(array_filter(is_array($banner['galleryImages'] ?? null) ? $banner['galleryImages'] : [])),
+            'backgroundColor' => $banner['backgroundColor'] ?? '#1f130b',
+            'backgroundImageUrl' => $banner['backgroundImageUrl'] ?? '',
+        ];
+
+        return (string) ($banner['subtitle'] ?? '') . "\n[[DR_META]]" . json_encode($meta, JSON_UNESCAPED_UNICODE);
+    };
+
     if (database_mode() === 'mysql') {
         $pdo = db();
         $pdo->beginTransaction();
@@ -1983,7 +2024,7 @@ function save_store_settings(array $payload): array
                 $insertBanner->execute([
                     'id' => $banner['id'] ?? ('b' . ($index + 1)),
                     'title' => $banner['title'] ?? '',
-                    'subtitle' => $banner['subtitle'] ?? '',
+                    'subtitle' => $encodeBannerSubtitle($banner),
                     'button_text' => $banner['buttonText'] ?? '',
                     'image_url' => $banner['imageUrl'] ?? '',
                     'category_id' => category_id_by_name($banner['categoryLink'] ?? null),
@@ -2009,10 +2050,14 @@ function save_store_settings(array $payload): array
         ],
         'banners' => array_map(static fn (array $banner, int $index): array => [
             'id' => $banner['id'] ?? ('b' . ($index + 1)),
+            'type' => $banner['type'] ?? 'promo_banner',
             'title' => $banner['title'] ?? '',
             'subtitle' => $banner['subtitle'] ?? '',
             'buttonText' => $banner['buttonText'] ?? '',
             'imageUrl' => $banner['imageUrl'] ?? '',
+            'galleryImages' => array_values(array_filter(is_array($banner['galleryImages'] ?? null) ? $banner['galleryImages'] : [])),
+            'backgroundColor' => $banner['backgroundColor'] ?? '#1f130b',
+            'backgroundImageUrl' => $banner['backgroundImageUrl'] ?? '',
             'categoryLink' => $banner['categoryLink'] ?? '',
         ], $payload['banners'] ?? [], array_keys($payload['banners'] ?? [])),
         'aboutText' => $payload['aboutText'] ?? '',

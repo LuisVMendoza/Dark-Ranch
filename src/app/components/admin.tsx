@@ -976,6 +976,9 @@ export const AdminDashboard = ({
             subtitle: '',
             buttonText: 'Ver más',
             imageUrl: '',
+            galleryImages: [],
+            backgroundColor: '#1f130b',
+            backgroundImageUrl: '',
             categoryLink: snapshot.categories[0]?.name ?? '',
           },
         ],
@@ -1747,11 +1750,6 @@ export const AdminDashboard = ({
                     </div>
                   </div>
 
-                  <div className="grid lg:grid-cols-2 gap-4">
-                    <Field label="About text"><textarea value={settingsForm.aboutText} onChange={(e) => setSettingsForm((current) => ({ ...current, aboutText: e.target.value }))} className={`${INPUT_CLASS} min-h-[120px]`} /></Field>
-                    <Field label="Email de contacto"><input type="email" value={settingsForm.contactEmail} onChange={(e) => setSettingsForm((current) => ({ ...current, contactEmail: e.target.value }))} className={INPUT_CLASS} /></Field>
-                  </div>
-
                   <div className="border-2 border-black bg-white p-5">
                     <div className="flex items-center justify-between gap-3 mb-4">
                       <div>
@@ -1785,14 +1783,36 @@ export const AdminDashboard = ({
                                 <Field label="CTA"><input value={banner.buttonText} onChange={(e) => updateBannerField(index, { buttonText: e.target.value })} className={INPUT_CLASS} /></Field>
                                 <Field label="Categoría"><select value={banner.categoryLink} onChange={(e) => updateBannerField(index, { categoryLink: e.target.value })} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></Field>
                               </div>
+                              <Field label="Color de fondo">
+                                <input type="color" value={banner.backgroundColor || '#1f130b'} onChange={(e) => updateBannerField(index, { backgroundColor: e.target.value })} className={`${INPUT_CLASS} h-11 p-1`} />
+                              </Field>
                             </div>
-                            <ImageDropzone
-                              label="Imagen de banner"
-                              value={banner.imageUrl ? [banner.imageUrl] : []}
-                              maxItems={1}
-                              folder={`storefront/banners/${banner.id || index + 1}`}
-                              onChange={(images) => updateBannerField(index, { imageUrl: images[0] ?? '' })}
-                            />
+                            <div className="space-y-4">
+                              <ImageDropzone
+                                label="Imagen principal"
+                                value={banner.imageUrl ? [banner.imageUrl] : []}
+                                maxItems={1}
+                                folder={`storefront/banners/${banner.id || index + 1}/main`}
+                                onChange={(images) => updateBannerField(index, { imageUrl: images[0] ?? '' })}
+                              />
+                              <ImageDropzone
+                                label="Imagen de fondo (opcional)"
+                                value={banner.backgroundImageUrl ? [banner.backgroundImageUrl] : []}
+                                maxItems={1}
+                                folder={`storefront/banners/${banner.id || index + 1}/background`}
+                                onChange={(images) => updateBannerField(index, { backgroundImageUrl: images[0] ?? '' })}
+                              />
+                              {(banner.type || 'promo_banner') === 'image_collection' && (
+                                <ImageDropzone
+                                  label="Imágenes del carrusel"
+                                  value={banner.galleryImages || []}
+                                  multiple
+                                  maxItems={8}
+                                  folder={`storefront/banners/${banner.id || index + 1}/collection`}
+                                  onChange={(images) => updateBannerField(index, { galleryImages: images })}
+                                />
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
