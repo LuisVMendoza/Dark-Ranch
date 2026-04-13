@@ -3,6 +3,7 @@ import {
   AlertCircle,
   ArrowLeft,
   BadgePercent,
+  BookOpen,
   Boxes,
   DollarSign,
   Eye,
@@ -25,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button, PaperCard, cn } from './ui';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   AdminActivityLog,
@@ -60,7 +62,7 @@ import { toast } from 'sonner';
 
 const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' });
 
-type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'storefront';
+type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'documentation' | 'storefront';
 type DeleteTarget =
   | { entityType: 'product'; entityId: string; entityName: string }
   | { entityType: 'category'; entityId: string; entityName: string }
@@ -121,6 +123,12 @@ type StructuralSuggestionBucket = {
   label: string;
   items: string[];
 };
+type DocumentationSection = {
+  id: string;
+  title: string;
+  content: string[];
+  keywords: string[];
+};
 
 const getStructuralSuggestionBuckets = (items: string[], selectedItems: string[]): StructuralSuggestionBucket[] => {
   const selected = new Set(selectedItems.map((item) => item.toLowerCase()));
@@ -169,6 +177,58 @@ const generateSlug = (value: string) => value
   .replace(/^_+|_+$/g, '');
 const generateProductSlug = generateSlug;
 const generateCategorySlug = generateSlug;
+const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
+  {
+    id: 'primeros-pasos',
+    title: 'Primeros pasos en administración',
+    keywords: ['inicio', 'acceso', 'admin', 'dashboard', 'panel'],
+    content: [
+      'Inicia sesión con una cuenta de administrador y valida que tu nombre aparezca en “Sesión activa”.',
+      'Usa “Refrescar datos” para sincronizar productos, órdenes y bitácora antes de comenzar.',
+      'Navega por el menú lateral para abrir cada módulo: Dashboard, Productos, Categorías, Órdenes y Admin.',
+    ],
+  },
+  {
+    id: 'gestion-catalogo',
+    title: 'Cómo gestionar el catálogo',
+    keywords: ['productos', 'categorias', 'stock', 'precio', 'filtros'],
+    content: [
+      'En “Productos” puedes crear, editar y eliminar artículos, además de ajustar precio, stock y etiquetas.',
+      'Usa el buscador del módulo para localizar productos por nombre, slug o identificador.',
+      'En “Categorías” mantiene imágenes y slugs limpios para que la tienda se navegue con claridad.',
+    ],
+  },
+  {
+    id: 'operacion-ordenes',
+    title: 'Operación de órdenes y postventa',
+    keywords: ['ordenes', 'pedidos', 'postventa', 'estado', 'pago'],
+    content: [
+      'Revisa cada orden y actualiza su estado (pendiente, pagada, enviada, entregada o cancelada).',
+      'Documenta notas internas cuando hagas cambios relevantes para que el equipo tenga contexto.',
+      'Si hay incidencias, usa cancelaciones y reembolsos de forma consistente para mantener trazabilidad.',
+    ],
+  },
+  {
+    id: 'equipo-permisos',
+    title: 'Equipo administrador y permisos',
+    keywords: ['usuarios', 'permisos', 'roles', 'admin', 'editor'],
+    content: [
+      'Solo perfiles admin pueden crear o editar cuentas del equipo.',
+      'Define el rol correcto (admin/editor) según el alcance operativo que necesita cada persona.',
+      'Revisa la bitácora para auditar quién hizo cambios y cuándo se realizaron.',
+    ],
+  },
+  {
+    id: 'buenas-practicas',
+    title: 'Buenas prácticas recomendadas',
+    keywords: ['practicas', 'recomendaciones', 'seguridad', 'operacion', 'flujo'],
+    content: [
+      'Actualiza el panel al iniciar y cerrar jornada para trabajar sobre datos recientes.',
+      'Evita eliminar registros sin validar impacto; prioriza edición o desactivación cuando aplique.',
+      'Documenta internamente cambios importantes de catálogo, precios y políticas de venta.',
+    ],
+  },
+];
 
 const statusBadgeClassMap: Record<AdminOrder['status'], string> = {
   pending: 'border-[#b7791f] bg-[#fff7e6] text-[#8a5a12]',
@@ -288,6 +348,7 @@ export const AdminDashboard = ({
   const [activityPage, setActivityPage] = useState(1);
   const [isActivityCleanupModalOpen, setIsActivityCleanupModalOpen] = useState(false);
   const [isPurgingLogs, setIsPurgingLogs] = useState(false);
+  const [documentationSearchTerm, setDocumentationSearchTerm] = useState('');
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
   const canViewActivityLog = currentRole === 'admin';
@@ -419,6 +480,16 @@ export const AdminDashboard = ({
     () => snapshot.products.filter((product) => product.isActive !== false).sort((a, b) => a.stock - b.stock).slice(0, 6),
     [snapshot],
   );
+  const filteredDocumentationSections = useMemo(() => {
+    const query = documentationSearchTerm.trim().toLowerCase();
+    if (!query) return DOCUMENTATION_SECTIONS;
+
+    return DOCUMENTATION_SECTIONS.filter((section) => (
+      section.title.toLowerCase().includes(query)
+      || section.keywords.some((keyword) => keyword.includes(query))
+      || section.content.some((paragraph) => paragraph.toLowerCase().includes(query))
+    ));
+  }, [documentationSearchTerm]);
   const existingAttributeOptions = useMemo<Record<AttributeFieldKey, string[]>>(() => {
     const collectUnique = (field: AttributeFieldKey) => {
       const seen = new Set<string>();
@@ -896,6 +967,7 @@ export const AdminDashboard = ({
     { key: 'orders', label: 'Órdenes', icon: ShoppingBag },
     { key: 'team', label: 'Admin', icon: Users },
     ...(canViewActivityLog ? [{ key: 'activity' as TabKey, label: 'Bitácora', icon: ShieldCheck }] : []),
+    { key: 'documentation', label: 'Documentación', icon: BookOpen },
     { key: 'storefront', label: 'Storefront', icon: Settings },
   ];
 
@@ -1393,6 +1465,51 @@ export const AdminDashboard = ({
                     </>
                   )}
                 </div>
+              </PaperCard>
+            )}
+
+            {activeTab === 'documentation' && (
+              <PaperCard>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
+                  <div>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Guía interna</p>
+                    <h2 className="font-western uppercase text-3xl">Documentación de uso</h2>
+                    <p className="mt-2 text-sm text-neutral-600">Busca temas y expande cada pestaña para ver instrucciones rápidas del programa.</p>
+                  </div>
+                  <div className="w-full lg:w-[360px]">
+                    <input
+                      type="search"
+                      value={documentationSearchTerm}
+                      onChange={(event) => setDocumentationSearchTerm(event.target.value)}
+                      placeholder="Buscar en documentación..."
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                </div>
+
+                {filteredDocumentationSections.length === 0 ? (
+                  <div className="border-2 border-dashed border-black bg-white p-8 text-center">
+                    <p className="font-header font-black uppercase text-lg">Sin resultados</p>
+                    <p className="mt-2 text-sm text-neutral-600">Prueba con otro término o limpia el buscador para ver todas las secciones.</p>
+                  </div>
+                ) : (
+                  <Accordion type="multiple" className="border-2 border-black bg-white px-5">
+                    {filteredDocumentationSections.map((section) => (
+                      <AccordionItem key={section.id} value={section.id} className="border-black">
+                        <AccordionTrigger className="font-header font-black uppercase tracking-[0.14em] text-sm hover:no-underline">
+                          {section.title}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <ul className="space-y-2 list-disc pl-5 text-sm text-neutral-700">
+                            {section.content.map((paragraph) => (
+                              <li key={paragraph}>{paragraph}</li>
+                            ))}
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
               </PaperCard>
             )}
 
