@@ -30,6 +30,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   AdminActivityLog,
+  BannerSettings,
   AdminCategoryPayload,
   AdminOrder,
   AdminOrderUpdatePayload,
@@ -103,6 +104,13 @@ const EMPTY_USER: AdminUserPayload = {
 
 const ORDER_STATUS_OPTIONS: AdminOrder['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
 const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid', 'failed', 'refunded'];
+const MAX_STOREFRONT_BANNERS = 4;
+const BANNER_TYPE_OPTIONS = [
+  { value: 'image_collection', label: 'Colección de imágenes' },
+  { value: 'promo_banner', label: 'Banner promocional' },
+  { value: 'category_highlight', label: 'Categoría destacada' },
+  { value: 'announcement', label: 'Anuncio corto' },
+] as const;
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ['Productos y categorías', 'Órdenes y tienda', 'Usuarios y permisos', 'Bitácora completa'],
@@ -946,6 +954,45 @@ export const AdminDashboard = ({
     }
   };
 
+  const updateBannerField = (index: number, patch: Partial<BannerSettings>) => {
+    setSettingsForm((current) => ({
+      ...current,
+      banners: current.banners.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+    }));
+  };
+
+  const addStorefrontBanner = () => {
+    setSettingsForm((current) => {
+      if (current.banners.length >= MAX_STOREFRONT_BANNERS) return current;
+      const nextIndex = current.banners.length + 1;
+      return {
+        ...current,
+        banners: [
+          ...current.banners,
+          {
+            id: `custom-${Date.now()}-${nextIndex}`,
+            type: 'promo_banner',
+            title: `Nuevo banner ${nextIndex}`,
+            subtitle: '',
+            buttonText: 'Ver más',
+            imageUrl: '',
+            galleryImages: [],
+            backgroundColor: '#1f130b',
+            backgroundImageUrl: '',
+            categoryLink: snapshot.categories[0]?.name ?? '',
+          },
+        ],
+      };
+    });
+  };
+
+  const removeStorefrontBanner = (index: number) => {
+    setSettingsForm((current) => ({
+      ...current,
+      banners: current.banners.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     try {
@@ -1685,41 +1732,96 @@ export const AdminDashboard = ({
                   <Button onClick={handleSaveSettings} disabled={isSavingSettings}>{isSavingSettings ? 'Guardando…' : 'Guardar ajustes'}</Button>
                 </div>
 
-                <div className="grid xl:grid-cols-[1fr_0.9fr] gap-8">
-                  <div className="space-y-6">
-                    <Field label="Hero título"><input value={settingsForm.hero.title} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, title: e.target.value } }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Hero subtítulo"><input value={settingsForm.hero.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, subtitle: e.target.value } }))} className={INPUT_CLASS} /></Field>
-                    <ImageDropzone
-                      label="Hero imagen"
-                      value={settingsForm.hero.imageUrl ? [settingsForm.hero.imageUrl] : []}
-                      maxItems={1}
-                      folder="storefront/hero"
-                      onChange={(images) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: images[0] ?? '' } }))}
-                    />
-                    <Field label="About text"><textarea value={settingsForm.aboutText} onChange={(e) => setSettingsForm((current) => ({ ...current, aboutText: e.target.value }))} className={`${INPUT_CLASS} min-h-[160px]`} /></Field>
-                    <Field label="Email de contacto"><input type="email" value={settingsForm.contactEmail} onChange={(e) => setSettingsForm((current) => ({ ...current, contactEmail: e.target.value }))} className={INPUT_CLASS} /></Field>
+                <div className="space-y-6">
+                  <div className="border-2 border-black bg-white p-5">
+                    <p className="font-header uppercase text-xs tracking-[0.2em] text-[#C4A484] mb-4">Hero editable (horizontal)</p>
+                    <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-4 items-start">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Field label="Hero título"><input value={settingsForm.hero.title} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, title: e.target.value } }))} className={INPUT_CLASS} /></Field>
+                        <Field label="Hero subtítulo"><input value={settingsForm.hero.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, subtitle: e.target.value } }))} className={INPUT_CLASS} /></Field>
+                      </div>
+                      <ImageDropzone
+                        label="Hero imagen"
+                        value={settingsForm.hero.imageUrl ? [settingsForm.hero.imageUrl] : []}
+                        maxItems={1}
+                        folder="storefront/hero"
+                        onChange={(images) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: images[0] ?? '' } }))}
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-6">
-                    {settingsForm.banners.map((banner, index) => (
-                      <div key={banner.id} className="border-2 border-black bg-white p-4 space-y-4">
-                        <p className="font-header uppercase text-xs tracking-[0.2em] text-[#C4A484]">Banner {index + 1}</p>
-                        <Field label="Título"><input value={banner.title} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, title: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
-                        <Field label="Descripción"><textarea value={banner.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, subtitle: e.target.value } : item) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
-                        <Field label="CTA"><input value={banner.buttonText} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, buttonText: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
-                        <ImageDropzone
-                          label="Imagen de banner"
-                          value={banner.imageUrl ? [banner.imageUrl] : []}
-                          maxItems={1}
-                          folder={`storefront/banners/${banner.id || index + 1}`}
-                          onChange={(images) => setSettingsForm((current) => ({
-                            ...current,
-                            banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: images[0] ?? '' } : item),
-                          }))}
-                        />
-                        <Field label="Categoría"><select value={banner.categoryLink} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, categoryLink: e.target.value } : item) }))} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></Field>
+                  <div className="border-2 border-black bg-white p-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <div>
+                        <p className="font-header uppercase text-xs tracking-[0.2em] text-[#C4A484]">Lista de banners</p>
+                        <p className="text-xs text-neutral-600 mt-1">Puedes crear hasta {MAX_STOREFRONT_BANNERS} banners y asignarles tipo.</p>
                       </div>
-                    ))}
+                      <Button size="sm" variant="outline" onClick={addStorefrontBanner} disabled={settingsForm.banners.length >= MAX_STOREFRONT_BANNERS}>
+                        <Plus size={14} className="mr-2" /> Agregar banner
+                      </Button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {settingsForm.banners.map((banner, index) => (
+                        <div key={banner.id || index} className="border-2 border-black bg-[#fcf9f5] p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                            <p className="font-header uppercase text-xs tracking-[0.2em] text-[#C4A484]">Banner {index + 1}</p>
+                            <Button size="sm" variant="outline" onClick={() => removeStorefrontBanner(index)}>
+                              <Trash2 size={14} className="mr-2" /> Eliminar
+                            </Button>
+                          </div>
+                          <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-4">
+                            <div className="grid sm:grid-cols-2 gap-4">
+                              <Field label="Tipo">
+                                <select value={banner.type || 'promo_banner'} onChange={(e) => updateBannerField(index, { type: e.target.value as BannerSettings['type'] })} className={INPUT_CLASS}>
+                                  {BANNER_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Título"><input value={banner.title} onChange={(e) => updateBannerField(index, { title: e.target.value })} className={INPUT_CLASS} /></Field>
+                              <Field label="Descripción"><textarea value={banner.subtitle} onChange={(e) => updateBannerField(index, { subtitle: e.target.value })} className={`${INPUT_CLASS} min-h-[84px]`} /></Field>
+                              <div className="grid grid-cols-1 gap-4">
+                                <Field label="CTA"><input value={banner.buttonText} onChange={(e) => updateBannerField(index, { buttonText: e.target.value })} className={INPUT_CLASS} /></Field>
+                                <Field label="Categoría"><select value={banner.categoryLink} onChange={(e) => updateBannerField(index, { categoryLink: e.target.value })} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></Field>
+                              </div>
+                              <Field label="Color de fondo">
+                                <input type="color" value={banner.backgroundColor || '#1f130b'} onChange={(e) => updateBannerField(index, { backgroundColor: e.target.value })} className={`${INPUT_CLASS} h-11 p-1`} />
+                              </Field>
+                            </div>
+                            <div className="space-y-4">
+                              <ImageDropzone
+                                label="Imagen principal"
+                                value={banner.imageUrl ? [banner.imageUrl] : []}
+                                maxItems={1}
+                                folder={`storefront/banners/${banner.id || index + 1}/main`}
+                                onChange={(images) => updateBannerField(index, { imageUrl: images[0] ?? '' })}
+                              />
+                              <ImageDropzone
+                                label="Imagen de fondo (opcional)"
+                                value={banner.backgroundImageUrl ? [banner.backgroundImageUrl] : []}
+                                maxItems={1}
+                                folder={`storefront/banners/${banner.id || index + 1}/background`}
+                                onChange={(images) => updateBannerField(index, { backgroundImageUrl: images[0] ?? '' })}
+                              />
+                              {(banner.type || 'promo_banner') === 'image_collection' && (
+                                <ImageDropzone
+                                  label="Imágenes del carrusel"
+                                  value={banner.galleryImages || []}
+                                  multiple
+                                  maxItems={8}
+                                  folder={`storefront/banners/${banner.id || index + 1}/collection`}
+                                  onChange={(images) => updateBannerField(index, { galleryImages: images })}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {settingsForm.banners.length === 0 && (
+                        <div className="border-2 border-dashed border-black/40 bg-[#fcf9f5] p-6 text-sm text-neutral-600">
+                          Aún no hay banners. Agrega uno para empezar la personalización.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </PaperCard>
