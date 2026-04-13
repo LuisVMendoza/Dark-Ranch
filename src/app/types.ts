@@ -27,6 +27,7 @@ export interface Category {
 
 export interface BannerSettings {
   id: string;
+  type?: 'image_collection' | 'promo_banner' | 'category_highlight' | 'announcement';
   title: string;
   subtitle: string;
   buttonText: string;
