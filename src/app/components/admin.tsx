@@ -1887,7 +1887,9 @@ const ImageDropzone = ({
   const handleUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const fileArray = Array.from(fileList);
-    const availableSlots = typeof maxItems === 'number' ? Math.max(maxItems - value.length, 0) : fileArray.length;
+    const availableSlots = typeof maxItems === 'number'
+      ? (multiple ? Math.max(maxItems - value.length, 0) : 1)
+      : fileArray.length;
     const files = fileArray.slice(0, availableSlots);
     if (files.length === 0) {
       toast.error(`Solo puedes cargar ${maxItems} imagen(es) en este campo.`);
@@ -1899,12 +1901,30 @@ const ImageDropzone = ({
       const uploadedUrls = await Promise.all(files.map((file) => uploadImageToStorage(file, folder)));
       const next = multiple ? [...value, ...uploadedUrls] : [uploadedUrls[0]];
       onChange(next);
+
+      if (!multiple && value.length > 0) {
+        await Promise.all(
+          value
+            .filter((previousUrl) => previousUrl !== uploadedUrls[0])
+            .map(async (previousUrl) => {
+              try {
+                await deleteImageFromStorage(previousUrl);
+              } catch (cleanupError) {
+                console.error('Error deleting replaced image:', cleanupError);
+              }
+            }),
+        );
+      }
+
       toast.success(`${uploadedUrls.length} imagen(es) subida(s).`);
     } catch (error) {
       console.error('Error uploading image:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen.');
     } finally {
       setIsUploading(false);
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
     }
   };
 
