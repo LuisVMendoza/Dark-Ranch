@@ -1,9 +1,0 @@
-<svg width="320" height="320" viewBox="0 0 320 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="160" cy="160" r="154" fill="#16110C" stroke="#D4C5B3" stroke-width="12"/>
-  <circle cx="160" cy="160" r="126" stroke="#8E6F4E" stroke-width="3" stroke-dasharray="8 10"/>
-  <text x="160" y="110" text-anchor="middle" fill="#D4C5B3" font-size="24" font-family="Georgia, serif" letter-spacing="6">DARK</text>
-  <text x="160" y="142" text-anchor="middle" fill="#D4C5B3" font-size="24" font-family="Georgia, serif" letter-spacing="6">RANCH</text>
-  <path d="M112 186C126 170 145 162 160 162C175 162 194 170 208 186" stroke="#C4A484" stroke-width="8" stroke-linecap="round"/>
-  <path d="M134 204H186" stroke="#C4A484" stroke-width="8" stroke-linecap="round"/>
-  <text x="160" y="244" text-anchor="middle" fill="#C4A484" font-size="14" font-family="Arial, sans-serif" letter-spacing="4">EST. LOCAL</text>
-</svg>
