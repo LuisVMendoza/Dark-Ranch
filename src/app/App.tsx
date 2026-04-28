@@ -7,7 +7,7 @@ import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
 import { AuthUser, CustomerLoginDialog, LoginPage } from './components/auth';
-import { AboutPage, ContactPage } from './components/pages';
+import { AboutPage, ContactPage, PoliciesPage, PrivacyPage, TermsPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
 import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
@@ -17,7 +17,7 @@ import { getBootstrapData } from './lib/api';
 import { ProductDetailPage } from './components/product-detail';
 import { OrdersPage } from './components/orders';
 
-type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders';
+type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
 const HARDCODED_ABOUT_TEXT = 'Dark Ranch nació en el corazón del desierto de Sonora, donde la necesidad de ropa resistente se encontró con la elegancia del viejo oeste.';
 const HARDCODED_CONTACT_EMAIL = 'contacto@darkranch.com';
 
@@ -410,6 +410,12 @@ const App = () => {
         return <AboutPage text={HARDCODED_ABOUT_TEXT} />;
       case 'contact':
         return <ContactPage email={HARDCODED_CONTACT_EMAIL} />;
+      case 'policies':
+        return <PoliciesPage />;
+      case 'privacy':
+        return <PrivacyPage />;
+      case 'terms':
+        return <TermsPage />;
       case 'checkout':
         return <CheckoutPage onBack={() => setCurrentView('home')} onOrderCreated={loadData} customerSession={customerSession} />;
       case 'product':
@@ -479,7 +485,7 @@ const App = () => {
 
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
 
-        {currentView !== 'login' && currentView !== 'admin' && <Footer />}
+        {currentView !== 'login' && currentView !== 'admin' && <Footer onNavigate={(view: View) => setCurrentView(view)} />}
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
         <CustomerLoginDialog isOpen={false} />
       </div>

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MessageSquare, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, ShoppingCart, Trash2 } from 'lucide-react';
 import { Product, ProductComment, CustomerSession } from '../types';
 import { Button } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { createProductComment, deleteProductComment, getProductComments } from '../lib/api';
 import { toast } from 'sonner';
+import { useCart } from '../cart-context';
 
 const COMMENT_IMAGE_SLOTS = 3;
 
@@ -28,6 +29,8 @@ export const ProductDetailPage = ({
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [selectedSize, setSelectedSize] = useState(product.sizes[0] || '');
+  const { addToCart } = useCart();
 
   const effectiveGallery = useMemo(() => {
     const uniqueImages = Array.from(new Set(product.images.filter(Boolean)));
@@ -48,8 +51,14 @@ export const ProductDetailPage = ({
 
   useEffect(() => {
     setSelectedImage(product.images[0]);
+    setSelectedSize(product.sizes[0] || '');
     loadComments();
   }, [product.id]);
+
+  const handleAddToCart = () => {
+    addToCart(product, 1, selectedSize || undefined);
+    toast.success(`${product.name} agregado al carrito (${selectedSize || 'talla única'})`);
+  };
 
   const handleSubmitComment = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -101,7 +110,7 @@ export const ProductDetailPage = ({
           <ArrowLeft size={16} /> Volver al catálogo
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           <div className="space-y-4">
             <div className="border-2 border-black bg-white overflow-hidden">
               <ImageWithFallback src={selectedImage} alt={product.name} className="w-full h-[580px] object-cover" />
@@ -120,7 +129,7 @@ export const ProductDetailPage = ({
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 lg:sticky lg:top-28">
             <p className="text-[#C4A484] font-header text-xs uppercase tracking-[0.3em] font-black">{product.category}</p>
             <h1 className="font-western text-5xl uppercase">{product.name}</h1>
             <p className="text-neutral-700 leading-relaxed">{product.description}</p>
@@ -138,6 +147,28 @@ export const ProductDetailPage = ({
                 <p className="font-header uppercase text-xs">Colores</p>
                 <p className="mt-2">{product.colors.join(', ') || 'Estándar'}</p>
               </div>
+            </div>
+            <div className="bg-white border-2 border-black p-5 space-y-4">
+              <p className="font-header uppercase text-xs tracking-[0.2em]">Selecciona talla</p>
+              {product.sizes.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size) => (
+                    <button
+                      key={`${product.id}-detail-size-${size}`}
+                      type="button"
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-4 py-2 border-2 text-sm uppercase font-header ${selectedSize === size ? 'bg-black text-white border-black' : 'bg-white text-black border-neutral-300 hover:border-black'}`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-500">Este producto se maneja en talla única.</p>
+              )}
+              <Button onClick={handleAddToCart} className="w-full flex items-center justify-center gap-2">
+                Agregar al carrito <ShoppingCart size={18} />
+              </Button>
             </div>
           </div>
         </div>

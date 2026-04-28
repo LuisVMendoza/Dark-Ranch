@@ -6,7 +6,7 @@ import { ImageWithFallback } from './common/ImageWithFallback';
 import { motion as Motion, AnimatePresence } from 'motion/react';
 
 export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, onClose: () => void, onCheckout: () => void }) => {
-  const { cart, removeFromCart, updateQuantity } = useCart();
+  const { cart, removeFromCart, updateQuantity, updateItemSize } = useCart();
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
 
   return (
@@ -67,9 +67,25 @@ export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, o
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <p className="text-xs text-neutral-500 uppercase mt-1">
-                        Talla: {item.selectedSize || 'N/A'} | Color: {item.selectedColor || 'N/A'}
-                      </p>
+                      <div className="text-xs text-neutral-500 uppercase mt-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span>Talla:</span>
+                          {item.sizes.length > 0 ? (
+                            <select
+                              value={item.selectedSize || item.sizes[0] || ''}
+                              onChange={(event) => updateItemSize(item.id, item.selectedSize, event.target.value)}
+                              className="border border-neutral-300 bg-white px-2 py-1 text-[11px]"
+                            >
+                              {item.sizes.map((size) => (
+                                <option key={`${item.id}-${size}`} value={size}>{size}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span>Única</span>
+                          )}
+                        </div>
+                        <p>Color: {item.selectedColor || 'N/A'}</p>
+                      </div>
                       <div className="flex items-center justify-between mt-4">
                         <div className="flex items-center border border-neutral-300">
                           <button 

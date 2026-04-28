@@ -12,6 +12,7 @@ interface CartContextType {
   addToCart: (product: Product, quantity?: number, size?: string, color?: string) => void;
   removeFromCart: (productId: string, size?: string) => void;
   updateQuantity: (productId: string, quantity: number, size?: string) => void;
+  updateItemSize: (productId: string, previousSize: string | undefined, nextSize: string) => void;
   clearCart: () => void;
   cartTotal: number;
   cartCount: number;
@@ -64,13 +65,40 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ));
   };
 
+  const updateItemSize = (productId: string, previousSize: string | undefined, nextSize: string) => {
+    setCart((prev) => {
+      const sourceIndex = prev.findIndex((item) => item.id === productId && item.selectedSize === previousSize);
+      if (sourceIndex === -1) return prev;
+
+      const duplicateIndex = prev.findIndex((item, index) => (
+        index !== sourceIndex && item.id === productId && item.selectedSize === nextSize
+      ));
+
+      if (duplicateIndex > -1) {
+        const merged = [...prev];
+        merged[duplicateIndex] = {
+          ...merged[duplicateIndex],
+          quantity: merged[duplicateIndex].quantity + merged[sourceIndex].quantity,
+        };
+        merged.splice(sourceIndex, 1);
+        return merged;
+      }
+
+      return prev.map((item, index) => (
+        index === sourceIndex
+          ? { ...item, selectedSize: nextSize }
+          : item
+      ));
+    });
+  };
+
   const clearCart = () => setCart([]);
 
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, updateItemSize, clearCart, cartTotal, cartCount }}>
       {children}
     </CartContext.Provider>
   );
