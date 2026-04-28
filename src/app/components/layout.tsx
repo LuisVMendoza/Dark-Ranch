@@ -5,7 +5,7 @@ import { useCart } from '../cart-context';
 import { Button, LOGO_HORIZONTAL, cn } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 
-export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: any) => void, currentView: string }) => {
+export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: string) => void, currentView: string }) => {
   const { cartCount } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -126,7 +126,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
   );
 };
 
-export const Footer = () => (
+export const Footer = ({ onNavigate }: { onNavigate: (view: string) => void }) => (
   <footer className="bg-black text-white pt-20 pb-10">
     <div className="container mx-auto px-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
@@ -159,20 +159,20 @@ export const Footer = () => (
         <div>
           <h4 className="font-header uppercase tracking-widest text-lg mb-6">Navegación</h4>
           <ul className="space-y-4 text-neutral-400 text-sm">
-            <li><a href="#" className="hover:text-white transition-colors">Tienda</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Categorías</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Nuevas Llegadas</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Ofertas</a></li>
+            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Tienda</button></li>
+            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Categorías</button></li>
+            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Nuevas Llegadas</button></li>
+            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Ofertas</button></li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-header uppercase tracking-widest text-lg mb-6">Soporte</h4>
           <ul className="space-y-4 text-neutral-400 text-sm">
-            <li><a href="#" className="hover:text-white transition-colors">Envíos y Devoluciones</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Guía de Tallas</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Preguntas Frecuentes</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Contacto</a></li>
+            <li><button onClick={() => onNavigate('policies')} className="hover:text-white transition-colors">Envíos y Devoluciones</button></li>
+            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Guía de Tallas</button></li>
+            <li><button onClick={() => onNavigate('policies')} className="hover:text-white transition-colors">Preguntas Frecuentes</button></li>
+            <li><button onClick={() => onNavigate('contact')} className="hover:text-white transition-colors">Contacto</button></li>
           </ul>
         </div>
 
@@ -193,8 +193,8 @@ export const Footer = () => (
       <div className="border-t border-neutral-800 pt-8 flex flex-col md:row items-center justify-between space-y-4 md:space-y-0 text-xs text-neutral-500 uppercase tracking-widest font-typewriter">
         <p>&copy; 2026 DARK RANCH CO. FORJADO EN EL DESIERTO. TODOS LOS DERECHOS RESERVADOS.</p>
         <div className="flex space-x-6">
-          <a href="#" className="hover:text-white transition-colors underline underline-offset-4">Privacidad</a>
-          <a href="#" className="hover:text-white transition-colors underline underline-offset-4">Términos del Servicio</a>
+          <button onClick={() => onNavigate('privacy')} className="hover:text-white transition-colors underline underline-offset-4">Privacidad</button>
+          <button onClick={() => onNavigate('terms')} className="hover:text-white transition-colors underline underline-offset-4">Términos del Servicio</button>
         </div>
       </div>
     </div>

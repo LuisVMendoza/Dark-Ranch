@@ -92,3 +92,53 @@ export const ContactPage = ({ email }: { email: string }) => (
     </div>
   </div>
 );
+
+export const PoliciesPage = () => (
+  <div className="pt-32 pb-24 bg-[#fcf9f5]">
+    <div className="container mx-auto px-6 max-w-5xl space-y-8">
+      <SectionTitle subtitle="Políticas oficiales">Envíos, Cambios y Devoluciones</SectionTitle>
+      <PaperCard className="space-y-6">
+        <div>
+          <h3 className="font-western text-2xl mb-2">Devoluciones antes de 30 días</h3>
+          <p className="text-neutral-700">Aceptamos devoluciones y cambios dentro de los <strong>30 días naturales</strong> posteriores a la entrega. La prenda debe conservar etiquetas, empaque y no mostrar uso.</p>
+        </div>
+        <div>
+          <h4 className="font-header uppercase text-sm font-black tracking-[0.2em] text-[#C4A484] mb-2">Condiciones</h4>
+          <ul className="list-disc pl-6 space-y-2 text-neutral-700">
+            <li>Solicita tu devolución por correo a soporte@darkranch.com con tu número de pedido.</li>
+            <li>Los reembolsos se procesan de 3 a 7 días hábiles tras validar el producto.</li>
+            <li>Productos personalizados o de liquidación final no aplican para devolución.</li>
+          </ul>
+        </div>
+      </PaperCard>
+    </div>
+  </div>
+);
+
+export const PrivacyPage = () => (
+  <div className="pt-32 pb-24 bg-[#fcf9f5]">
+    <div className="container mx-auto px-6 max-w-5xl space-y-8">
+      <SectionTitle subtitle="Marco legal">Aviso de Privacidad</SectionTitle>
+      <PaperCard className="space-y-4 text-neutral-700">
+        <p>Recopilamos nombre, correo, dirección y datos necesarios para procesar pedidos y soporte al cliente.</p>
+        <p>Usamos la información para facturación, envío, seguimiento de órdenes y mejora del servicio.</p>
+        <p>No vendemos tus datos personales. Solo compartimos información con paqueterías y proveedores de pago para completar tu compra.</p>
+        <p>Puedes solicitar acceso, rectificación o eliminación de tus datos escribiendo a privacidad@darkranch.com.</p>
+      </PaperCard>
+    </div>
+  </div>
+);
+
+export const TermsPage = () => (
+  <div className="pt-32 pb-24 bg-[#fcf9f5]">
+    <div className="container mx-auto px-6 max-w-5xl space-y-8">
+      <SectionTitle subtitle="Marco legal">Términos del Servicio</SectionTitle>
+      <PaperCard className="space-y-4 text-neutral-700">
+        <p>Al realizar una compra aceptas nuestros precios, tiempos de envío, políticas de cambio y devolución.</p>
+        <p>La disponibilidad de inventario y tallas está sujeta a existencias al momento del pago.</p>
+        <p>Dark Ranch puede actualizar productos, precios o promociones sin previo aviso.</p>
+        <p>El uso indebido del sitio, fraude o intento de vulneración de seguridad puede resultar en cancelación de pedidos y bloqueo de cuenta.</p>
+      </PaperCard>
+    </div>
+  </div>
+);

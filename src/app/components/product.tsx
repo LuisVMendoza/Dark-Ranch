@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 
 export const ProductCard = ({ product, onQuickView }: { product: Product, onQuickView?: (p: Product) => void }) => {
   const { addToCart } = useCart();
+  const featuredSizes = product.sizes.slice(0, 4);
+  const defaultSize = product.sizes[0];
 
   return (
     <div
@@ -35,6 +37,18 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
           alt={product.name} 
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 sepia-[0.2] group-hover:sepia-0"
         />
+        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2">
+          {featuredSizes.map((size) => (
+            <span key={`${product.id}-size-${size}`} className="bg-black/75 text-white text-[10px] px-2 py-1 border border-white/30">
+              {size}
+            </span>
+          ))}
+          {product.sizes.length > featuredSizes.length && (
+            <span className="bg-white/85 text-black text-[10px] px-2 py-1 border border-black/20">
+              +{product.sizes.length - featuredSizes.length} tallas
+            </span>
+          )}
+        </div>
         
         {/* Hover Actions */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
@@ -52,8 +66,8 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              addToCart(product);
-              toast.success(`Añadido: ${product.name}`);
+              addToCart(product, 1, defaultSize);
+              toast.success(`Añadido: ${product.name} (${defaultSize ?? 'talla única'})`);
             }}
             className="w-14 h-14 bg-white border-2 border-black rotate-45 flex items-center justify-center hover:bg-[#C4A484] transition-colors group/btn"
           >
@@ -68,6 +82,9 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
         <h3 className="font-western text-xl uppercase tracking-tight mb-4 min-h-[3rem] line-clamp-2">
           {product.name}
         </h3>
+        <p className="text-xs text-neutral-500 uppercase tracking-[0.12em] mb-4 line-clamp-2">
+          Tallas disponibles: {product.sizes.length ? product.sizes.join(' · ') : 'Única'}
+        </p>
         <div className="flex items-center justify-between border-t border-neutral-100 pt-4">
           <div className="flex flex-col">
             {product.salePrice ? (
