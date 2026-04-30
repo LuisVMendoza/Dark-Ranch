@@ -64,6 +64,12 @@ const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: '
 const MAX_PRODUCT_IMAGES = 4;
 
 type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'documentation' | 'storefront';
+type AttributeFieldKey = 'sizes' | 'colors' | 'tags';
+type StructuralSuggestionBucket = {
+  id: string;
+  label: string;
+  items: string[];
+};
 type DeleteTarget =
   | { entityType: 'product'; entityId: string; entityName: string }
   | { entityType: 'category'; entityId: string; entityName: string }
@@ -102,14 +108,48 @@ const EMPTY_USER: AdminUserPayload = {
   password: '',
 };
 
+const ATTRIBUTE_DEFAULTS: Record<AttributeFieldKey, readonly string[]> = {
+  sizes: ['CH', 'M', 'G'],
+  colors: ['Negro', 'Café'],
+  tags: ['western', 'cuero'],
+};
+
 const ORDER_STATUS_OPTIONS: AdminOrder['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
 const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid', 'failed', 'refunded'];
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: [
+    'Gestión completa de productos',
+    'Administración de usuarios',
+    'Edición de órdenes y configuración',
+  ],
+  editor: [
+    'Gestión de catálogo',
+    'Actualización de inventario',
+    'Seguimiento de órdenes',
+  ],
+};
 type DocumentationSection = {
   id: string;
   title: string;
   content: string[];
   keywords: string[];
 };
+
+const normalizeAttribute = (value: string) => value.trim().replace(/\s+/g, ' ');
+const parseTags = (value: string) => {
+  const seen = new Set<string>();
+  return value
+    .split(',')
+    .map(normalizeAttribute)
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+const serializeList = (items: string[]) => items.join(', ');
 
 const getStructuralSuggestionBuckets = (items: string[], selectedItems: string[]): StructuralSuggestionBucket[] => {
   const selected = new Set(selectedItems.map((item) => item.toLowerCase()));
