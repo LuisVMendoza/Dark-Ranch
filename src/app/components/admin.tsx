@@ -116,6 +116,18 @@ const ATTRIBUTE_DEFAULTS: Record<AttributeFieldKey, readonly string[]> = {
 
 const ORDER_STATUS_OPTIONS: AdminOrder['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
 const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid', 'failed', 'refunded'];
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: [
+    'Gestión completa de productos',
+    'Administración de usuarios',
+    'Edición de órdenes y configuración',
+  ],
+  editor: [
+    'Gestión de catálogo',
+    'Actualización de inventario',
+    'Seguimiento de órdenes',
+  ],
+};
 type DocumentationSection = {
   id: string;
   title: string;
