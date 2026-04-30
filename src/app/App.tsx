@@ -105,66 +105,6 @@ const App = () => {
 
   const storeSettings: StoreSettings | null = bootstrap?.settings ?? null;
 
-  const renderBannerBlock = (banner: StoreSettings['banners'][number], index: number) => {
-    const bannerType = banner.type || 'promo_banner';
-    const backgroundStyle = {
-      backgroundColor: banner.backgroundColor || '#1f130b',
-      backgroundImage: banner.backgroundImageUrl ? `linear-gradient(rgba(10,10,10,0.65), rgba(10,10,10,0.65)), url(${banner.backgroundImageUrl})` : undefined,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-    } as const;
-
-    if (bannerType === 'image_collection') {
-      const collection = banner.galleryImages?.length ? banner.galleryImages : [banner.imageUrl].filter(Boolean);
-      return (
-        <section key={banner.id || index} className="py-20 text-white" style={backgroundStyle}>
-          <div className="container mx-auto px-6 space-y-7">
-            <div className="max-w-3xl space-y-4">
-              <p className="font-header uppercase tracking-[0.3em] text-[#C4A484] text-xs">Colección destacada</p>
-              <h2 className="text-4xl md:text-5xl font-western uppercase">{banner.title}</h2>
-              <p className="text-neutral-200">{banner.subtitle}</p>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {collection.map((image, imageIndex) => (
-                <ImageWithFallback key={`${banner.id}-${imageIndex}`} src={image} alt={`${banner.title} ${imageIndex + 1}`} className="w-[280px] h-[280px] md:w-[340px] md:h-[340px] object-cover border-2 border-white/30 shrink-0" />
-              ))}
-            </div>
-          </div>
-        </section>
-      );
-    }
-
-    if (bannerType === 'announcement') {
-      return (
-        <section key={banner.id || index} className="py-10 text-white" style={backgroundStyle}>
-          <div className="container mx-auto px-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h3 className="font-western text-3xl uppercase">{banner.title}</h3>
-              <p className="text-sm text-neutral-200 mt-2">{banner.subtitle}</p>
-            </div>
-            <Button variant="secondary" onClick={() => navigateToCategory(banner.categoryLink)}>{banner.buttonText}</Button>
-          </div>
-        </section>
-      );
-    }
-
-    return (
-      <section key={banner.id || index} className="py-20 text-white" style={backgroundStyle}>
-        <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-          <div className="space-y-5">
-            <p className="font-header uppercase tracking-[0.3em] text-[#C4A484] text-xs">{bannerType === 'category_highlight' ? 'Categoría destacada' : 'Banner promocional'}</p>
-            <h2 className="text-5xl font-western uppercase">{banner.title}</h2>
-            <p className="text-neutral-200">{banner.subtitle}</p>
-            <Button variant="secondary" onClick={() => navigateToCategory(banner.categoryLink)}>{banner.buttonText}</Button>
-          </div>
-          <div className="border-2 border-white/30 overflow-hidden">
-            <ImageWithFallback src={banner.imageUrl} alt={banner.title} className="w-full h-[420px] object-cover" />
-          </div>
-        </div>
-      </section>
-    );
-  };
-
   const handleLogin = (user: AuthUser) => {
     if (user.role === 'admin') {
       const nextAdminUser: AdminUser = { id: Number(user.id), email: user.email, name: user.name, role: user.role };
@@ -305,7 +245,6 @@ const App = () => {
               </div>
             </section>
 
-            {storeSettings.banners.map((banner, index) => renderBannerBlock(banner, index))}
 
             <section id="shop" className="py-32 bg-[#fcf9f5]">
               <div className="container mx-auto px-6">
