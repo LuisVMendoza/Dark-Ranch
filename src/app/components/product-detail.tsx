@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MessageSquare, ShoppingCart, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ImagePlus, MessageSquare, ShoppingCart, Trash2 } from 'lucide-react';
 import { Product, ProductComment, CustomerSession } from '../types';
 import { Button } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
@@ -8,6 +8,13 @@ import { toast } from 'sonner';
 import { useCart } from '../cart-context';
 
 const COMMENT_IMAGE_SLOTS = 3;
+
+const toDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+  reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+  reader.readAsDataURL(file);
+});
 
 export const ProductDetailPage = ({
   product,
@@ -25,7 +32,8 @@ export const ProductDetailPage = ({
   const [selectedImage, setSelectedImage] = useState(product.images[0]);
   const [comments, setComments] = useState<ProductComment[]>([]);
   const [commentText, setCommentText] = useState('');
-  const [imageInputs, setImageInputs] = useState<string[]>(['', '', '']);
+  const [imageInputs, setImageInputs] = useState<string[]>([]);
+  const [isDraggingCommentImages, setIsDraggingCommentImages] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -33,9 +41,11 @@ export const ProductDetailPage = ({
   const { addToCart } = useCart();
 
   const effectiveGallery = useMemo(() => {
-    const uniqueImages = Array.from(new Set(product.images.filter(Boolean)));
+    const uniqueImages = Array.from(new Set(product.images.filter(Boolean))).slice(0, 4);
     return uniqueImages.length ? uniqueImages : [product.images[0]];
   }, [product.images]);
+
+  const selectedImageIndex = Math.max(effectiveGallery.indexOf(selectedImage), 0);
 
   const loadComments = async () => {
     setIsLoadingComments(true);
@@ -84,12 +94,36 @@ export const ProductDetailPage = ({
       });
       toast.success('Comentario publicado');
       setCommentText('');
-      setImageInputs(new Array(COMMENT_IMAGE_SLOTS).fill(''));
+      setImageInputs([]);
       await loadComments();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo publicar el comentario');
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  const handleCommentImageDrop = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
+    const available = Math.max(COMMENT_IMAGE_SLOTS - imageInputs.length, 0);
+
+    if (available === 0) {
+      toast.error('Solo puedes agregar 3 fotos por comentario');
+      return;
+    }
+
+    const selectedFiles = imageFiles.slice(0, available);
+    if (selectedFiles.length === 0) {
+      toast.error('Solo se permiten archivos de imagen');
+      return;
+    }
+
+    try {
+      const newImages = await Promise.all(selectedFiles.map(toDataUrl));
+      setImageInputs((current) => [...current, ...newImages].slice(0, COMMENT_IMAGE_SLOTS));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudieron procesar las imágenes');
     }
   };
 
@@ -112,8 +146,28 @@ export const ProductDetailPage = ({
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           <div className="space-y-4">
-            <div className="border-2 border-black bg-white overflow-hidden">
+            <div className="relative border-2 border-black bg-white overflow-hidden">
               <ImageWithFallback src={selectedImage} alt={product.name} className="w-full h-[580px] object-cover" />
+              {effectiveGallery.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImage(effectiveGallery[(selectedImageIndex - 1 + effectiveGallery.length) % effectiveGallery.length])}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 border border-black bg-white/90 p-2 hover:bg-white"
+                    aria-label="Imagen anterior"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImage(effectiveGallery[(selectedImageIndex + 1) % effectiveGallery.length])}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 border border-black bg-white/90 p-2 hover:bg-white"
+                    aria-label="Siguiente imagen"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </>
+              )}
             </div>
             <div className="grid grid-cols-4 gap-3">
               {effectiveGallery.map((imageUrl) => (
@@ -182,7 +236,7 @@ export const ProductDetailPage = ({
           </div>
 
           <form onSubmit={handleSubmitComment} className="bg-white border-2 border-black p-6 space-y-4">
-            <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500">Comparte tu experiencia (puedes agregar fotos por URL)</p>
+            <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500">Comparte tu experiencia (máximo 3 fotos)</p>
             <textarea
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
@@ -190,23 +244,35 @@ export const ProductDetailPage = ({
               className="w-full border-2 border-black p-3 min-h-28 outline-none"
               disabled={!customer || isSubmittingComment}
             />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {imageInputs.map((value, index) => (
-                <input
-                  key={`comment-image-${index + 1}`}
-                  type="url"
-                  value={value}
-                  onChange={(event) => {
-                    const next = [...imageInputs];
-                    next[index] = event.target.value;
-                    setImageInputs(next);
-                  }}
-                  placeholder={`URL de foto ${index + 1}`}
-                  className="border border-black p-2 text-sm"
-                  disabled={!customer || isSubmittingComment}
-                />
-              ))}
+            <div
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!customer || isSubmittingComment) return;
+                setIsDraggingCommentImages(true);
+              }}
+              onDragLeave={() => setIsDraggingCommentImages(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDraggingCommentImages(false);
+                if (!customer || isSubmittingComment) return;
+                void handleCommentImageDrop(event.dataTransfer.files);
+              }}
+              className={`border-2 border-dashed p-5 text-center transition-colors ${isDraggingCommentImages ? 'border-black bg-[#fff3e4]' : 'border-neutral-400 bg-[#fcf9f5]'}`}
+            >
+              <ImagePlus size={20} className="mx-auto mb-2" />
+              <p className="text-xs font-header uppercase tracking-[0.18em]">Arrastra tus fotos aquí</p>
+              <p className="mt-1 text-sm text-neutral-600">Hasta 3 imágenes por comentario</p>
             </div>
+            {imageInputs.length > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                {imageInputs.map((image, index) => (
+                  <div key={`${image}-${index}`} className="relative border border-black overflow-hidden">
+                    <ImageWithFallback src={image} alt={`Foto adjunta ${index + 1}`} className="w-full h-24 object-cover" />
+                    <button type="button" onClick={() => setImageInputs((current) => current.filter((_, i) => i !== index))} className="absolute top-1 right-1 border border-black bg-white px-1">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex justify-end">
               <Button type="submit" disabled={!customer || isSubmittingComment}>
                 {isSubmittingComment ? 'Publicando...' : 'Publicar comentario'}
