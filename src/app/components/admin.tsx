@@ -61,6 +61,7 @@ import {
 import { toast } from 'sonner';
 
 const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' });
+const MAX_PRODUCT_IMAGES = 4;
 
 type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'documentation' | 'storefront';
 type DeleteTarget =
@@ -668,7 +669,7 @@ export const AdminDashboard = ({
     try {
       const payload: AdminProductPayload = {
         ...productForm,
-        images: productForm.images.filter(Boolean),
+        images: productForm.images.filter(Boolean).slice(0, MAX_PRODUCT_IMAGES),
       };
       if (editingProductId) {
         await updateAdminProduct(editingProductId, payload);
@@ -2094,8 +2095,9 @@ const ProductFormFields = ({
               label="Galería de imágenes"
               value={form.images}
               multiple
+              maxItems={MAX_PRODUCT_IMAGES}
               folder={`products/${form.id || form.slug || 'nuevo'}`}
-              onChange={(images) => onChange((current) => ({ ...current, images }))}
+              onChange={(images) => onChange((current) => ({ ...current, images: images.slice(0, MAX_PRODUCT_IMAGES) }))}
             />
           </section>
 
