@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useCart } from '../cart-context';
 import { Button, cn } from './ui';
 import { CreditCard, Truck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { createOrder } from '../lib/api';
+import { createMercadoPagoPreference, createOrder } from '../lib/api';
 import { CustomerSession } from '../types';
+import { formatCurrencyMXN } from '../lib/currency';
 
 export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBack: () => void; onOrderCreated?: () => void; customerSession: CustomerSession | null }) => {
   const { cart, clearCart } = useCart();
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
   const [step, setStep] = useState(1);
+  const [isRedirectingToMp, setIsRedirectingToMp] = useState(false);
+  const [preferenceId, setPreferenceId] = useState<string | null>(null);
+  const walletMountedPreferenceRef = useRef<string | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -28,6 +32,86 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const checkoutStorageKey = 'dark-ranch-mp-checkout-payload';
+
+  const buildCheckoutPayload = () => ({
+    ...formData,
+    customerToken: customerSession?.id,
+    items: cart.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.salePrice ?? item.price,
+      quantity: item.quantity,
+      selectedSize: item.selectedSize,
+      selectedColor: item.selectedColor,
+    })),
+  });
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment_status') || params.get('status');
+    if (paymentStatus !== 'approved') return;
+
+    const rawPayload = window.sessionStorage.getItem(checkoutStorageKey);
+    if (!rawPayload || isSubmitting) return;
+
+    const confirmOrder = async () => {
+      setIsSubmitting(true);
+      try {
+        const payload = JSON.parse(rawPayload);
+        const response = await createOrder(payload);
+        setOrderNumber(response.order.orderNumber);
+        toast.success('¡Pago aprobado y pedido registrado con éxito!');
+        setStep(4);
+        clearCart();
+        onOrderCreated?.();
+        window.sessionStorage.removeItem(checkoutStorageKey);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Pago aprobado, pero no se pudo registrar el pedido');
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+    void confirmOrder();
+  }, [clearCart, isSubmitting, onOrderCreated]);
+
+
+  React.useEffect(() => {
+    if (!preferenceId) return;
+
+    const scriptId = 'mercadopago-sdk-v2';
+    const mountWallet = () => {
+      const mpFactory = (window as typeof window & { MercadoPago?: new (key: string) => { bricks: () => { create: (type: string, container: string, config: unknown) => Promise<unknown> } } }).MercadoPago;
+      if (!mpFactory) return;
+
+      if (walletMountedPreferenceRef.current === preferenceId) return;
+
+      const container = document.getElementById('walletBrick_container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const mp = new mpFactory('APP_USR-08c44ad7-517a-40be-954b-c3991cec2e19');
+      const bricksBuilder = mp.bricks();
+      void bricksBuilder.create('wallet', 'walletBrick_container', {
+        initialization: { preferenceId },
+      });
+      walletMountedPreferenceRef.current = preferenceId;
+    };
+
+    if (document.getElementById(scriptId)) {
+      mountWallet();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://sdk.mercadopago.com/js/v2';
+    script.onload = mountWallet;
+    document.body.appendChild(script);
+  }, [preferenceId]);
+
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -41,30 +125,22 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const response = await createOrder({
-        ...formData,
-        customerToken: customerSession?.id,
-        items: cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.salePrice ?? item.price,
-          quantity: item.quantity,
-          selectedSize: item.selectedSize,
-          selectedColor: item.selectedColor,
-        })),
-      });
+    if (preferenceId) return;
 
-      setOrderNumber(response.order.orderNumber);
-      toast.success('¡Pedido realizado con éxito!');
-      setStep(4);
-      clearCart();
-      onOrderCreated?.();
+    setIsRedirectingToMp(true);
+    try {
+      const payload = buildCheckoutPayload();
+      window.sessionStorage.setItem(checkoutStorageKey, JSON.stringify(payload));
+      const response = await createMercadoPagoPreference(payload);
+      setPreferenceId(response.preferenceId || null);
+      if (!response.preferenceId) {
+        window.location.href = response.sandboxInitPoint || response.initPoint;
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo registrar el pedido');
+      toast.error(error instanceof Error ? error.message : 'No se pudo iniciar Mercado Pago');
+      setIsRedirectingToMp(false);
     } finally {
-      setIsSubmitting(false);
+      setIsRedirectingToMp(false);
     }
   };
 
@@ -150,24 +226,10 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
               {step === 2 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                   <h2 className="text-2xl font-header font-black uppercase tracking-tight flex items-center gap-2">
-                    <CreditCard size={24} /> Detalles de Pago
+                    <CreditCard size={24} /> Mercado Pago Checkout Pro
                   </h2>
                   <div className="bg-neutral-100 p-4 border-l-4 border-black mb-6">
-                    <p className="text-xs text-neutral-600 font-medium">El pedido sí se guarda en la BD local; el cobro sigue siendo una captura simulada.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-header uppercase font-bold tracking-widest">Número de Tarjeta</label>
-                    <input required value={formData.cardNumber} onChange={(e) => handleChange('cardNumber', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-header uppercase font-bold tracking-widest">Expiración</label>
-                      <input required value={formData.expiry} onChange={(e) => handleChange('expiry', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-header uppercase font-bold tracking-widest">CVC</label>
-                      <input required value={formData.cvc} onChange={(e) => handleChange('cvc', e.target.value)} className="w-full border-2 border-black p-3 bg-white outline-none focus:bg-neutral-50" />
-                    </div>
+                    <p className="text-xs text-neutral-600 font-medium">Serás redirigido a Mercado Pago (sandbox de México) para completar el pago seguro.</p>
                   </div>
                 </div>
               )}
@@ -189,9 +251,16 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
                 </div>
               )}
 
+              {step === 3 && preferenceId && (
+                <div className="bg-white border-2 border-black p-4">
+                  <p className="text-xs font-header uppercase font-bold tracking-widest mb-3">Finaliza tu pago en Mercado Pago</p>
+                  <div id="walletBrick_container"></div>
+                </div>
+              )}
+
               <div className="flex justify-end">
-                <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting}>
-                  {step < 3 ? 'Continuar' : isSubmitting ? 'Guardando pedido...' : 'Confirmar compra'}
+                <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting || isRedirectingToMp || (step === 3 && preferenceId !== null)}>
+                  {step < 3 ? 'Continuar' : preferenceId ? 'Botón de pago generado' : isRedirectingToMp ? 'Redirigiendo a Mercado Pago...' : 'Pagar con Mercado Pago'}
                 </Button>
               </div>
             </form>
