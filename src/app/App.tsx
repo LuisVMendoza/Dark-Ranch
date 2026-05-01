@@ -430,7 +430,7 @@ const App = () => {
 
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
 
-        {currentView !== 'login' && currentView !== 'admin' && <Footer onNavigate={(view: View) => setCurrentView(view)} />}
+        {currentView !== 'login' && currentView !== 'admin' && <Footer />}
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
         <CustomerLoginDialog isOpen={false} />
 
