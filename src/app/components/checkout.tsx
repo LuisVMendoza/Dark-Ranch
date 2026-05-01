@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useCart } from '../cart-context';
 import { Button, cn } from './ui';
 import { CreditCard, Truck, CheckCircle, ArrowLeft } from 'lucide-react';
@@ -13,6 +13,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
   const [step, setStep] = useState(1);
   const [isRedirectingToMp, setIsRedirectingToMp] = useState(false);
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
+  const walletMountedPreferenceRef = useRef<string | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -85,11 +86,18 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
       const mpFactory = (window as typeof window & { MercadoPago?: new (key: string) => { bricks: () => { create: (type: string, container: string, config: unknown) => Promise<unknown> } } }).MercadoPago;
       if (!mpFactory) return;
 
+      if (walletMountedPreferenceRef.current === preferenceId) return;
+
+      const container = document.getElementById('walletBrick_container');
+      if (!container) return;
+      container.innerHTML = '';
+
       const mp = new mpFactory('APP_USR-08c44ad7-517a-40be-954b-c3991cec2e19');
       const bricksBuilder = mp.bricks();
       void bricksBuilder.create('wallet', 'walletBrick_container', {
         initialization: { preferenceId },
       });
+      walletMountedPreferenceRef.current = preferenceId;
     };
 
     if (document.getElementById(scriptId)) {
@@ -116,6 +124,8 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
       toast.error('Tu carrito está vacío');
       return;
     }
+
+    if (preferenceId) return;
 
     setIsRedirectingToMp(true);
     try {
@@ -249,8 +259,8 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
               )}
 
               <div className="flex justify-end">
-                <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting || isRedirectingToMp}>
-                  {step < 3 ? 'Continuar' : isRedirectingToMp ? 'Redirigiendo a Mercado Pago...' : 'Pagar con Mercado Pago'}
+                <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting || isRedirectingToMp || (step === 3 && preferenceId !== null)}>
+                  {step < 3 ? 'Continuar' : preferenceId ? 'Botón de pago generado' : isRedirectingToMp ? 'Redirigiendo a Mercado Pago...' : 'Pagar con Mercado Pago'}
                 </Button>
               </div>
             </form>
