@@ -2087,13 +2087,18 @@ function create_mercado_pago_preference(array $payload): array
     $body = [
         'items' => $items,
         'external_reference' => $orderRef,
-        'back_urls' => [
+    ];
+
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $isLocalHost = str_contains($host, 'localhost') || str_contains($host, '127.0.0.1');
+    if (!$isLocalHost) {
+        $body['back_urls'] = [
             'success' => $baseUrl . '/?checkout=1&payment_status=approved',
             'failure' => $baseUrl . '/?checkout=1&payment_status=rejected',
             'pending' => $baseUrl . '/?checkout=1&payment_status=pending',
-        ],
-        'auto_return' => 'approved',
-    ];
+        ];
+        $body['auto_return'] = 'approved';
+    }
 
     if ($hasValidEmail) {
         $body['payer'] = [
