@@ -448,6 +448,7 @@ function order_to_client(array $order, array $items = []): array
         'zip' => (string) $order['zip'],
         'status' => (string) $order['status'],
         'paymentStatus' => (string) $order['payment_status'],
+        'trackingUrl' => $order['tracking_url'] ?? null,
         'total' => (float) $order['total'],
         'createdAt' => (string) $order['created_at'],
         'cancellationReason' => $order['cancellation_reason'] !== null ? (string) $order['cancellation_reason'] : null,
@@ -1774,6 +1775,7 @@ function update_admin_order(int $id, array $payload): array
     $paymentStatus = trim((string) ($payload['paymentStatus'] ?? ''));
     $cancellationReason = array_key_exists('cancellationReason', $payload) ? trim((string) $payload['cancellationReason']) : null;
     $refundAmount = array_key_exists('refundAmount', $payload) && $payload['refundAmount'] !== null && $payload['refundAmount'] !== '' ? (float) $payload['refundAmount'] : null;
+    $trackingUrl = array_key_exists('trackingUrl', $payload) ? trim((string) $payload['trackingUrl']) : null;
     $cancelledAt = $status === 'cancelled' ? (string) ($payload['cancelledAt'] ?? (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM)) : null;
 
     if ($status === '' || $paymentStatus === '') {
@@ -1817,6 +1819,9 @@ function update_admin_order(int $id, array $payload): array
             $store['orders'][$index]['cancellation_reason'] = $status === 'cancelled' ? ($cancellationReason ?: 'Cancelada desde administración') : null;
             $store['orders'][$index]['refund_amount'] = $status === 'cancelled' ? $refundAmount : null;
             $store['orders'][$index]['cancelled_at'] = $cancelledAt;
+            if ($trackingUrl !== null) {
+                $store['orders'][$index]['tracking_url'] = $trackingUrl !== '' ? $trackingUrl : null;
+            }
             write_json_store($store);
             log_activity('order_update', 'order', (string) $id, (string) ($order['order_number'] ?? $id), 'Orden actualizada a estado ' . $status . ' y pago ' . $paymentStatus . '.');
             foreach (get_admin_orders() as $updatedOrder) {
@@ -1832,6 +1837,24 @@ function update_admin_order(int $id, array $payload): array
 
 function delete_admin_order(int $id): void
 {
+    $orders = get_admin_orders();
+    $targetOrder = null;
+    foreach ($orders as $candidate) {
+        if ((int) ($candidate['id'] ?? 0) === $id) {
+            $targetOrder = $candidate;
+            break;
+        }
+    }
+    if ($targetOrder === null) {
+        throw new RuntimeException('Orden no encontrada.');
+    }
+
+    $createdAt = new DateTimeImmutable((string) ($targetOrder['createdAt'] ?? 'now'));
+    $deletableAfter = $createdAt->modify('+30 days');
+    if ((new DateTimeImmutable('now')) < $deletableAfter) {
+        throw new RuntimeException('La orden no se puede eliminar hasta 30 días después de su creación.');
+    }
+
     if (database_mode() === 'mysql') {
         $pdo = db();
         $pdo->beginTransaction();
