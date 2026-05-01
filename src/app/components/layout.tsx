@@ -19,7 +19,6 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
   const navLinks = [
     { name: 'Inicio', view: 'home' },
     { name: 'Tienda', view: 'shop' },
-    { name: 'Sobre Nosotros', view: 'about' },
     { name: 'Contacto', view: 'contact' },
   ];
 
@@ -113,7 +112,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
             </div>
             <div className="mt-auto pb-10 space-y-6">
               <p className="font-header uppercase text-[10px] tracking-widest text-neutral-500">Contacta con la Ranchería</p>
-              <p className="text-xl font-header">contacto@darkranch.com</p>
+              <p className="text-xl font-header">correo.example</p>
               <div className="flex gap-4">
                 <div className="w-10 h-10 border border-neutral-700 flex items-center justify-center text-xs">IG</div>
                 <div className="w-10 h-10 border border-neutral-700 flex items-center justify-center text-xs">FB</div>
