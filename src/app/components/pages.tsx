@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { FormEvent, useState } from 'react';
 import { SectionTitle, PaperCard, Button, OrnateBorder, LOGO_CIRCULAR } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
@@ -39,8 +39,21 @@ export const AboutPage = ({ text }: { text: string }) => (
   </div>
 );
 
-export const ContactPage = ({ email }: { email: string }) => (
-  <div className="pt-32 pb-24 bg-[#fcf9f5]">
+export const ContactPage = ({ email }: { email: string }) => {
+  const [name, setName] = useState('');
+  const [senderEmail, setSenderEmail] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const subject = encodeURIComponent(`Nuevo mensaje de contacto: ${name || 'Cliente'}`);
+    const body = encodeURIComponent(
+      `Nombre: ${name || 'No proporcionado'}\nCorreo: ${senderEmail || 'No proporcionado'}\n\nMensaje:\n${message || 'Sin mensaje'}`,
+    );
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  };
+
+  return <div className="pt-32 pb-24 bg-[#fcf9f5]">
     <div className="container mx-auto px-6">
       <div className="max-w-5xl mx-auto">
         <SectionTitle subtitle="Ponte en contacto" className="text-center">El Correo del Desierto</SectionTitle>
@@ -66,21 +79,41 @@ export const ContactPage = ({ email }: { email: string }) => (
           </div>
           <div className="md:col-span-2">
             <PaperCard>
-              <form className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <form className="grid grid-cols-1 sm:grid-cols-2 gap-6" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <label className="text-xs font-header uppercase font-bold">Nombre Completo</label>
-                  <input className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]" placeholder="John Marston" />
+                  <input
+                    className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
+                    placeholder="John Marston"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-header uppercase font-bold">Correo Electrónico</label>
-                  <input className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]" placeholder={email} />
+                  <input
+                    className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
+                    placeholder="tu-correo@dominio.com"
+                    value={senderEmail}
+                    onChange={(event) => setSenderEmail(event.target.value)}
+                    required
+                    type="email"
+                  />
                 </div>
                 <div className="sm:col-span-2 space-y-2">
                   <label className="text-xs font-header uppercase font-bold">Mensaje / Telegrama</label>
-                  <textarea rows={5} className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]" placeholder="Escribe tu mensaje aquí..."></textarea>
+                  <textarea
+                    rows={5}
+                    className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
+                    placeholder="Escribe tu mensaje aquí..."
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    required
+                  ></textarea>
                 </div>
                 <div className="sm:col-span-2">
-                  <Button className="w-full sm:w-auto flex items-center gap-2">
+                  <Button type="submit" className="w-full sm:w-auto flex items-center gap-2">
                     Enviar Telegrama <Send size={18} />
                   </Button>
                 </div>
@@ -90,8 +123,8 @@ export const ContactPage = ({ email }: { email: string }) => (
         </div>
       </div>
     </div>
-  </div>
-);
+  </div>;
+};
 
 export const PoliciesPage = () => (
   <div className="pt-32 pb-24 bg-[#fcf9f5]">

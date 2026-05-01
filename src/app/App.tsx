@@ -19,7 +19,7 @@ import { OrdersPage } from './components/orders';
 
 type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
 const HARDCODED_ABOUT_TEXT = 'Dark Ranch nació en el corazón del desierto de Sonora, donde la necesidad de ropa resistente se encontró con la elegancia del viejo oeste.';
-const HARDCODED_CONTACT_EMAIL = 'contacto@darkranch.com';
+const HARDCODED_CONTACT_EMAIL = 'correo.example';
 const LEGAL_ACCEPTANCE_KEY = 'dark-ranch-legal-accepted-v2';
 
 const App = () => {
@@ -226,8 +226,8 @@ const App = () => {
                     <Button size="lg" variant="secondary" className="w-full sm:w-auto text-xl px-12" onClick={() => setCurrentView('shop')}>
                       Ir al Taller
                     </Button>
-                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black font-western" onClick={() => setCurrentView('about')}>
-                      Nuestra Herencia
+                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black font-western" onClick={() => setCurrentView('contact')}>
+                      Contáctanos
                     </Button>
                   </div>
                 </Motion.div>
