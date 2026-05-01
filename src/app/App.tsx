@@ -7,7 +7,7 @@ import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
 import { AuthUser, CustomerLoginDialog, LoginPage } from './components/auth';
-import { AboutPage, ContactPage, LegalAgreementPage, PoliciesPage, PrivacyPage, TermsPage } from './components/pages';
+import { AboutPage, LegalAgreementPage, PoliciesPage, PrivacyPage, TermsPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
 import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
@@ -17,9 +17,8 @@ import { getBootstrapData } from './lib/api';
 import { ProductDetailPage } from './components/product-detail';
 import { OrdersPage } from './components/orders';
 
-type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
+type View = 'home' | 'shop' | 'about' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
 const HARDCODED_ABOUT_TEXT = 'Dark Ranch nació en el corazón del desierto de Sonora, donde la necesidad de ropa resistente se encontró con la elegancia del viejo oeste.';
-const HARDCODED_CONTACT_EMAIL = 'contacto@darkranch.com';
 const LEGAL_ACCEPTANCE_KEY = 'dark-ranch-legal-accepted-v2';
 
 const App = () => {
@@ -226,8 +225,8 @@ const App = () => {
                     <Button size="lg" variant="secondary" className="w-full sm:w-auto text-xl px-12" onClick={() => setCurrentView('shop')}>
                       Ir al Taller
                     </Button>
-                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black font-western" onClick={() => setCurrentView('about')}>
-                      Nuestra Herencia
+                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black font-western" onClick={() => setCurrentView('shop')}>
+                      Ver Catálogo
                     </Button>
                   </div>
                 </Motion.div>
@@ -354,8 +353,6 @@ const App = () => {
 
       case 'about':
         return <AboutPage text={HARDCODED_ABOUT_TEXT} />;
-      case 'contact':
-        return <ContactPage email={HARDCODED_CONTACT_EMAIL} />;
       case 'policies':
         return <PoliciesPage />;
       case 'privacy':
