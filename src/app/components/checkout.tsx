@@ -5,6 +5,7 @@ import { CreditCard, Truck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { createMercadoPagoPreference, createOrder } from '../lib/api';
 import { CustomerSession } from '../types';
+import { formatCurrencyMXN } from '../lib/currency';
 
 export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBack: () => void; onOrderCreated?: () => void; customerSession: CustomerSession | null }) => {
   const { cart, clearCart } = useCart();
