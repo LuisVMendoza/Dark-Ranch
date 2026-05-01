@@ -7,7 +7,7 @@ import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
 import { AuthUser, CustomerLoginDialog, LoginPage } from './components/auth';
-import { AboutPage, ContactPage, PoliciesPage, PrivacyPage, TermsPage } from './components/pages';
+import { AboutPage, ContactPage, LegalAgreementPage, PoliciesPage, PrivacyPage, TermsPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
 import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
@@ -20,6 +20,7 @@ import { OrdersPage } from './components/orders';
 type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
 const HARDCODED_ABOUT_TEXT = 'Dark Ranch nació en el corazón del desierto de Sonora, donde la necesidad de ropa resistente se encontró con la elegancia del viejo oeste.';
 const HARDCODED_CONTACT_EMAIL = 'contacto@darkranch.com';
+const LEGAL_ACCEPTANCE_KEY = 'dark-ranch-legal-accepted-v2';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -34,6 +35,7 @@ const App = () => {
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasAcceptedLegal, setHasAcceptedLegal] = useState(true);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -56,6 +58,11 @@ const App = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const acceptedLegal = localStorage.getItem(LEGAL_ACCEPTANCE_KEY) === 'true';
+    setHasAcceptedLegal(acceptedLegal);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -424,9 +431,31 @@ const App = () => {
 
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
 
-        {currentView !== 'login' && currentView !== 'admin' && <Footer onNavigate={(view: View) => setCurrentView(view)} />}
+        {currentView !== 'login' && currentView !== 'admin' && <Footer />}
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
         <CustomerLoginDialog isOpen={false} />
+
+        {!hasAcceptedLegal && (
+          <div className="fixed inset-0 z-[100] bg-black/70 p-4 md:p-8 overflow-y-auto">
+            <div className="min-h-full flex items-start justify-center py-6">
+              <div className="w-full max-w-5xl bg-[#fcf9f5] border-2 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+                <LegalAgreementPage />
+                <div className="px-6 pb-8 md:px-10 flex flex-col sm:flex-row gap-4 justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      localStorage.setItem(LEGAL_ACCEPTANCE_KEY, 'true');
+                      setHasAcceptedLegal(true);
+                      toast.success('Gracias. Has aceptado el acuerdo de privacidad y términos.');
+                    }}
+                  >
+                    Aceptar términos y continuar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </CartProvider>
   );
