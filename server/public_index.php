@@ -2081,13 +2081,11 @@ function create_mercado_pago_preference(array $payload): array
 
     $baseUrl = sprintf('%s://%s', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http', $_SERVER['HTTP_HOST'] ?? 'localhost:5173');
     $orderRef = sprintf('DR-MP-%s', bin2hex(random_bytes(6)));
+    $payerEmail = trim((string) ($payload['email'] ?? ''));
+    $hasValidEmail = filter_var($payerEmail, FILTER_VALIDATE_EMAIL) !== false;
+
     $body = [
         'items' => $items,
-        'payer' => [
-            'email' => (string) ($payload['email'] ?? ''),
-            'name' => trim((string) ($payload['firstName'] ?? '')),
-            'surname' => trim((string) ($payload['lastName'] ?? '')),
-        ],
         'external_reference' => $orderRef,
         'back_urls' => [
             'success' => $baseUrl . '/?checkout=1&payment_status=approved',
@@ -2096,6 +2094,14 @@ function create_mercado_pago_preference(array $payload): array
         ],
         'auto_return' => 'approved',
     ];
+
+    if ($hasValidEmail) {
+        $body['payer'] = [
+            'email' => $payerEmail,
+            'name' => trim((string) ($payload['firstName'] ?? '')),
+            'surname' => trim((string) ($payload['lastName'] ?? '')),
+        ];
+    }
 
     $ch = curl_init('https://api.mercadopago.com/checkout/preferences');
     curl_setopt_array($ch, [
@@ -2119,8 +2125,14 @@ function create_mercado_pago_preference(array $payload): array
 
     $response = json_decode($raw, true);
     if ($status < 200 || $status >= 300 || !is_array($response)) {
-        $mpMessage = is_array($response) ? ((string) ($response['message'] ?? 'Error en Mercado Pago')) : 'Error en Mercado Pago';
-        throw new RuntimeException('Mercado Pago respondió con error: ' . $mpMessage);
+        $cause = '';
+        if (is_array($response)) {
+            $cause = (string) ($response['message'] ?? '');
+            if (isset($response['cause']) && is_array($response['cause']) && isset($response['cause'][0]['description'])) {
+                $cause = (string) $response['cause'][0]['description'];
+            }
+        }
+        throw new RuntimeException('Mercado Pago respondió con error' . ($cause !== '' ? ': ' . $cause : '.'));
     }
 
     return [
