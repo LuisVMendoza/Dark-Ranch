@@ -1419,7 +1419,7 @@ export const AdminDashboard = ({
 
                       <Dialog open={Boolean(selectedOrder && selectedOrderDraft)} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
                         {selectedOrder && selectedOrderDraft && (
-                        <DialogContent className="w-[96vw] max-w-[1400px] border-2 border-black bg-[#fcf9f5] max-h-[92vh] overflow-y-auto p-0">
+                        <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
                         <div className="border-2 border-black bg-white p-5 space-y-5">
                           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                             <div>
@@ -1754,7 +1754,7 @@ export const AdminDashboard = ({
           </main>
 
           <Dialog open={isActivityCleanupModalOpen} onOpenChange={setIsActivityCleanupModalOpen}>
-            <DialogContent className="max-w-xl border-2 border-black bg-[#fcf9f5]">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <DialogHeader>
                 <DialogTitle className="font-western uppercase text-2xl">Mantenimiento de bitácora</DialogTitle>
                 <DialogDescription className="text-sm text-neutral-700">
@@ -1808,7 +1808,7 @@ export const AdminDashboard = ({
 </Dialog>
 
           <Dialog open={isCategoryModalOpen} onOpenChange={(open) => { if (!open) closeCategoryModal(); }}>
-            <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">{editingCategoryId ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
@@ -1827,7 +1827,7 @@ export const AdminDashboard = ({
           </Dialog>
 
           <Dialog open={isUserModalOpen} onOpenChange={(open) => { if (!open) closeUserModal(); }}>
-            <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">{editingUserId ? 'Editar acceso' : 'Nuevo acceso'}</DialogTitle>
@@ -1862,7 +1862,7 @@ export const AdminDashboard = ({
           </Dialog>
 
           <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
-            <DialogContent className="max-w-2xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">Confirmar eliminación</DialogTitle>
@@ -2461,7 +2461,7 @@ const AttributeTagPicker = ({
         </details>
       </div>
       <Dialog open={isManagerOpen} onOpenChange={setIsManagerOpen}>
-        <DialogContent className="max-w-2xl border-2 border-black p-0">
+        <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
           <DialogHeader className="border-b border-black/20 p-5">
             <DialogTitle className="font-western uppercase text-2xl text-black">Administrar atributos</DialogTitle>
             <DialogDescription className="text-neutral-600">
