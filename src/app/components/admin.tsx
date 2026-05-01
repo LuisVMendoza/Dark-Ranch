@@ -2419,7 +2419,8 @@ const AttributeTagPicker = ({
         </div>
         <input
           value={serializeList(normalizedItems)}
-          onChange={(e) => onChange(parseTags(e.target.value))}
+          readOnly
+          aria-readonly="true"
           className={INPUT_CLASS}
         />
         <div className="flex flex-wrap gap-2">
