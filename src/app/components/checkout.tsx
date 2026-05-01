@@ -12,6 +12,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
   const cartTotal = cart.reduce((total, item) => total + ((item.salePrice ?? item.price) * item.quantity), 0);
   const [step, setStep] = useState(1);
   const [isRedirectingToMp, setIsRedirectingToMp] = useState(false);
+  const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -75,6 +76,34 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
     void confirmOrder();
   }, [clearCart, isSubmitting, onOrderCreated]);
 
+
+  React.useEffect(() => {
+    if (!preferenceId) return;
+
+    const scriptId = 'mercadopago-sdk-v2';
+    const mountWallet = () => {
+      const mpFactory = (window as typeof window & { MercadoPago?: (key: string) => { bricks: () => { create: (type: string, container: string, config: unknown) => Promise<unknown> } } }).MercadoPago;
+      if (!mpFactory) return;
+
+      const mp = mpFactory('APP_USR-08c44ad7-517a-40be-954b-c3991cec2e19');
+      const bricksBuilder = mp.bricks();
+      void bricksBuilder.create('wallet', 'walletBrick_container', {
+        initialization: { preferenceId },
+      });
+    };
+
+    if (document.getElementById(scriptId)) {
+      mountWallet();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://sdk.mercadopago.com/js/v2';
+    script.onload = mountWallet;
+    document.body.appendChild(script);
+  }, [preferenceId]);
+
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -93,9 +122,14 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
       const payload = buildCheckoutPayload();
       window.sessionStorage.setItem(checkoutStorageKey, JSON.stringify(payload));
       const response = await createMercadoPagoPreference(payload);
-      window.location.href = response.sandboxInitPoint || response.initPoint;
+      setPreferenceId(response.preferenceId || null);
+      if (!response.preferenceId) {
+        window.location.href = response.sandboxInitPoint || response.initPoint;
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo iniciar Mercado Pago');
+      setIsRedirectingToMp(false);
+    } finally {
       setIsRedirectingToMp(false);
     }
   };
@@ -204,6 +238,13 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {step === 3 && preferenceId && (
+                <div className="bg-white border-2 border-black p-4">
+                  <p className="text-xs font-header uppercase font-bold tracking-widest mb-3">Finaliza tu pago en Mercado Pago</p>
+                  <div id="walletBrick_container"></div>
                 </div>
               )}
 
