@@ -13,7 +13,6 @@ import {
   Plus,
   Printer,
   ShieldAlert,
-  Save,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -115,7 +114,6 @@ const ATTRIBUTE_DEFAULTS: Record<AttributeFieldKey, readonly string[]> = {
 };
 
 const ORDER_STATUS_OPTIONS: AdminOrder['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
-const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid', 'failed', 'refunded'];
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: [
     'Gestión completa de productos',
@@ -361,7 +359,7 @@ export const AdminDashboard = ({
 
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialSnapshot.orders[0]?.id ?? null);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [activityDateFilter, setActivityDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
   const [activityActionFilter, setActivityActionFilter] = useState('all');
   const [activityEntityFilter, setActivityEntityFilter] = useState('all');
@@ -377,7 +375,7 @@ export const AdminDashboard = ({
   useEffect(() => {
     setSnapshot(initialSnapshot);
     setSettingsForm(initialSnapshot.settings);
-    setSelectedOrderId(initialSnapshot.orders[0]?.id ?? null);
+    setSelectedOrderId(null);
   }, [initialSnapshot]);
 
   useEffect(() => {
@@ -430,7 +428,7 @@ export const AdminDashboard = ({
       setSnapshot(next);
       setSettingsForm(next.settings);
       setOrderDrafts({});
-      setSelectedOrderId((current) => next.orders.some((order) => order.id === current) ? current : next.orders[0]?.id ?? null);
+      setSelectedOrderId((current) => next.orders.some((order) => order.id === current) ? current : null);
       onSnapshotUpdated(next);
       if (successMessage) toast.success(successMessage);
     } catch (error) {
@@ -598,7 +596,7 @@ export const AdminDashboard = ({
 
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
-    () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? snapshot.orders[0] ?? null,
+    () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? null,
     [selectedOrderId, snapshot.orders],
   );
 
@@ -822,6 +820,14 @@ export const AdminDashboard = ({
     const itemLines = order.items
       .map((item) => `${item.productName} x ${item.quantity}${item.selectedSize ? ` · Talla ${item.selectedSize}` : ''}${item.selectedColor ? ` · Color ${item.selectedColor}` : ''}`)
       .join('<br />');
+    const barcodeBits = order.orderNumber
+      .split('')
+      .map((char) => char.charCodeAt(0).toString(2).padStart(8, '0'))
+      .join('');
+    const barcodeHtml = barcodeBits
+      .split('')
+      .map((bit) => `<span class="${bit === '1' ? 'bar bar-thick' : 'bar bar-thin'}"></span>`)
+      .join('');
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -853,9 +859,24 @@ export const AdminDashboard = ({
               font-weight: 700;
             }
             .order-number {
-              font-size: 22px;
-              font-weight: 700;
-              margin: 4px 0 0;
+              margin: 4px 0;
+              display: flex;
+              flex-wrap: nowrap;
+              gap: 1px;
+              align-items: flex-end;
+              min-height: 54px;
+              overflow: hidden;
+            }
+            .bar {
+              display: inline-block;
+              height: 52px;
+              background: #111;
+            }
+            .bar-thin {
+              width: 1px;
+            }
+            .bar-thick {
+              width: 3px;
             }
             .recipient {
               font-size: 24px;
@@ -896,7 +917,9 @@ export const AdminDashboard = ({
           <main class="sheet">
             <section>
               <div class="brand">Dark Ranch · Etiqueta de envío</div>
-              <p class="order-number">${order.orderNumber}</p>
+              <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 4px;">Order ID</div>
+              <p class="order-number">${barcodeHtml}</p>
+              <p style="margin:0; font-size: 10px; letter-spacing: 0.08em;">${order.orderNumber}</p>
             </section>
 
             <section class="box">
@@ -905,23 +928,9 @@ export const AdminDashboard = ({
               <p class="address">${order.address}<br />${order.city}, ${order.zip}</p>
             </section>
 
-            <section class="grid">
-              <div class="box">
-                <div class="meta-label">Estatus orden</div>
-                <div class="meta-value">${formatOrderStatus(order.status)}</div>
-              </div>
-              <div class="box">
-                <div class="meta-label">Pago</div>
-                <div class="meta-value">${formatPaymentStatus(order.paymentStatus)}</div>
-              </div>
-              <div class="box">
-                <div class="meta-label">Correo</div>
-                <div class="meta-value">${order.customerEmail}</div>
-              </div>
-              <div class="box">
-                <div class="meta-label">Total</div>
-                <div class="meta-value">${currency.format(order.total)}</div>
-              </div>
+            <section class="box">
+              <div class="meta-label">Correo</div>
+              <div class="meta-value">${order.customerEmail}</div>
             </section>
 
             <section class="box">
@@ -950,21 +959,32 @@ export const AdminDashboard = ({
     ? orderDrafts[selectedOrder.id] || {
       status: selectedOrder.status,
       paymentStatus: selectedOrder.paymentStatus,
+      trackingUrl: selectedOrder.trackingUrl || '',
       cancellationReason: selectedOrder.cancellationReason || '',
       refundAmount: selectedOrder.refundAmount ?? null,
     }
     : null;
 
-  const saveOrder = async (orderId: number) => {
-    const draft = orderDrafts[orderId];
-    if (!draft) return;
+  const saveOrder = async (orderId: number, draft: AdminOrderUpdatePayload) => {
     try {
       await updateAdminOrder(orderId, draft);
-      toast.success('Orden actualizada');
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la orden');
     }
+  };
+
+  const updateOrderDraftAndSave = (order: AdminOrder, patch: Partial<AdminOrderUpdatePayload>) => {
+    const baseDraft = orderDrafts[order.id] || {
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      trackingUrl: order.trackingUrl || '',
+      cancellationReason: order.cancellationReason || '',
+      refundAmount: order.refundAmount ?? null,
+    };
+    const nextDraft = { ...baseDraft, ...patch };
+    setOrderDrafts((current) => ({ ...current, [order.id]: nextDraft }));
+    void saveOrder(order.id, nextDraft);
   };
 
   const handleSaveSettings = async () => {
@@ -1397,7 +1417,9 @@ export const AdminDashboard = ({
                         </div>
                       </div>
 
-                      {selectedOrder && selectedOrderDraft && (
+                      <Dialog open={Boolean(selectedOrder && selectedOrderDraft)} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
+                        {selectedOrder && selectedOrderDraft && (
+                        <DialogContent className="w-[96vw] max-w-[1400px] border-2 border-black bg-[#fcf9f5] max-h-[92vh] overflow-y-auto p-0">
                         <div className="border-2 border-black bg-white p-5 space-y-5">
                           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                             <div>
@@ -1451,20 +1473,21 @@ export const AdminDashboard = ({
 
                           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                             <Field label="Estado orden">
-                              <select value={selectedOrderDraft.status} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, status: e.target.value as AdminOrder['status'] } }))} className={INPUT_CLASS}>
+                              <select value={selectedOrderDraft.status} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { status: e.target.value as AdminOrder['status'] })} className={INPUT_CLASS}>
                                 {ORDER_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{formatOrderStatus(status)}</option>)}
                               </select>
                             </Field>
                             <Field label="Estado pago">
-                              <select value={selectedOrderDraft.paymentStatus} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, paymentStatus: e.target.value as AdminOrder['paymentStatus'] } }))} className={INPUT_CLASS}>
-                                {PAYMENT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{formatPaymentStatus(status)}</option>)}
-                              </select>
+                              <input value={formatPaymentStatus(selectedOrder.paymentStatus)} className={INPUT_CLASS} disabled />
+                            </Field>
+                            <Field label="Link de seguimiento">
+                              <input value={selectedOrderDraft.trackingUrl || ''} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { trackingUrl: e.target.value })} placeholder="https://dhl.com/..." className={INPUT_CLASS} />
                             </Field>
                             <Field label="Motivo cancelación">
-                              <input value={selectedOrderDraft.cancellationReason || ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, cancellationReason: e.target.value } }))} className={INPUT_CLASS} />
+                              <input value={selectedOrderDraft.cancellationReason || ''} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { cancellationReason: e.target.value })} className={INPUT_CLASS} />
                             </Field>
                             <Field label="Reembolso">
-                              <input type="number" step="0.01" min="0" value={selectedOrderDraft.refundAmount ?? ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, refundAmount: e.target.value === '' ? null : Number(e.target.value) } }))} className={INPUT_CLASS} />
+                              <input type="number" step="0.01" min="0" value={selectedOrderDraft.refundAmount ?? ''} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { refundAmount: e.target.value === '' ? null : Number(e.target.value) })} className={INPUT_CLASS} />
                             </Field>
                           </div>
 
@@ -1479,10 +1502,11 @@ export const AdminDashboard = ({
                             <Button size="sm" variant="outline" onClick={() => printShippingLabel(selectedOrder)}>
                               <Printer size={14} className="mr-2" /> Imprimir formato
                             </Button>
-                            <Button size="sm" onClick={() => saveOrder(selectedOrder.id)}><Save size={14} className="mr-2" /> Guardar</Button>
                           </div>
                         </div>
-                      )}
+                        </DialogContent>
+                        )}
+                      </Dialog>
                     </>
                   )}
                 </div>

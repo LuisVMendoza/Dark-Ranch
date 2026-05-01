@@ -142,6 +142,7 @@ export interface CustomerOrder {
   customerEmail: string;
   status: AdminOrder['status'];
   paymentStatus: AdminOrder['paymentStatus'];
+  trackingUrl?: string | null;
   total: number;
   createdAt: string;
   items: AdminOrderItem[];
@@ -166,6 +167,7 @@ export interface AdminOrder {
   zip: string;
   status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  trackingUrl?: string | null;
   total: number;
   createdAt: string;
   cancellationReason?: string | null;
@@ -240,6 +242,7 @@ export interface AdminUserPayload {
 export interface AdminOrderUpdatePayload {
   status: AdminOrder['status'];
   paymentStatus: AdminOrder['paymentStatus'];
+  trackingUrl?: string;
   cancellationReason?: string;
   refundAmount?: number | null;
 }
