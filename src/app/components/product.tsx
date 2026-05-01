@@ -5,6 +5,7 @@ import { useCart } from '../cart-context';
 import { Button, Badge, cn, LOGO_CIRCULAR } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { toast } from 'sonner';
+import { formatCurrencyMXN } from '../lib/currency';
 
 export const ProductCard = ({ product, onQuickView }: { product: Product, onQuickView?: (p: Product) => void }) => {
   const { addToCart } = useCart();
@@ -89,11 +90,11 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
           <div className="flex flex-col">
             {product.salePrice ? (
               <div className="flex items-center gap-3">
-                <span className="text-red-600 font-bold font-header text-2xl">${product.salePrice}</span>
-                <span className="text-neutral-400 line-through text-sm font-header">${product.price}</span>
+                <span className="text-red-600 font-bold font-header text-2xl">{formatCurrencyMXN(product.salePrice)}</span>
+                <span className="text-neutral-400 line-through text-sm font-header">{formatCurrencyMXN(product.price)}</span>
               </div>
             ) : (
-              <span className="text-black font-black font-header text-2xl">${product.price}</span>
+              <span className="text-black font-black font-header text-2xl">{formatCurrencyMXN(product.price)}</span>
             )}
           </div>
           <div className="flex items-center gap-1 bg-neutral-50 px-2 py-1 border border-neutral-100">

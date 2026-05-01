@@ -182,7 +182,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
                           <p className="font-header font-bold uppercase">{item.name}</p>
                           <p className="text-xs text-neutral-500">{item.quantity} pieza(s) · {item.selectedSize || 'Talla única'}</p>
                         </div>
-                        <p className="font-header font-black">${((item.salePrice ?? item.price) * item.quantity).toFixed(2)}</p>
+                        <p className="font-header font-black">{formatCurrencyMXN((item.salePrice ?? item.price) * item.quantity)}</p>
                       </div>
                     ))}
                   </div>
@@ -204,13 +204,13 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
                 {cart.map((item) => (
                   <div key={`${item.id}-${item.selectedSize || 'base'}-summary`} className="flex justify-between gap-4 text-sm">
                     <span>{item.name} × {item.quantity}</span>
-                    <span>${((item.salePrice ?? item.price) * item.quantity).toFixed(2)}</span>
+                    <span>{formatCurrencyMXN((item.salePrice ?? item.price) * item.quantity)}</span>
                   </div>
                 ))}
               </div>
               <div className="border-t-2 border-black pt-4 flex justify-between font-header font-black text-xl">
                 <span>Total</span>
-                <span>${cartTotal.toFixed(2)}</span>
+                <span>{formatCurrencyMXN(cartTotal)}</span>
               </div>
             </div>
           </div>

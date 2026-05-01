@@ -58,8 +58,9 @@ import {
   updateAdminUser,
 } from '../lib/api';
 import { toast } from 'sonner';
+import { formatCurrencyMXN } from '../lib/currency';
 
-const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' });
+
 const MAX_PRODUCT_IMAGES = 4;
 
 type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'documentation' | 'storefront';
@@ -1127,7 +1128,7 @@ export const AdminDashboard = ({
 
             <section className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-5 xl:grid-cols-3 gap-4">
               {[
-                { label: 'Ventas', value: currency.format(Number(snapshot.dashboard.stats.totalSales)), icon: DollarSign },
+                { label: 'Ventas', value: formatCurrencyMXN(Number(snapshot.dashboard.stats.totalSales)), icon: DollarSign },
                 { label: 'Órdenes hoy', value: String(snapshot.dashboard.stats.ordersToday), icon: ShoppingBag },
                 { label: 'Productos activos', value: String(productMetrics.activeProducts), icon: Package },
                 { label: 'Stock bajo', value: String(snapshot.dashboard.stats.lowStock), icon: AlertCircle },
@@ -1319,7 +1320,7 @@ export const AdminDashboard = ({
                             </div>
                           </td>
                           <td className="px-4 py-3">{product.category}</td>
-                          <td className="px-4 py-3">{currency.format(product.salePrice ?? product.price)}</td>
+                          <td className="px-4 py-3">{formatCurrencyMXN(product.salePrice ?? product.price)}</td>
                           <td className="px-4 py-3">{product.stock}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-2">
@@ -1456,7 +1457,7 @@ export const AdminDashboard = ({
                                   <td className="px-4 py-4">{renderBadge(formatOrderStatus(order.status), statusBadgeClassMap[order.status])}</td>
                                   <td className="px-4 py-4">{renderBadge(formatPaymentStatus(order.paymentStatus), paymentBadgeClassMap[order.paymentStatus])}</td>
                                   <td className="px-4 py-4 text-neutral-700">{new Date(order.createdAt).toLocaleString()}</td>
-                                  <td className="px-4 py-4 text-right font-header font-black">{currency.format(order.total)}</td>
+                                  <td className="px-4 py-4 text-right font-header font-black">{formatCurrencyMXN(order.total)}</td>
                                   <td className="px-4 py-4">
                                     <div className="flex flex-wrap justify-end gap-2">
                                       <Button size="sm" variant="outline" onClick={() => setSelectedOrderId(order.id)}>
@@ -1507,7 +1508,7 @@ export const AdminDashboard = ({
                                         </p>
                                       )}
                                     </div>
-                                    <span>{currency.format(item.price * item.quantity)}</span>
+                                    <span>{formatCurrencyMXN(item.price * item.quantity)}</span>
                                   </div>
                                 ))}
                               </div>
@@ -2163,11 +2164,11 @@ const ProductFormFields = ({
                   <div className="border-t border-neutral-200 pt-3">
                     {hasDiscount ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-header text-2xl font-black text-red-600">${form.salePrice}</span>
-                        <span className="text-sm text-neutral-400 line-through">${form.price}</span>
+                        <span className="font-header text-2xl font-black text-red-600">{formatCurrencyMXN(form.salePrice ?? 0)}</span>
+                        <span className="text-sm text-neutral-400 line-through">{formatCurrencyMXN(form.price)}</span>
                       </div>
                     ) : (
-                      <span className="font-header text-2xl font-black">${form.price || 0}</span>
+                      <span className="font-header text-2xl font-black">{formatCurrencyMXN(form.price || 0)}</span>
                     )}
                   </div>
                 </div>
