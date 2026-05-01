@@ -76,6 +76,12 @@ export const OrdersPage = ({
                   <p><span className="font-semibold">Pago:</span> {order.paymentStatus}</p>
                   <p><span className="font-semibold">Total:</span> ${order.total.toFixed(2)}</p>
                 </div>
+                {order.trackingUrl && (
+                  <p className="text-sm">
+                    <span className="font-semibold">Seguimiento:</span>{' '}
+                    <a className="underline" href={order.trackingUrl} target="_blank" rel="noreferrer">Ver envío</a>
+                  </p>
+                )}
                 <div className="border-t border-neutral-200 pt-3 space-y-2">
                   {order.items.map((item, index) => (
                     <div key={`${order.id}-item-${index}`} className="flex justify-between gap-4 text-sm">
