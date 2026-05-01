@@ -43,7 +43,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
           <ImageWithFallback 
             src={LOGO_HORIZONTAL} 
             alt="Dark Ranch Logo" 
-            className="h-10 md:h-12 w-auto object-contain brightness-0 invert"
+            className="h-10 md:h-12 w-auto object-contain"
           />
         </button>
 
@@ -95,7 +95,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
             className="lg:hidden fixed inset-0 top-0 h-screen bg-black text-white p-8 z-[100] flex flex-col"
           >
             <div className="flex justify-between items-center mb-16">
-              <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 invert" />
+              <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 w-auto object-contain" />
               <button onClick={() => setIsMobileMenuOpen(false)}><X size={32} /></button>
             </div>
             <div className="space-y-8">
