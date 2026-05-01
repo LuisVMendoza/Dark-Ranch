@@ -126,10 +126,10 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
   );
 };
 
-export const Footer = ({ onNavigate }: { onNavigate: (view: string) => void }) => (
+export const Footer = () => (
   <footer className="bg-black text-white pt-20 pb-10">
     <div className="container mx-auto px-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
         <div className="space-y-6">
           <ImageWithFallback src={LOGO_HORIZONTAL} alt="Dark Ranch" className="h-12 w-auto invert" />
           <p className="text-neutral-400 text-sm leading-relaxed">
@@ -157,26 +157,6 @@ export const Footer = ({ onNavigate }: { onNavigate: (view: string) => void }) =
         </div>
         
         <div>
-          <h4 className="font-header uppercase tracking-widest text-lg mb-6">Navegación</h4>
-          <ul className="space-y-4 text-neutral-400 text-sm">
-            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Tienda</button></li>
-            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Categorías</button></li>
-            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Nuevas Llegadas</button></li>
-            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Ofertas</button></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="font-header uppercase tracking-widest text-lg mb-6">Soporte</h4>
-          <ul className="space-y-4 text-neutral-400 text-sm">
-            <li><button onClick={() => onNavigate('policies')} className="hover:text-white transition-colors">Envíos y Devoluciones</button></li>
-            <li><button onClick={() => onNavigate('shop')} className="hover:text-white transition-colors">Guía de Tallas</button></li>
-            <li><button onClick={() => onNavigate('policies')} className="hover:text-white transition-colors">Preguntas Frecuentes</button></li>
-            <li><button onClick={() => onNavigate('contact')} className="hover:text-white transition-colors">Contacto</button></li>
-          </ul>
-        </div>
-
-        <div>
           <h4 className="font-header uppercase tracking-widest text-lg mb-6">Boletín</h4>
           <p className="text-neutral-400 text-sm mb-4">Únete a la ranchería y recibe ofertas exclusivas.</p>
           <div className="flex">
@@ -192,10 +172,6 @@ export const Footer = ({ onNavigate }: { onNavigate: (view: string) => void }) =
       
       <div className="border-t border-neutral-800 pt-8 flex flex-col md:flex-row items-center md:items-start justify-between gap-4 text-[10px] sm:text-xs text-neutral-500 uppercase tracking-[0.12em] sm:tracking-widest font-typewriter text-center md:text-left">
         <p>&copy; 2026 DARK RANCH CO. FORJADO EN EL DESIERTO. TODOS LOS DERECHOS RESERVADOS.</p>
-        <div className="flex space-x-6">
-          <button onClick={() => onNavigate('privacy')} className="hover:text-white transition-colors underline underline-offset-4">Privacidad</button>
-          <button onClick={() => onNavigate('terms')} className="hover:text-white transition-colors underline underline-offset-4">Términos del Servicio</button>
-        </div>
       </div>
     </div>
   </footer>

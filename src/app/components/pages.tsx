@@ -142,3 +142,85 @@ export const TermsPage = () => (
     </div>
   </div>
 );
+
+export const LegalAgreementPage = () => (
+  <div className="pt-8 pb-4 bg-[#fcf9f5]">
+    <div className="container mx-auto px-6 max-w-5xl space-y-8">
+      <SectionTitle subtitle="Privacidad y Términos">Acuerdo de Uso de Dark Ranch</SectionTitle>
+      <PaperCard className="space-y-6 text-neutral-700">
+        <p className="text-sm uppercase tracking-[0.2em] font-header font-black text-[#C4A484]">Última actualización: mayo 2026</p>
+        <p>
+          Este documento unifica nuestro <strong>Aviso de Privacidad</strong> y los <strong>Términos del Servicio</strong>. Al aceptar este acuerdo
+          y continuar navegando en Dark Ranch, confirmas que leíste, entendiste y aceptaste estas condiciones para comprar, navegar o crear una cuenta.
+        </p>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">1) Datos que recopilamos</h3>
+          <p>Podemos solicitar nombre completo, correo electrónico, teléfono, dirección de envío, datos de facturación e historial de compras.</p>
+          <p>También recopilamos información técnica básica como IP, tipo de navegador, sistema operativo y eventos de navegación dentro de la tienda.</p>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">2) Cómo usamos tu información</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Procesar pedidos, pagos, envíos, cambios y devoluciones.</li>
+            <li>Atender soporte al cliente y dar seguimiento a incidencias.</li>
+            <li>Mejorar la experiencia de compra, catálogo y rendimiento del sitio.</li>
+            <li>Prevenir fraude, abuso de promociones y accesos no autorizados.</li>
+            <li>Cumplir obligaciones legales, fiscales y administrativas.</li>
+          </ul>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">3) Compartición de datos</h3>
+          <p>
+            No vendemos tus datos personales. Solo compartimos información estrictamente necesaria con pasarelas de pago, paqueterías, proveedores
+            tecnológicos y autoridades cuando existe una obligación legal.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">4) Conservación y seguridad</h3>
+          <p>
+            Mantenemos medidas administrativas y técnicas razonables para proteger tus datos. Conservamos la información por el tiempo necesario
+            para cumplir la relación comercial y obligaciones legales aplicables.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">5) Derechos del usuario</h3>
+          <p>
+            Puedes solicitar acceso, corrección, actualización o eliminación de tus datos. También puedes solicitar limitar ciertos usos, sujeto a
+            requisitos legales. Escríbenos a <strong>privacidad@darkranch.com</strong>.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">6) Condiciones de compra y uso</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Los precios y promociones pueden cambiar sin previo aviso.</li>
+            <li>La disponibilidad de inventario está sujeta a existencias reales.</li>
+            <li>El uso fraudulento del sitio puede provocar cancelación de pedidos y bloqueo de cuenta.</li>
+            <li>Para devoluciones aplican las políticas publicadas y el estado del producto recibido.</li>
+          </ul>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">7) Cambios al acuerdo</h3>
+          <p>
+            Podemos actualizar este acuerdo por cambios legales, operativos o comerciales. Cuando existan cambios relevantes, publicaremos la nueva
+            versión en el sitio con su fecha de actualización.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-western text-2xl">8) Contacto legal</h3>
+          <p>
+            Para dudas sobre privacidad, tratamiento de datos o términos del servicio, contáctanos en <strong>privacidad@darkranch.com</strong> o
+            <strong> legal@darkranch.com</strong>.
+          </p>
+        </div>
+      </PaperCard>
+    </div>
+  </div>
+);
