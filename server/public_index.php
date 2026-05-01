@@ -2090,9 +2090,9 @@ function create_mercado_pago_preference(array $payload): array
         ],
         'external_reference' => $orderRef,
         'back_urls' => [
-            'success' => $baseUrl . '/checkout?payment_status=approved',
-            'failure' => $baseUrl . '/checkout?payment_status=rejected',
-            'pending' => $baseUrl . '/checkout?payment_status=pending',
+            'success' => $baseUrl . '/?checkout=1&payment_status=approved',
+            'failure' => $baseUrl . '/?checkout=1&payment_status=rejected',
+            'pending' => $baseUrl . '/?checkout=1&payment_status=pending',
         ],
         'auto_return' => 'approved',
     ];
