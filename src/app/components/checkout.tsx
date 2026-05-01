@@ -82,10 +82,10 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
 
     const scriptId = 'mercadopago-sdk-v2';
     const mountWallet = () => {
-      const mpFactory = (window as typeof window & { MercadoPago?: (key: string) => { bricks: () => { create: (type: string, container: string, config: unknown) => Promise<unknown> } } }).MercadoPago;
+      const mpFactory = (window as typeof window & { MercadoPago?: new (key: string) => { bricks: () => { create: (type: string, container: string, config: unknown) => Promise<unknown> } } }).MercadoPago;
       if (!mpFactory) return;
 
-      const mp = mpFactory('APP_USR-08c44ad7-517a-40be-954b-c3991cec2e19');
+      const mp = new mpFactory('APP_USR-08c44ad7-517a-40be-954b-c3991cec2e19');
       const bricksBuilder = mp.bricks();
       void bricksBuilder.create('wallet', 'walletBrick_container', {
         initialization: { preferenceId },
