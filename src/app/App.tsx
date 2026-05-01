@@ -20,6 +20,7 @@ import { OrdersPage } from './components/orders';
 type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
 const HARDCODED_ABOUT_TEXT = 'Dark Ranch nació en el corazón del desierto de Sonora, donde la necesidad de ropa resistente se encontró con la elegancia del viejo oeste.';
 const HARDCODED_CONTACT_EMAIL = 'contacto@darkranch.com';
+const LEGAL_ACCEPTANCE_KEY = 'dark-ranch-legal-accepted-v2';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -59,7 +60,7 @@ const App = () => {
   };
 
   useEffect(() => {
-    const acceptedLegal = localStorage.getItem('dark-ranch-legal-accepted') === 'true';
+    const acceptedLegal = localStorage.getItem(LEGAL_ACCEPTANCE_KEY) === 'true';
     setHasAcceptedLegal(acceptedLegal);
   }, []);
 
@@ -443,7 +444,7 @@ const App = () => {
                   <Button
                     variant="secondary"
                     onClick={() => {
-                      localStorage.setItem('dark-ranch-legal-accepted', 'true');
+                      localStorage.setItem(LEGAL_ACCEPTANCE_KEY, 'true');
                       setHasAcceptedLegal(true);
                       toast.success('Gracias. Has aceptado el acuerdo de privacidad y términos.');
                     }}
