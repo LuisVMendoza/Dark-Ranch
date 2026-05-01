@@ -49,6 +49,18 @@ function buildRequestError(path: string, method: string, status: number, payload
   return new Error(message);
 }
 
+
+function getCsrfToken(): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(/(?:^|; )csrf_token=([a-f0-9]{64})/i);
+  return match?.[1] ?? '';
+}
+
+function buildSecurityHeaders(): HeadersInit {
+  const token = getCsrfToken();
+  return token ? { 'X-CSRF-Token': token } : {};
+}
+
 function getAdminHeaders(): HeadersInit {
   if (typeof window === 'undefined') {
     return {};
@@ -77,10 +89,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
       'Content-Type': 'application/json',
+      ...buildSecurityHeaders(),
       ...getAdminHeaders(),
       ...(init?.headers || {}),
     },
     ...init,
+    credentials: 'same-origin',
   });
 
   const raw = await response.text();
@@ -99,9 +113,11 @@ async function requestFormData<T>(path: string, formData: FormData): Promise<T> 
   const response = await fetch(path, {
     method,
     headers: {
+      ...buildSecurityHeaders(),
       ...getAdminHeaders(),
     },
     body: formData,
+    credentials: 'same-origin',
   });
 
   const raw = await response.text();
