@@ -4,6 +4,7 @@ import { useCart } from '../cart-context';
 import { Button, cn } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { motion as Motion, AnimatePresence } from 'motion/react';
+import { formatCurrencyMXN } from '../lib/currency';
 
 export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, onClose: () => void, onCheckout: () => void }) => {
   const { cart, removeFromCart, updateQuantity, updateItemSize } = useCart();

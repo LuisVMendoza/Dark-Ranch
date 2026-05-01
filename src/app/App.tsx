@@ -95,6 +95,15 @@ const App = () => {
   }, []);
 
 
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hasMpReturn = params.has('payment_status') || params.has('status') || params.get('checkout') === '1';
+    if (hasMpReturn) {
+      setCurrentView('checkout');
+    }
+  }, []);
+
   const filteredProducts = useMemo(() => {
     if (!bootstrap) return [];
     return bootstrap.products.filter((product) => {
