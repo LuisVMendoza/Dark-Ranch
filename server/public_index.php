@@ -4,13 +4,56 @@ declare(strict_types=1);
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role');
+header('Access-Control-Allow-Headers: Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role, X-CSRF-Token');
+
+set_security_headers();
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
 
+
+function set_security_headers(): void
+{
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: geolocation=(), camera=(), microphone=()');
+    header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+}
+
+function ensure_csrf_cookie(): string
+{
+    $cookieName = 'csrf_token';
+    $token = (string) ($_COOKIE[$cookieName] ?? '');
+    if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
+        $token = bin2hex(random_bytes(32));
+        setcookie($cookieName, $token, [
+            'expires' => time() + 7200,
+            'path' => '/',
+            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE[$cookieName] = $token;
+    }
+
+    return $token;
+}
+
+function enforce_csrf_protection(string $method): void
+{
+    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        return;
+    }
+
+    $cookieToken = ensure_csrf_cookie();
+    $headerToken = trim((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+    if ($headerToken === '' || !hash_equals($cookieToken, $headerToken)) {
+        json_response(403, ['message' => 'CSRF token inválido.']);
+    }
+}
 function base_path(string $path = ''): string
 {
     $base = dirname(__DIR__);
@@ -2208,6 +2251,8 @@ HTML;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+ensure_csrf_cookie();
+enforce_csrf_protection($method);
 
 try {
     if ($method === 'GET' && $path === '/api/docs') {
@@ -2434,5 +2479,9 @@ try {
 } catch (Throwable $exception) {
     $status = expected_runtime_status($exception) ?? 500;
     $message = $status === 500 ? 'Error interno del servidor' : $exception->getMessage();
-    json_response($status, ['message' => $message, 'detail' => $exception->getMessage()]);
+    $payload = ['message' => $message];
+    if ($status !== 500) {
+        $payload['detail'] = $exception->getMessage();
+    }
+    json_response($status, $payload);
 }
