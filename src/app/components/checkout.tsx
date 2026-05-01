@@ -104,34 +104,38 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
     document.body.appendChild(script);
   }, [preferenceId]);
 
+  React.useEffect(() => {
+    if (step !== 3 || preferenceId || isRedirectingToMp || !cart.length) return;
+
+    const initMercadoPago = async () => {
+      setIsRedirectingToMp(true);
+      try {
+        const payload = buildCheckoutPayload();
+        window.sessionStorage.setItem(checkoutStorageKey, JSON.stringify(payload));
+        const response = await createMercadoPagoPreference(payload);
+        setPreferenceId(response.preferenceId || null);
+        if (!response.preferenceId) {
+          window.location.href = response.sandboxInitPoint || response.initPoint;
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo iniciar Mercado Pago');
+      } finally {
+        setIsRedirectingToMp(false);
+      }
+    };
+
+    void initMercadoPago();
+  }, [cart.length, isRedirectingToMp, preferenceId, step]);
+
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (step < 3) {
+    if (step < 2) {
       setStep(step + 1);
       return;
     }
 
-    if (!cart.length) {
-      toast.error('Tu carrito está vacío');
-      return;
-    }
-
-    setIsRedirectingToMp(true);
-    try {
-      const payload = buildCheckoutPayload();
-      window.sessionStorage.setItem(checkoutStorageKey, JSON.stringify(payload));
-      const response = await createMercadoPagoPreference(payload);
-      setPreferenceId(response.preferenceId || null);
-      if (!response.preferenceId) {
-        window.location.href = response.sandboxInitPoint || response.initPoint;
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo iniciar Mercado Pago');
-      setIsRedirectingToMp(false);
-    } finally {
-      setIsRedirectingToMp(false);
-    }
+    setStep(3);
   };
 
   if (step === 4) {
@@ -169,7 +173,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
                     'font-header uppercase text-xs tracking-widest hidden md:block',
                     step === s ? 'text-black font-bold' : 'text-neutral-400'
                   )}>
-                    {s === 1 ? 'Envío' : s === 2 ? 'Pago' : 'Resumen'}
+                    {s === 1 ? 'Envío' : s === 2 ? 'Resumen' : 'Pago'}
                   </span>
                   {s < 3 && <div className="w-12 h-px bg-neutral-300 mx-2"></div>}
                 </div>
@@ -215,17 +219,6 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
 
               {step === 2 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                  <h2 className="text-2xl font-header font-black uppercase tracking-tight flex items-center gap-2">
-                    <CreditCard size={24} /> Mercado Pago Checkout Pro
-                  </h2>
-                  <div className="bg-neutral-100 p-4 border-l-4 border-black mb-6">
-                    <p className="text-xs text-neutral-600 font-medium">Serás redirigido a Mercado Pago (sandbox de México) para completar el pago seguro.</p>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                   <h2 className="text-2xl font-header font-black uppercase tracking-tight">Resumen del Pedido</h2>
                   <div className="bg-white border-2 border-black p-6 space-y-4">
                     {cart.map((item) => (
@@ -241,18 +234,32 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
                 </div>
               )}
 
-              {step === 3 && preferenceId && (
-                <div className="bg-white border-2 border-black p-4">
-                  <p className="text-xs font-header uppercase font-bold tracking-widest mb-3">Finaliza tu pago en Mercado Pago</p>
-                  <div id="walletBrick_container"></div>
+              {step === 3 && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                  <h2 className="text-2xl font-header font-black uppercase tracking-tight flex items-center gap-2">
+                    <CreditCard size={24} /> Mercado Pago Checkout Pro
+                  </h2>
+                  <div className="bg-neutral-100 p-4 border-l-4 border-black mb-6">
+                    <p className="text-xs text-neutral-600 font-medium">Serás redirigido a Mercado Pago (sandbox de México) para completar el pago seguro.</p>
+                  </div>
+                  <div className="bg-white border-2 border-black p-4">
+                    <p className="text-xs font-header uppercase font-bold tracking-widest mb-3">Finaliza tu pago en Mercado Pago</p>
+                    {isRedirectingToMp && !preferenceId ? (
+                      <p className="text-sm text-neutral-600">Cargando botón de Mercado Pago...</p>
+                    ) : (
+                      <div id="walletBrick_container"></div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              <div className="flex justify-end">
-                <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting || isRedirectingToMp}>
-                  {step < 3 ? 'Continuar' : isRedirectingToMp ? 'Redirigiendo a Mercado Pago...' : 'Pagar con Mercado Pago'}
-                </Button>
-              </div>
+              {step < 3 && (
+                <div className="flex justify-end">
+                  <Button type="submit" size="lg" className="min-w-56" disabled={isSubmitting || isRedirectingToMp}>
+                    Continuar
+                  </Button>
+                </div>
+              )}
             </form>
           </div>
 
