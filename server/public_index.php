@@ -414,6 +414,7 @@ function product_to_client(array $product): array
             $product['images']
         )),
         'sizes' => array_values($product['sizes']),
+        'sizeStock' => is_array($product['sizeStock'] ?? null) ? $product['sizeStock'] : new stdClass(),
         'colors' => array_values($product['colors']),
         'tags' => array_values($product['tags']),
         'stock' => (int) $product['stock'],
@@ -636,6 +637,7 @@ function format_product_row(array $row): array
         'categoryId' => $row['category_id'],
         'images' => json_decode($row['images_json'] ?? '[]', true) ?: [],
         'sizes' => json_decode($row['sizes_json'] ?? '[]', true) ?: [],
+        'sizeStock' => json_decode($row['size_stock_json'] ?? '{}', true) ?: [],
         'colors' => json_decode($row['colors_json'] ?? '[]', true) ?: [],
         'tags' => json_decode($row['tags_json'] ?? '[]', true) ?: [],
         'stock' => (int) $row['stock'],
@@ -711,6 +713,7 @@ function get_admin_products(bool $includeInactive = true): array
             'categoryId' => $categoriesByName[$product['category']] ?? ($product['categoryId'] ?? ''),
             'images' => $product['images'] ?? [],
             'sizes' => $product['sizes'] ?? [],
+            'sizeStock' => is_array($product['sizeStock'] ?? null) ? $product['sizeStock'] : [],
             'colors' => $product['colors'] ?? [],
             'tags' => $product['tags'] ?? [],
             'stock' => (int) ($product['stock'] ?? 0),
@@ -1276,6 +1279,7 @@ function product_payload_to_record(array $payload, ?string $existingId = null): 
         'category' => $category['name'],
         'images' => normalize_list($payload['images'] ?? []),
         'sizes' => normalize_list($payload['sizes'] ?? []),
+        'sizeStock' => array_filter((array) ($payload['sizeStock'] ?? []), static fn ($value): bool => is_numeric($value) && (int) $value >= 0),
         'colors' => normalize_list($payload['colors'] ?? []),
         'tags' => normalize_list($payload['tags'] ?? []),
         'stock' => max((int) ($payload['stock'] ?? 0), 0),
@@ -1300,7 +1304,7 @@ function create_admin_product(array $payload): array
 
         $statement = $pdo->prepare(
             'INSERT INTO products (id, name, slug, description, price, sale_price, category_id, images_json, sizes_json, colors_json, tags_json, stock, is_new, is_featured, is_active, created_at)
-             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at)'
+             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :size_stock_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at)'
         );
         $statement->execute([
             'id' => $record['id'],
@@ -1312,6 +1316,7 @@ function create_admin_product(array $payload): array
             'category_id' => $record['categoryId'],
             'images_json' => json_encode($record['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'sizes_json' => json_encode($record['sizes'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'size_stock_json' => json_encode($record['sizeStock'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'colors_json' => json_encode($record['colors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'tags_json' => json_encode($record['tags'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'stock' => $record['stock'],
@@ -1341,6 +1346,7 @@ function create_admin_product(array $payload): array
         'category' => $record['category'],
         'images' => $record['images'],
         'sizes' => $record['sizes'],
+        'sizeStock' => $record['sizeStock'],
         'colors' => $record['colors'],
         'tags' => $record['tags'],
         'stock' => $record['stock'],
@@ -1379,6 +1385,7 @@ function update_admin_product(string $id, array $payload): array
             'UPDATE products
              SET name = :name, slug = :slug, description = :description, price = :price, sale_price = :sale_price, category_id = :category_id,
                  images_json = :images_json, sizes_json = :sizes_json, colors_json = :colors_json, tags_json = :tags_json,
+                 size_stock_json = :size_stock_json,
                  stock = :stock, is_new = :is_new, is_featured = :is_featured, is_active = :is_active
              WHERE id = :id'
         );
@@ -1392,6 +1399,7 @@ function update_admin_product(string $id, array $payload): array
             'category_id' => $record['categoryId'],
             'images_json' => json_encode($record['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'sizes_json' => json_encode($record['sizes'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'size_stock_json' => json_encode($record['sizeStock'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'colors_json' => json_encode($record['colors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'tags_json' => json_encode($record['tags'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'stock' => $record['stock'],
@@ -1427,6 +1435,7 @@ function update_admin_product(string $id, array $payload): array
                 'category' => $record['category'],
                 'images' => $record['images'],
                 'sizes' => $record['sizes'],
+                'sizeStock' => $record['sizeStock'],
                 'colors' => $record['colors'],
                 'tags' => $record['tags'],
                 'stock' => $record['stock'],
@@ -1916,6 +1925,8 @@ function create_order(array $payload): array
 
             $insertItem = $pdo->prepare('INSERT INTO order_items (order_id, product_id, product_name, price, quantity, selected_size, selected_color) VALUES (:order_id, :product_id, :product_name, :price, :quantity, :selected_size, :selected_color)');
             $updateStock = $pdo->prepare('UPDATE products SET stock = GREATEST(stock - :quantity, 0), updated_at = CURRENT_TIMESTAMP WHERE id = :product_id');
+            $selectSizeStock = $pdo->prepare('SELECT size_stock_json FROM products WHERE id = :product_id LIMIT 1');
+            $updateSizeStock = $pdo->prepare('UPDATE products SET size_stock_json = :size_stock_json, is_active = :is_active WHERE id = :product_id');
 
             foreach ($items as $item) {
                 $insertItem->execute([
@@ -1931,6 +1942,17 @@ function create_order(array $payload): array
                     'quantity' => (int) $item['quantity'],
                     'product_id' => $item['id'],
                 ]);
+                $selectedSize = trim((string) ($item['selectedSize'] ?? ''));
+                if ($selectedSize !== '') {
+                    $selectSizeStock->execute(['product_id' => $item['id']]);
+                    $row = $selectSizeStock->fetch();
+                    $sizeStock = $row ? (json_decode((string) ($row['size_stock_json'] ?? '{}'), true) ?: []) : [];
+                    if (array_key_exists($selectedSize, $sizeStock)) {
+                        $sizeStock[$selectedSize] = max(((int) $sizeStock[$selectedSize]) - (int) $item['quantity'], 0);
+                        $hasAny = array_sum(array_map(static fn ($qty): int => max((int) $qty, 0), $sizeStock)) > 0;
+                        $updateSizeStock->execute(['size_stock_json' => json_encode($sizeStock, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'is_active' => $hasAny ? 1 : 0, 'product_id' => $item['id']]);
+                    }
+                }
             }
 
             $pdo->commit();
@@ -1978,6 +2000,14 @@ function create_order(array $payload): array
         foreach ($store['products'] as &$product) {
             if (($product['id'] ?? '') === ($item['id'] ?? '')) {
                 $product['stock'] = max((int) $product['stock'] - (int) $item['quantity'], 0);
+                $selectedSize = trim((string) ($item['selectedSize'] ?? ''));
+                if ($selectedSize !== '' && isset($product['sizeStock'][$selectedSize])) {
+                    $product['sizeStock'][$selectedSize] = max((int) $product['sizeStock'][$selectedSize] - (int) $item['quantity'], 0);
+                    $sizeTotal = array_sum(array_map(static fn ($qty): int => max((int) $qty, 0), (array) ($product['sizeStock'] ?? [])));
+                    if ($sizeTotal <= 0) {
+                        $product['isActive'] = false;
+                    }
+                }
             }
         }
         unset($product);
