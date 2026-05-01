@@ -85,6 +85,7 @@ const EMPTY_PRODUCT: AdminProductPayload = {
   categoryId: '',
   images: [],
   sizes: ['CH', 'M', 'G'],
+  sizeStock: {},
   colors: ['Negro', 'Café'],
   tags: ['western', 'cuero'],
   stock: 0,
@@ -343,6 +344,7 @@ export const AdminDashboard = ({
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
 
   const [productForm, setProductForm] = useState<AdminProductPayload>(EMPTY_PRODUCT);
+  const [ordersDateMode, setOrdersDateMode] = useState<'all' | 'month' | 'day'>('all');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
@@ -599,6 +601,17 @@ export const AdminDashboard = ({
     () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? null,
     [selectedOrderId, snapshot.orders],
   );
+  const filteredOrders = useMemo(() => {
+    if (ordersDateMode === 'all') return snapshot.orders;
+    const now = new Date();
+    return snapshot.orders.filter((order) => {
+      const date = new Date(order.createdAt);
+      if (ordersDateMode === 'month') {
+        return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+      }
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+    });
+  }, [ordersDateMode, snapshot.orders]);
 
   useEffect(() => {
     setActivityPage(1);
@@ -637,6 +650,7 @@ export const AdminDashboard = ({
       categoryId: product.categoryId || snapshot.categories.find((category) => category.name === product.category)?.id || '',
       images: product.images.length ? product.images : [''],
       sizes: product.sizes,
+      sizeStock: product.sizeStock ?? {},
       colors: product.colors,
       tags: product.tags,
       stock: product.stock,
@@ -1353,17 +1367,24 @@ export const AdminDashboard = ({
                   </div>
                   <div className="text-right">
                     <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500">Órdenes registradas</p>
-                    <p className="font-header font-black text-2xl">{snapshot.orders.length}</p>
+                    <p className="font-header font-black text-2xl">{filteredOrders.length}</p>
                   </div>
                 </div>
                 <div className="space-y-5">
-                  {snapshot.orders.length === 0 ? (
+                  {filteredOrders.length === 0 ? (
                     <div className="border-2 border-dashed border-black bg-white p-8 text-center">
                       <p className="font-header font-black uppercase text-lg">Sin órdenes registradas</p>
                       <p className="mt-2 text-sm text-neutral-600">Cuando se generen compras aparecerán aquí para seguimiento y postventa.</p>
                     </div>
                   ) : (
                     <>
+                      <div className="flex justify-end">
+                        <select value={ordersDateMode} onChange={(e) => setOrdersDateMode(e.target.value as 'all' | 'month' | 'day')} className={INPUT_CLASS}>
+                          <option value="all">Todas</option>
+                          <option value="month">Mes actual</option>
+                          <option value="day">Día actual</option>
+                        </select>
+                      </div>
                       <div className="overflow-hidden border-2 border-black bg-white">
                         <div className="overflow-x-auto">
                           <table className="min-w-full text-sm">
@@ -1379,7 +1400,7 @@ export const AdminDashboard = ({
                               </tr>
                             </thead>
                             <tbody>
-                              {snapshot.orders.map((order) => (
+                              {filteredOrders.map((order) => (
                                 <tr
                                   key={order.id}
                                   className={cn(
@@ -2192,6 +2213,23 @@ const ProductFormFields = ({
                 existingOptions={existingAttributeOptions.colors}
                 onChange={(colors) => onChange((current) => ({ ...current, colors }))}
               />
+            </div>
+            <div className="mt-2 space-y-2">
+              <p className="font-header uppercase text-xs tracking-[0.18em] text-neutral-500">Límite por talla</p>
+              <p className="text-xs text-neutral-600">Si una talla llega a 0 se desactiva automáticamente en checkout.</p>
+              <div className="grid gap-2 md:grid-cols-3">
+                {form.sizes.map((size) => (
+                  <Field key={size} label={`Talla ${size}`}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.sizeStock?.[size] ?? 0}
+                      onChange={(e) => onChange((current) => ({ ...current, sizeStock: { ...(current.sizeStock || {}), [size]: Math.max(0, Number(e.target.value)) } }))}
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                ))}
+              </div>
             </div>
           </section>
 

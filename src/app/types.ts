@@ -9,6 +9,7 @@ export interface Product {
   categoryId?: string;
   images: string[];
   sizes: string[];
+  sizeStock?: Record<string, number>;
   colors: string[];
   stock: number;
   tags: string[];
@@ -217,6 +218,7 @@ export interface AdminProductPayload {
   categoryId: string;
   images: string[];
   sizes: string[];
+  sizeStock?: Record<string, number>;
   colors: string[];
   tags: string[];
   stock: number;
