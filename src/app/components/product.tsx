@@ -83,9 +83,6 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
         <h3 className="font-western text-xl uppercase tracking-tight mb-4 min-h-[3rem] line-clamp-2">
           {product.name}
         </h3>
-        <p className="text-xs text-neutral-500 uppercase tracking-[0.12em] mb-4 line-clamp-2">
-          Tallas disponibles: {product.sizes.length ? product.sizes.join(' · ') : 'Única'}
-        </p>
         <div className="flex items-center justify-between border-t border-neutral-100 pt-4">
           <div className="flex flex-col">
             {product.salePrice ? (
