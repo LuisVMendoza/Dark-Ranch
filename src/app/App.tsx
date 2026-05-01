@@ -207,15 +207,15 @@ const App = () => {
                   transition={{ duration: 1, delay: 0.2 }}
                   className="max-w-4xl"
                 >
-                  <p className="text-[#C4A484] font-header text-xl md:text-2xl uppercase tracking-[0.4em] font-black mb-6 flex items-center gap-4">
+                  <p className="text-[#C4A484] font-header text-sm sm:text-base md:text-2xl uppercase tracking-[0.25em] md:tracking-[0.4em] font-black mb-6 flex items-center gap-3 md:gap-4">
                     <span className="h-px w-12 bg-[#C4A484]"></span> {storeSettings.hero.subtitle}
                   </p>
-                  <h1 className="text-6xl md:text-8xl lg:text-[10rem] font-western text-white uppercase leading-[0.8] tracking-tighter mb-10 drop-shadow-2xl">
+                  <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-[10rem] font-western text-white uppercase leading-[0.9] md:leading-[0.8] tracking-tight md:tracking-tighter mb-8 md:mb-10 drop-shadow-2xl">
                     {storeSettings.hero.title.split('.').map((part, index) => (
                       <span key={`${part}-${index}`} className="block">{part}{index === 0 ? '.' : ''}</span>
                     ))}
                   </h1>
-                  <div className="flex flex-col sm:row items-center gap-6">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6">
                     <Button size="lg" variant="secondary" className="w-full sm:w-auto text-xl px-12" onClick={() => setCurrentView('shop')}>
                       Ir al Taller
                     </Button>
@@ -254,7 +254,7 @@ const App = () => {
                     Explorar el Arsenal <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform" />
                   </button>
                 </div>
-                <div className="grid grid-cols-1 sm:row-2 lg:grid-cols-4 gap-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
                   {featuredProducts.map((product) => (
                     <ProductCard key={product.id} product={product} onQuickView={navigateToProduct} />
                   ))}

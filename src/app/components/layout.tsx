@@ -105,7 +105,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
                 <button 
                   key={link.name} 
                   onClick={() => { onNavigate(link.view); setIsMobileMenuOpen(false); }}
-                  className="block text-4xl font-western uppercase tracking-tighter hover:text-[#C4A484] text-left w-full"
+                  className="block text-2xl sm:text-4xl font-western uppercase tracking-tight sm:tracking-tighter hover:text-[#C4A484] text-left w-full break-words"
                 >
                   {link.name}
                 </button>
@@ -190,7 +190,7 @@ export const Footer = ({ onNavigate }: { onNavigate: (view: string) => void }) =
         </div>
       </div>
       
-      <div className="border-t border-neutral-800 pt-8 flex flex-col md:row items-center justify-between space-y-4 md:space-y-0 text-xs text-neutral-500 uppercase tracking-widest font-typewriter">
+      <div className="border-t border-neutral-800 pt-8 flex flex-col md:flex-row items-center md:items-start justify-between gap-4 text-[10px] sm:text-xs text-neutral-500 uppercase tracking-[0.12em] sm:tracking-widest font-typewriter text-center md:text-left">
         <p>&copy; 2026 DARK RANCH CO. FORJADO EN EL DESIERTO. TODOS LOS DERECHOS RESERVADOS.</p>
         <div className="flex space-x-6">
           <button onClick={() => onNavigate('privacy')} className="hover:text-white transition-colors underline underline-offset-4">Privacidad</button>

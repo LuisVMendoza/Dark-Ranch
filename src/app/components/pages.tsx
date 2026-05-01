@@ -66,7 +66,7 @@ export const ContactPage = ({ email }: { email: string }) => (
           </div>
           <div className="md:col-span-2">
             <PaperCard>
-              <form className="grid grid-cols-1 sm:row-2 gap-6">
+              <form className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-header uppercase font-bold">Nombre Completo</label>
                   <input className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]" placeholder="John Marston" />
