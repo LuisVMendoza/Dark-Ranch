@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CustomerOrder, CustomerSession } from '../types';
 import { Button } from './ui';
+import { formatCurrencyMXN } from '../lib/currency';
 import { getMyOrders } from '../lib/api';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
@@ -74,7 +75,7 @@ export const OrdersPage = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                   <p><span className="font-semibold">Estado:</span> {order.status}</p>
                   <p><span className="font-semibold">Pago:</span> {order.paymentStatus}</p>
-                  <p><span className="font-semibold">Total:</span> ${order.total.toFixed(2)}</p>
+                  <p><span className="font-semibold">Total:</span> {formatCurrencyMXN(order.total)}</p>
                 </div>
                 {order.trackingUrl && (
                   <p className="text-sm">
@@ -86,7 +87,7 @@ export const OrdersPage = ({
                   {order.items.map((item, index) => (
                     <div key={`${order.id}-item-${index}`} className="flex justify-between gap-4 text-sm">
                       <span>{item.productName} × {item.quantity}</span>
-                      <span>${(item.price * item.quantity).toFixed(2)}</span>
+                      <span>{formatCurrencyMXN(item.price * item.quantity)}</span>
                     </div>
                   ))}
                 </div>

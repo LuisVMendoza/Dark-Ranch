@@ -102,7 +102,7 @@ export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, o
                             <Plus size={12} />
                           </button>
                         </div>
-                        <p className="font-header font-bold">${((item.salePrice ?? item.price) * item.quantity).toFixed(2)}</p>
+                        <p className="font-header font-bold">{formatCurrencyMXN((item.salePrice ?? item.price) * item.quantity)}</p>
                       </div>
                     </div>
                   </div>
@@ -114,7 +114,7 @@ export const CartDrawer = ({ isOpen, onClose, onCheckout }: { isOpen: boolean, o
               <div className="p-6 border-t bg-neutral-50 space-y-4">
                 <div className="flex justify-between items-center text-lg font-header uppercase font-bold">
                   <span>Subtotal</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>{formatCurrencyMXN(cartTotal)}</span>
                 </div>
                 <p className="text-[10px] text-neutral-500 uppercase tracking-widest text-center">Impuestos y envío calculados al finalizar</p>
                 <Button 

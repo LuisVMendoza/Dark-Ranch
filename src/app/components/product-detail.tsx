@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, ImagePlus, MessageSquare, Shoppin
 import { Product, ProductComment, CustomerSession } from '../types';
 import { Button } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
+import { formatCurrencyMXN } from '../lib/currency';
 import { createProductComment, deleteProductComment, getProductComments } from '../lib/api';
 import { toast } from 'sonner';
 import { useCart } from '../cart-context';
@@ -189,8 +190,8 @@ export const ProductDetailPage = ({
             <p className="text-neutral-700 leading-relaxed">{product.description}</p>
             <div className="bg-white border-2 border-black p-6 space-y-2">
               <p className="font-header uppercase text-xs tracking-[0.2em]">Precio</p>
-              <p className="font-header text-4xl font-black">${(product.salePrice ?? product.price).toFixed(2)}</p>
-              {product.salePrice && <p className="text-neutral-500 line-through">Precio normal: ${product.price.toFixed(2)}</p>}
+              <p className="font-header text-4xl font-black">{formatCurrencyMXN(product.salePrice ?? product.price)}</p>
+              {product.salePrice && <p className="text-neutral-500 line-through">Precio normal: {formatCurrencyMXN(product.price)}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="bg-white border border-black p-4">
