@@ -160,6 +160,18 @@ export function saveStoreSettings(settings: StoreSettings) {
   });
 }
 
+
+export function createMercadoPagoPreference(payload: CheckoutPayload) {
+  return request<{
+    preferenceId: string;
+    initPoint: string;
+    sandboxInitPoint?: string;
+  }>('/api/payments/mercadopago/preference', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createOrder(payload: CheckoutPayload) {
   return request<{
     order: { orderNumber: string; total: number };

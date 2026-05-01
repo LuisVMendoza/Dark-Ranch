@@ -2061,6 +2061,87 @@ function create_order(array $payload): array
     return ['orderNumber' => $orderNumber, 'total' => $total];
 }
 
+
+function create_mercado_pago_preference(array $payload): array
+{
+    $accessToken = 'APP_USR-8546446787399685-043023-d1a71ed56990ece1f748f883b6cdc395-3371163028';
+    $items = array_map(static function (array $item): array {
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'title' => (string) ($item['name'] ?? 'Producto Dark Ranch'),
+            'quantity' => max((int) ($item['quantity'] ?? 1), 1),
+            'currency_id' => 'MXN',
+            'unit_price' => round((float) ($item['price'] ?? 0), 2),
+        ];
+    }, is_array($payload['items'] ?? null) ? $payload['items'] : []);
+
+    if (count($items) === 0) {
+        throw new RuntimeException('El carrito está vacío.');
+    }
+
+    $baseUrl = sprintf('%s://%s', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http', $_SERVER['HTTP_HOST'] ?? 'localhost:5173');
+    $orderRef = sprintf('DR-MP-%s', bin2hex(random_bytes(6)));
+    $payerEmail = trim((string) ($payload['email'] ?? ''));
+    $hasValidEmail = filter_var($payerEmail, FILTER_VALIDATE_EMAIL) !== false;
+
+    $body = [
+        'items' => $items,
+        'external_reference' => $orderRef,
+        'back_urls' => [
+            'success' => $baseUrl . '/?checkout=1&payment_status=approved',
+            'failure' => $baseUrl . '/?checkout=1&payment_status=rejected',
+            'pending' => $baseUrl . '/?checkout=1&payment_status=pending',
+        ],
+        'auto_return' => 'approved',
+    ];
+
+    if ($hasValidEmail) {
+        $body['payer'] = [
+            'email' => $payerEmail,
+            'name' => trim((string) ($payload['firstName'] ?? '')),
+            'surname' => trim((string) ($payload['lastName'] ?? '')),
+        ];
+    }
+
+    $ch = curl_init('https://api.mercadopago.com/checkout/preferences');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
+
+    $raw = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false || $error !== '') {
+        throw new RuntimeException('No se pudo conectar con Mercado Pago: ' . $error);
+    }
+
+    $response = json_decode($raw, true);
+    if ($status < 200 || $status >= 300 || !is_array($response)) {
+        $cause = '';
+        if (is_array($response)) {
+            $cause = (string) ($response['message'] ?? '');
+            if (isset($response['cause']) && is_array($response['cause']) && isset($response['cause'][0]['description'])) {
+                $cause = (string) $response['cause'][0]['description'];
+            }
+        }
+        throw new RuntimeException('Mercado Pago respondió con error' . ($cause !== '' ? ': ' . $cause : '.'));
+    }
+
+    return [
+        'preferenceId' => (string) ($response['id'] ?? ''),
+        'initPoint' => (string) ($response['init_point'] ?? ''),
+        'sandboxInitPoint' => (string) ($response['sandbox_init_point'] ?? ''),
+    ];
+}
+
 function category_id_by_name(?string $name): ?string
 {
     if ($name === null || trim($name) === '') {
@@ -2181,6 +2262,7 @@ function swagger_spec(): array
             '/api/bootstrap' => ['get' => ['summary' => 'Carga inicial de tienda y dashboard público', 'responses' => ['200' => ['description' => 'Bootstrap data']]]],
             '/api/login' => ['post' => ['summary' => 'Login de administrador', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Login correcto'], '401' => ['description' => 'Credenciales inválidas']]]],
             '/api/orders' => ['post' => ['summary' => 'Crear orden', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Orden creada']]]],
+            '/api/payments/mercadopago/preference' => ['post' => ['summary' => 'Crear preferencia de Mercado Pago Checkout Pro', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Preferencia creada']]]],
             '/api/settings' => ['put' => ['summary' => 'Actualizar settings', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Settings actualizados']]]],
             '/api/admin/snapshot' => ['get' => ['summary' => 'Dashboard y recursos completos del admin', 'responses' => ['200' => ['description' => 'Snapshot completo']]]],
             '/api/admin/products' => [
@@ -2392,6 +2474,11 @@ try {
             json_response(404, ['message' => 'Comentario no encontrado']);
         }
         json_response(200, ['ok' => true]);
+    }
+
+    if ($method === 'POST' && $path === '/api/payments/mercadopago/preference') {
+        $body = read_json_body();
+        json_response(200, create_mercado_pago_preference($body));
     }
 
     if ($method === 'POST' && $path === '/api/orders') {
