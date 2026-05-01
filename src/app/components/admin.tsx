@@ -820,6 +820,14 @@ export const AdminDashboard = ({
     const itemLines = order.items
       .map((item) => `${item.productName} x ${item.quantity}${item.selectedSize ? ` · Talla ${item.selectedSize}` : ''}${item.selectedColor ? ` · Color ${item.selectedColor}` : ''}`)
       .join('<br />');
+    const barcodeBits = order.orderNumber
+      .split('')
+      .map((char) => char.charCodeAt(0).toString(2).padStart(8, '0'))
+      .join('');
+    const barcodeHtml = barcodeBits
+      .split('')
+      .map((bit) => `<span class="${bit === '1' ? 'bar bar-thick' : 'bar bar-thin'}"></span>`)
+      .join('');
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -851,11 +859,24 @@ export const AdminDashboard = ({
               font-weight: 700;
             }
             .order-number {
-              font-size: 44px;
-              font-weight: 700;
-              margin: 2px 0 0;
-              font-family: "Libre Barcode 39", "Courier New", monospace;
-              letter-spacing: 1px;
+              margin: 4px 0;
+              display: flex;
+              flex-wrap: nowrap;
+              gap: 1px;
+              align-items: flex-end;
+              min-height: 54px;
+              overflow: hidden;
+            }
+            .bar {
+              display: inline-block;
+              height: 52px;
+              background: #111;
+            }
+            .bar-thin {
+              width: 1px;
+            }
+            .bar-thick {
+              width: 3px;
             }
             .recipient {
               font-size: 24px;
@@ -897,7 +918,7 @@ export const AdminDashboard = ({
             <section>
               <div class="brand">Dark Ranch · Etiqueta de envío</div>
               <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 4px;">Order ID</div>
-              <p class="order-number">${order.orderNumber}</p>
+              <p class="order-number">${barcodeHtml}</p>
               <p style="margin:0; font-size: 10px; letter-spacing: 0.08em;">${order.orderNumber}</p>
             </section>
 
@@ -1398,7 +1419,7 @@ export const AdminDashboard = ({
 
                       <Dialog open={Boolean(selectedOrder && selectedOrderDraft)} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
                         {selectedOrder && selectedOrderDraft && (
-                        <DialogContent className="max-w-5xl border-2 border-black bg-[#fcf9f5] max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="w-[96vw] max-w-[1400px] border-2 border-black bg-[#fcf9f5] max-h-[92vh] overflow-y-auto p-0">
                         <div className="border-2 border-black bg-white p-5 space-y-5">
                           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                             <div>
