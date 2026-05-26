@@ -210,8 +210,8 @@ function createOrder(store, payload) {
     address: payload.address,
     city: payload.city,
     zip: payload.zip,
-    status: 'pending',
-    payment_status: 'pending',
+    status: 'paid',
+    payment_status: 'paid',
     total,
     created_at: new Date().toISOString(),
     cancellation_reason: null,
@@ -229,40 +229,15 @@ function createOrder(store, payload) {
       selectedSize: item.selectedSize ?? null,
       selectedColor: item.selectedColor ?? null,
     });
-  }
 
-  writeStore(store);
-  return { orderNumber, total };
-}
-
-function markOrderAsPaid(store, orderNumber, paymentId) {
-  const order = store.orders.find((entry) => entry.order_number === orderNumber);
-  if (!order) return null;
-  order.status = 'paid';
-  order.payment_status = 'paid';
-  order.payment_id = paymentId || null;
-
-  const orderItems = store.orderItems.filter((item) => item.orderId === order.id);
-  for (const item of orderItems) {
-    const product = store.products.find((entry) => entry.id === item.productId);
+    const product = store.products.find((entry) => entry.id === item.id);
     if (product) {
       product.stock = Math.max(Number(product.stock) - Number(item.quantity), 0);
     }
   }
 
   writeStore(store);
-  return order;
-}
-
-function getOrderPaymentStatus(store, orderNumber) {
-  const order = store.orders.find((entry) => entry.order_number === orderNumber);
-  if (!order) return null;
-  return {
-    orderNumber,
-    status: order.status,
-    paymentStatus: order.payment_status,
-    paymentId: order.payment_id || null,
-  };
+  return { orderNumber, total };
 }
 
 function updateStoreSettings(store, payload) {
@@ -356,37 +331,6 @@ const server = createServer(async (request, response) => {
       }
       const order = createOrder(store, body);
       sendJson(response, 201, { order, dashboard: getDashboard(readStore()), products: getProducts(readStore()) });
-      return;
-    }
-
-
-    if (request.method === 'GET' && url.pathname.startsWith('/api/orders/') && url.pathname.endsWith('/payment-status')) {
-      const orderNumber = decodeURIComponent(url.pathname.replace('/api/orders/', '').replace('/payment-status', ''));
-      const payment = getOrderPaymentStatus(store, orderNumber);
-      if (!payment) {
-        sendJson(response, 404, { message: 'Orden no encontrada' });
-        return;
-      }
-      sendJson(response, 200, payment);
-      return;
-    }
-
-    if (request.method === 'POST' && url.pathname === '/api/payments/webhook/mercadopago') {
-      const body = await readBody(request);
-      const orderNumber = body?.data?.external_reference || body?.external_reference;
-      const paymentStatus = body?.data?.status || body?.status;
-      const paymentId = body?.data?.id || body?.id;
-
-      if (!orderNumber) {
-        sendJson(response, 400, { message: 'external_reference requerido' });
-        return;
-      }
-
-      if (paymentStatus === 'approved') {
-        markOrderAsPaid(store, orderNumber, paymentId);
-      }
-
-      sendJson(response, 200, { ok: true });
       return;
     }
 
