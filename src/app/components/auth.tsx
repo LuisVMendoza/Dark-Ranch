@@ -6,13 +6,27 @@ import { loginAdmin } from '../lib/api';
 import { AdminUser } from '../types';
 import { toast } from 'sonner';
 
-export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => void }) => {
+export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: AdminUser | null) => void; customerOnly?: boolean }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (customerOnly) {
+      const customerSession = {
+        email,
+        fullName: fullName || email.split('@')[0],
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('dark-ranch-customer-session', JSON.stringify(customerSession));
+      toast.success(isRegisterMode ? 'Cuenta creada correctamente' : 'Sesión iniciada correctamente');
+      onLogin(null);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -53,11 +67,24 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => vo
             <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 w-auto mb-8 mx-auto lg:mx-0" />
             <h1 className="text-4xl font-header font-black uppercase tracking-tight mb-2">Iniciar Sesión</h1>
             <p className="text-neutral-500 font-medium">
-              Accede al panel de administración.
+              {customerOnly ? (isRegisterMode ? 'Crea tu cuenta para finalizar la compra.' : 'Inicia sesión para continuar con tu compra.') : 'Accede al panel de administración.'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {customerOnly && isRegisterMode && (
+              <div className="space-y-2">
+                <label className="text-xs font-header uppercase font-bold tracking-widest">Nombre completo</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Tu nombre"
+                  className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
+                  required
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-xs font-header uppercase font-bold tracking-widest flex items-center gap-2">
                 <Mail size={14} /> Email
@@ -87,8 +114,18 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AdminUser | null) => vo
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full py-4 text-lg flex items-center justify-center gap-2 group">
-              {isSubmitting ? 'Validando...' : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              {isSubmitting ? 'Validando...' : customerOnly ? (isRegisterMode ? 'Crear cuenta' : 'Entrar y pagar') : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </Button>
+
+            {customerOnly && (
+              <button
+                type="button"
+                onClick={() => setIsRegisterMode((prev) => !prev)}
+                className="w-full text-sm underline underline-offset-4"
+              >
+                {isRegisterMode ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}
+              </button>
+            )}
           </form>
         </div>
       </div>

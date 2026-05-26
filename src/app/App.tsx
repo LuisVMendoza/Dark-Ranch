@@ -28,6 +28,7 @@ const App = () => {
   const [adminSnapshot, setAdminSnapshot] = useState<AdminSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [checkoutIntent, setCheckoutIntent] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -87,6 +88,11 @@ const App = () => {
   const storeSettings: StoreSettings | null = bootstrap?.settings ?? null;
 
   const handleLogin = (user: AdminUser | null) => {
+    if (checkoutIntent && !user) {
+      setCheckoutIntent(false);
+      setCurrentView('checkout');
+      return;
+    }
     setAdminUser(user);
     setIsAdmin(Boolean(user));
     setCurrentView(user ? 'admin' : 'home');
@@ -312,7 +318,7 @@ const App = () => {
       case 'checkout':
         return <CheckoutPage onBack={() => setCurrentView('home')} onOrderCreated={loadData} />;
       case 'login':
-        return <LoginPage onLogin={handleLogin} />;
+        return <LoginPage onLogin={handleLogin} customerOnly={checkoutIntent} />;
       case 'admin':
         return isAdmin ? (
           <AdminDashboard
@@ -360,7 +366,22 @@ const App = () => {
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
 
         {currentView !== 'login' && currentView !== 'admin' && <Footer />}
-        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          onCheckout={() => {
+            setIsCartOpen(false);
+            const customerSession = localStorage.getItem('dark-ranch-customer-session');
+            if (!customerSession) {
+              setCheckoutIntent(true);
+              setCurrentView('login');
+              toast.info('Para pagar debes iniciar sesión o crear una cuenta.');
+              return;
+            }
+            setCheckoutIntent(false);
+            setCurrentView('checkout');
+          }}
+        />
       </div>
     </CartProvider>
   );
