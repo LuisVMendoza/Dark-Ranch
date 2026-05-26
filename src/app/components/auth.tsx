@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import { Button, LOGO_HORIZONTAL, LOGO_CIRCULAR } from './ui';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, User } from 'lucide-react';
 import { ImageWithFallback } from './common/ImageWithFallback';
-import { loginAdmin } from '../lib/api';
-import { AdminUser } from '../types';
+import { loginUser, registerUser } from '../lib/api';
 import { toast } from 'sonner';
 
-export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: AdminUser | null) => void; customerOnly?: boolean }) => {
+export interface AuthUser {
+  id: number | string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) => {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -30,14 +38,13 @@ export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: A
 
     setIsSubmitting(true);
     try {
-      const response = await loginAdmin(email, password);
-      localStorage.setItem('dark-ranch-admin-user', JSON.stringify(response.user));
-      toast.success('Sesión iniciada correctamente');
+      const response = mode === 'login'
+        ? await loginUser(email, password)
+        : await registerUser(name, email, password);
+      toast.success(mode === 'login' ? 'Sesión iniciada correctamente' : 'Cuenta creada correctamente');
       onLogin(response.user);
     } catch (error) {
-      localStorage.removeItem('dark-ranch-admin-user');
-      toast.error(error instanceof Error ? error.message : 'No se pudo iniciar sesión');
-      onLogin(null);
+      toast.error(error instanceof Error ? error.message : 'No se pudo completar la acción');
     } finally {
       setIsSubmitting(false);
     }
@@ -62,29 +69,40 @@ export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: A
       </div>
 
       <div className="flex items-center justify-center p-8 bg-[#fcf9f5]">
-        <div className="w-full max-w-md space-y-10">
+        <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left">
             <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 w-auto mb-8 mx-auto lg:mx-0" />
-            <h1 className="text-4xl font-header font-black uppercase tracking-tight mb-2">Iniciar Sesión</h1>
-            <p className="text-neutral-500 font-medium">
-              {customerOnly ? (isRegisterMode ? 'Crea tu cuenta para finalizar la compra.' : 'Inicia sesión para continuar con tu compra.') : 'Accede al panel de administración.'}
-            </p>
+            <h1 className="text-4xl font-header font-black uppercase tracking-tight mb-2">
+              {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            </h1>
+            <p className="text-neutral-500 font-medium">Accede para comentar y revisar tus pedidos.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {customerOnly && isRegisterMode && (
+          <div className="grid grid-cols-2 gap-2 bg-white border border-black p-1">
+            <button type="button" onClick={() => setMode('login')} className={`py-2 font-header uppercase text-xs ${mode === 'login' ? 'bg-black text-white' : 'text-black'}`}>
+              Entrar
+            </button>
+            <button type="button" onClick={() => setMode('register')} className={`py-2 font-header uppercase text-xs ${mode === 'register' ? 'bg-black text-white' : 'text-black'}`}>
+              Registrarse
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {mode === 'register' && (
               <div className="space-y-2">
-                <label className="text-xs font-header uppercase font-bold tracking-widest">Nombre completo</label>
+                <label className="text-xs font-header uppercase font-bold tracking-widest flex items-center gap-2">
+                  <User size={14} /> Nombre
+                </label>
                 <input
                   type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Tu nombre"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
                   required
                 />
               </div>
             )}
+
             <div className="space-y-2">
               <label className="text-xs font-header uppercase font-bold tracking-widest flex items-center gap-2">
                 <Mail size={14} /> Email
@@ -93,7 +111,6 @@ export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: A
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
                 className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
                 required
               />
@@ -107,14 +124,14 @@ export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: A
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
                 className="w-full border-2 border-black p-4 bg-white outline-none focus:ring-1 focus:ring-[#C4A484]"
                 required
               />
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full py-4 text-lg flex items-center justify-center gap-2 group">
-              {isSubmitting ? 'Validando...' : customerOnly ? (isRegisterMode ? 'Crear cuenta' : 'Entrar y pagar') : 'Entrar'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              {isSubmitting ? 'Procesando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
+              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </Button>
 
             {customerOnly && (
@@ -132,3 +149,11 @@ export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: A
     </div>
   );
 };
+
+// Compatibilidad temporal: evita romper clientes con bundles viejos que aún
+// intentan renderizar CustomerLoginDialog.
+export const CustomerLoginDialog = (_props: {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onLogin?: (user: AuthUser) => void;
+}) => null;

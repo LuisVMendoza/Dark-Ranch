@@ -5,12 +5,26 @@ import { useCart } from '../cart-context';
 import { Button, Badge, cn, LOGO_CIRCULAR } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 import { toast } from 'sonner';
+import { formatCurrencyMXN } from '../lib/currency';
 
 export const ProductCard = ({ product, onQuickView }: { product: Product, onQuickView?: (p: Product) => void }) => {
   const { addToCart } = useCart();
+  const featuredSizes = product.sizes.slice(0, 4);
+  const defaultSize = product.sizes[0];
 
   return (
-    <div className="group relative bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_0px_rgba(196,164,132,0.4)] transition-all duration-500 overflow-hidden">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onQuickView?.(product)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onQuickView?.(product);
+        }
+      }}
+      className="group relative bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_0px_rgba(196,164,132,0.4)] transition-all duration-500 overflow-hidden text-left w-full"
+    >
       {/* Badge */}
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
         {product.isNew && <Badge className="bg-[#C4A484] text-black border border-black">Novedad</Badge>}
@@ -24,19 +38,37 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
           alt={product.name} 
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 sepia-[0.2] group-hover:sepia-0"
         />
+        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2">
+          {featuredSizes.map((size) => (
+            <span key={`${product.id}-size-${size}`} className="bg-black/75 text-white text-[10px] px-2 py-1 border border-white/30">
+              {size}
+            </span>
+          ))}
+          {product.sizes.length > featuredSizes.length && (
+            <span className="bg-white/85 text-black text-[10px] px-2 py-1 border border-black/20">
+              +{product.sizes.length - featuredSizes.length} tallas
+            </span>
+          )}
+        </div>
         
         {/* Hover Actions */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-          <button 
-            onClick={() => onQuickView?.(product)}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onQuickView?.(product);
+            }}
             className="w-14 h-14 bg-white border-2 border-black rotate-45 flex items-center justify-center hover:bg-[#C4A484] transition-colors group/btn"
           >
             <Eye size={24} className="-rotate-45" />
           </button>
-          <button 
-            onClick={() => {
-              addToCart(product);
-              toast.success(`Añadido: ${product.name}`);
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              addToCart(product, 1, defaultSize);
+              toast.success(`Añadido: ${product.name} (${defaultSize ?? 'talla única'})`);
             }}
             className="w-14 h-14 bg-white border-2 border-black rotate-45 flex items-center justify-center hover:bg-[#C4A484] transition-colors group/btn"
           >
@@ -55,11 +87,11 @@ export const ProductCard = ({ product, onQuickView }: { product: Product, onQuic
           <div className="flex flex-col">
             {product.salePrice ? (
               <div className="flex items-center gap-3">
-                <span className="text-red-600 font-bold font-header text-2xl">${product.salePrice}</span>
-                <span className="text-neutral-400 line-through text-sm font-header">${product.price}</span>
+                <span className="text-red-600 font-bold font-header text-2xl">{formatCurrencyMXN(product.salePrice)}</span>
+                <span className="text-neutral-400 line-through text-sm font-header">{formatCurrencyMXN(product.price)}</span>
               </div>
             ) : (
-              <span className="text-black font-black font-header text-2xl">${product.price}</span>
+              <span className="text-black font-black font-header text-2xl">{formatCurrencyMXN(product.price)}</span>
             )}
           </div>
           <div className="flex items-center gap-1 bg-neutral-50 px-2 py-1 border border-neutral-100">

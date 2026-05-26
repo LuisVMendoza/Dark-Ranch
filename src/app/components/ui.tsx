@@ -1,5 +1,4 @@
-import logoHorizontal from '../assets/dark-ranch-logo-horizontal.svg';
-import logoCircular from '../assets/dark-ranch-logo-circular.svg';
+import logoCircular from '../assets/dark-ranch-logo-circular.png';
 import React from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -9,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Assets
-export const LOGO_HORIZONTAL = logoHorizontal;
+export const LOGO_HORIZONTAL = logoCircular;
 export const LOGO_CIRCULAR = logoCircular;
 
 // Components

@@ -9,6 +9,7 @@ export interface Product {
   categoryId?: string;
   images: string[];
   sizes: string[];
+  sizeStock?: Record<string, number>;
   colors: string[];
   stock: number;
   tags: string[];
@@ -27,10 +28,14 @@ export interface Category {
 
 export interface BannerSettings {
   id: string;
+  type?: 'image_collection' | 'promo_banner' | 'category_highlight' | 'announcement';
   title: string;
   subtitle: string;
   buttonText: string;
   imageUrl: string;
+  galleryImages?: string[];
+  backgroundColor?: string;
+  backgroundImageUrl?: string;
   categoryLink: string;
 }
 
@@ -103,6 +108,7 @@ export interface CheckoutPayload {
   cardNumber: string;
   expiry: string;
   cvc: string;
+  customerToken?: string;
   items: Array<{
     id: string;
     name: string;
@@ -111,6 +117,36 @@ export interface CheckoutPayload {
     selectedSize?: string;
     selectedColor?: string;
   }>;
+}
+
+export interface CustomerSession {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface ProductComment {
+  id: string;
+  productId: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  content: string;
+  images: string[];
+  createdAt: string;
+}
+
+export interface CustomerOrder {
+  id: number;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  status: AdminOrder['status'];
+  paymentStatus: AdminOrder['paymentStatus'];
+  trackingUrl?: string | null;
+  total: number;
+  createdAt: string;
+  items: AdminOrderItem[];
 }
 
 export interface AdminOrderItem {
@@ -132,6 +168,7 @@ export interface AdminOrder {
   zip: string;
   status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  trackingUrl?: string | null;
   total: number;
   createdAt: string;
   cancellationReason?: string | null;
@@ -181,6 +218,7 @@ export interface AdminProductPayload {
   categoryId: string;
   images: string[];
   sizes: string[];
+  sizeStock?: Record<string, number>;
   colors: string[];
   tags: string[];
   stock: number;
@@ -206,6 +244,7 @@ export interface AdminUserPayload {
 export interface AdminOrderUpdatePayload {
   status: AdminOrder['status'];
   paymentStatus: AdminOrder['paymentStatus'];
+  trackingUrl?: string;
   cancellationReason?: string;
   refundAmount?: number | null;
 }

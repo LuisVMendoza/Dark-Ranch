@@ -4,13 +4,56 @@ declare(strict_types=1);
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role');
+header('Access-Control-Allow-Headers: Content-Type, X-Admin-Actor-Id, X-Admin-Actor-Name, X-Admin-Actor-Email, X-Admin-Actor-Role, X-CSRF-Token');
+
+set_security_headers();
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
 
+
+function set_security_headers(): void
+{
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: geolocation=(), camera=(), microphone=()');
+    header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+}
+
+function ensure_csrf_cookie(): string
+{
+    $cookieName = 'csrf_token';
+    $token = (string) ($_COOKIE[$cookieName] ?? '');
+    if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
+        $token = bin2hex(random_bytes(32));
+        setcookie($cookieName, $token, [
+            'expires' => time() + 7200,
+            'path' => '/',
+            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE[$cookieName] = $token;
+    }
+
+    return $token;
+}
+
+function enforce_csrf_protection(string $method): void
+{
+    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        return;
+    }
+
+    $cookieToken = ensure_csrf_cookie();
+    $headerToken = trim((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+    if ($headerToken === '' || !hash_equals($cookieToken, $headerToken)) {
+        json_response(403, ['message' => 'CSRF token inválido.']);
+    }
+}
 function base_path(string $path = ''): string
 {
     $base = dirname(__DIR__);
@@ -414,6 +457,7 @@ function product_to_client(array $product): array
             $product['images']
         )),
         'sizes' => array_values($product['sizes']),
+        'sizeStock' => is_array($product['sizeStock'] ?? null) ? $product['sizeStock'] : new stdClass(),
         'colors' => array_values($product['colors']),
         'tags' => array_values($product['tags']),
         'stock' => (int) $product['stock'],
@@ -448,6 +492,7 @@ function order_to_client(array $order, array $items = []): array
         'zip' => (string) $order['zip'],
         'status' => (string) $order['status'],
         'paymentStatus' => (string) $order['payment_status'],
+        'trackingUrl' => $order['tracking_url'] ?? null,
         'total' => (float) $order['total'],
         'createdAt' => (string) $order['created_at'],
         'cancellationReason' => $order['cancellation_reason'] !== null ? (string) $order['cancellation_reason'] : null,
@@ -635,6 +680,7 @@ function format_product_row(array $row): array
         'categoryId' => $row['category_id'],
         'images' => json_decode($row['images_json'] ?? '[]', true) ?: [],
         'sizes' => json_decode($row['sizes_json'] ?? '[]', true) ?: [],
+        'sizeStock' => json_decode($row['size_stock_json'] ?? '{}', true) ?: [],
         'colors' => json_decode($row['colors_json'] ?? '[]', true) ?: [],
         'tags' => json_decode($row['tags_json'] ?? '[]', true) ?: [],
         'stock' => (int) $row['stock'],
@@ -710,6 +756,7 @@ function get_admin_products(bool $includeInactive = true): array
             'categoryId' => $categoriesByName[$product['category']] ?? ($product['categoryId'] ?? ''),
             'images' => $product['images'] ?? [],
             'sizes' => $product['sizes'] ?? [],
+            'sizeStock' => is_array($product['sizeStock'] ?? null) ? $product['sizeStock'] : [],
             'colors' => $product['colors'] ?? [],
             'tags' => $product['tags'] ?? [],
             'stock' => (int) ($product['stock'] ?? 0),
@@ -742,6 +789,21 @@ function get_products(): array
 
 function get_settings(): array
 {
+    $decodeBannerSubtitle = static function (string $rawSubtitle): array {
+        $marker = "\n[[DR_META]]";
+        $position = strpos($rawSubtitle, $marker);
+        if ($position === false) {
+            return ['subtitle' => $rawSubtitle, 'meta' => []];
+        }
+
+        $plainSubtitle = substr($rawSubtitle, 0, $position);
+        $rawMeta = substr($rawSubtitle, $position + strlen($marker));
+        $decoded = json_decode($rawMeta, true);
+        $meta = is_array($decoded) ? $decoded : [];
+
+        return ['subtitle' => $plainSubtitle, 'meta' => $meta];
+    };
+
     if (database_mode() === 'mysql') {
         $settings = db()->query('SELECT * FROM store_settings WHERE id = 1 LIMIT 1')->fetch();
         if (!$settings) {
@@ -767,14 +829,23 @@ function get_settings(): array
                 'subtitle' => $settings['hero_subtitle'],
                 'imageUrl' => normalize_uploaded_image_url((string) $settings['hero_image_url']),
             ],
-            'banners' => array_map(static fn (array $banner): array => [
-                'id' => $banner['id'],
-                'title' => $banner['title'],
-                'subtitle' => $banner['subtitle'],
-                'buttonText' => $banner['button_text'],
-                'imageUrl' => normalize_uploaded_image_url((string) $banner['image_url']),
-                'categoryLink' => $banner['category_name'] ?? '',
-            ], $banners),
+            'banners' => array_map(static function (array $banner) use ($decodeBannerSubtitle): array {
+                $decoded = $decodeBannerSubtitle((string) ($banner['subtitle'] ?? ''));
+                $meta = $decoded['meta'];
+
+                return [
+                    'id' => $banner['id'],
+                    'type' => $meta['type'] ?? 'promo_banner',
+                    'title' => $banner['title'],
+                    'subtitle' => $decoded['subtitle'],
+                    'buttonText' => $banner['button_text'],
+                    'imageUrl' => normalize_uploaded_image_url((string) $banner['image_url']),
+                    'galleryImages' => array_values(array_filter(is_array($meta['galleryImages'] ?? null) ? $meta['galleryImages'] : [])),
+                    'backgroundColor' => $meta['backgroundColor'] ?? '#1f130b',
+                    'backgroundImageUrl' => normalize_uploaded_image_url((string) ($meta['backgroundImageUrl'] ?? '')),
+                    'categoryLink' => $banner['category_name'] ?? '',
+                ];
+            }, $banners),
             'aboutText' => $settings['about_text'],
             'contactEmail' => $settings['contact_email'],
         ];
@@ -794,7 +865,13 @@ function get_settings(): array
             'banners' => array_map(
                 static fn (array $banner): array => array_merge(
                     $banner,
-                    ['imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? ''))]
+                    [
+                        'type' => $banner['type'] ?? 'promo_banner',
+                        'imageUrl' => normalize_uploaded_image_url((string) ($banner['imageUrl'] ?? '')),
+                        'galleryImages' => array_map('normalize_uploaded_image_url', is_array($banner['galleryImages'] ?? null) ? $banner['galleryImages'] : []),
+                        'backgroundColor' => $banner['backgroundColor'] ?? '#1f130b',
+                        'backgroundImageUrl' => normalize_uploaded_image_url((string) ($banner['backgroundImageUrl'] ?? '')),
+                    ]
                 ),
                 $banners
             ),
@@ -997,6 +1074,214 @@ function login_admin(string $email, string $password): ?array
     return null;
 }
 
+function ensure_customer_data_shape(array &$store): void
+{
+    if (!isset($store['customerUsers']) || !is_array($store['customerUsers'])) {
+        $store['customerUsers'] = [];
+    }
+    if (!isset($store['customerSessions']) || !is_array($store['customerSessions'])) {
+        $store['customerSessions'] = [];
+    }
+    if (!isset($store['productComments']) || !is_array($store['productComments'])) {
+        $store['productComments'] = [];
+    }
+}
+
+function register_customer_user(string $name, string $email, string $password): array
+{
+    $cleanName = trim($name);
+    $cleanEmail = mb_strtolower(trim($email));
+    $cleanPassword = trim($password);
+
+    if ($cleanName === '' || $cleanEmail === '' || $cleanPassword === '') {
+        throw new RuntimeException('Nombre, email y contraseña son obligatorios');
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    foreach (($store['adminUsers'] ?? []) as $admin) {
+        if (mb_strtolower((string) ($admin['email'] ?? '')) === $cleanEmail) {
+            throw new RuntimeException('Ese email ya está registrado');
+        }
+    }
+
+    foreach ($store['customerUsers'] as $customer) {
+        if (mb_strtolower((string) ($customer['email'] ?? '')) === $cleanEmail) {
+            throw new RuntimeException('Ese email ya está registrado');
+        }
+    }
+
+    $newUser = [
+        'id' => 'cus_' . bin2hex(random_bytes(5)),
+        'name' => $cleanName,
+        'email' => $cleanEmail,
+        'password' => $cleanPassword,
+        'role' => 'customer',
+        'createdAt' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+    ];
+
+    $store['customerUsers'][] = $newUser;
+    write_json_store($store);
+
+    return [
+        'id' => $newUser['id'],
+        'name' => $newUser['name'],
+        'email' => $newUser['email'],
+        'role' => $newUser['role'],
+    ];
+}
+
+function login_customer_user(string $email, string $password): ?array
+{
+    $cleanEmail = mb_strtolower(trim($email));
+    $cleanPassword = trim($password);
+    if ($cleanEmail === '' || $cleanPassword === '') {
+        return null;
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    foreach ($store['customerUsers'] as $customer) {
+        if (mb_strtolower((string) ($customer['email'] ?? '')) === $cleanEmail && (string) ($customer['password'] ?? '') === $cleanPassword) {
+            return [
+                'id' => (string) ($customer['id'] ?? ''),
+                'name' => (string) ($customer['name'] ?? ''),
+                'email' => (string) ($customer['email'] ?? ''),
+                'role' => 'customer',
+            ];
+        }
+    }
+
+    return null;
+}
+
+function login_customer(string $name, string $email): array
+{
+    $cleanName = trim($name);
+    $cleanEmail = mb_strtolower(trim($email));
+    if ($cleanName === '' || $cleanEmail === '') {
+        throw new RuntimeException('Nombre y email son obligatorios');
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    foreach ($store['customerSessions'] as &$session) {
+        if (mb_strtolower((string) ($session['email'] ?? '')) === $cleanEmail) {
+            $session['name'] = $cleanName;
+            $session['lastLoginAt'] = (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
+            write_json_store($store);
+            return $session;
+        }
+    }
+    unset($session);
+
+    $newSession = [
+        'id' => 'cus_' . bin2hex(random_bytes(5)),
+        'name' => $cleanName,
+        'email' => $cleanEmail,
+        'lastLoginAt' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+    ];
+    $store['customerSessions'][] = $newSession;
+    write_json_store($store);
+    return $newSession;
+}
+
+function get_customer_orders_by_token_or_email(string $token, string $email): array
+{
+    $cleanToken = trim($token);
+    $cleanEmail = mb_strtolower(trim($email));
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    $orders = array_values(array_filter(($store['orders'] ?? []), static function (array $order) use ($cleanToken, $cleanEmail): bool {
+        $orderToken = trim((string) ($order['customer_token'] ?? ''));
+        $orderEmail = mb_strtolower(trim((string) ($order['customer_email'] ?? '')));
+        if ($cleanToken !== '' && $orderToken === $cleanToken) {
+            return true;
+        }
+        return $cleanEmail !== '' && $orderEmail === $cleanEmail;
+    }));
+
+    usort($orders, static fn (array $a, array $b): int => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+    return array_map(static function (array $order) use ($store): array {
+        $orderId = (int) ($order['id'] ?? 0);
+        $items = array_values(array_filter(($store['orderItems'] ?? []), static fn (array $item): bool => (int) ($item['orderId'] ?? 0) === $orderId));
+        return [
+            'id' => $orderId,
+            'orderNumber' => (string) ($order['order_number'] ?? ''),
+            'customerName' => (string) ($order['customer_name'] ?? ''),
+            'customerEmail' => (string) ($order['customer_email'] ?? ''),
+            'status' => (string) ($order['status'] ?? 'pending'),
+            'paymentStatus' => (string) ($order['payment_status'] ?? 'pending'),
+            'total' => (float) ($order['total'] ?? 0),
+            'createdAt' => (string) ($order['created_at'] ?? ''),
+            'items' => array_map(static fn (array $item): array => [
+                'productId' => (string) ($item['productId'] ?? ''),
+                'productName' => (string) ($item['productName'] ?? ''),
+                'price' => (float) ($item['price'] ?? 0),
+                'quantity' => (int) ($item['quantity'] ?? 0),
+                'selectedSize' => $item['selectedSize'] ?? null,
+                'selectedColor' => $item['selectedColor'] ?? null,
+            ], $items),
+        ];
+    }, $orders);
+}
+
+function get_product_comments_by_product_id(string $productId): array
+{
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+    $comments = array_values(array_filter($store['productComments'], static fn (array $comment): bool => (string) ($comment['productId'] ?? '') === $productId));
+    usort($comments, static fn (array $a, array $b): int => strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? '')));
+    return $comments;
+}
+
+function create_product_comment(string $productId, array $payload): array
+{
+    $content = trim((string) ($payload['content'] ?? ''));
+    if ($content === '') {
+        throw new RuntimeException('El comentario no puede estar vacío');
+    }
+
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+
+    $newComment = [
+        'id' => 'com_' . bin2hex(random_bytes(5)),
+        'productId' => $productId,
+        'customerId' => (string) ($payload['customerId'] ?? ''),
+        'customerName' => (string) ($payload['customerName'] ?? 'Cliente'),
+        'customerEmail' => (string) ($payload['customerEmail'] ?? ''),
+        'content' => $content,
+        'images' => array_values(array_filter(array_map(static fn ($url) => trim((string) $url), (array) ($payload['images'] ?? [])), static fn (string $url): bool => $url !== '')),
+        'createdAt' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
+    ];
+
+    $store['productComments'][] = $newComment;
+    write_json_store($store);
+    return $newComment;
+}
+
+function delete_product_comment(string $productId, string $commentId): bool
+{
+    $store = read_json_store();
+    ensure_customer_data_shape($store);
+    $before = count($store['productComments']);
+    $store['productComments'] = array_values(array_filter(
+        $store['productComments'],
+        static fn (array $comment): bool => !((string) ($comment['productId'] ?? '') === $productId && (string) ($comment['id'] ?? '') === $commentId)
+    ));
+    if (count($store['productComments']) === $before) {
+        return false;
+    }
+    write_json_store($store);
+    return true;
+}
+
 function ensure_category_exists(string $categoryId): array
 {
     foreach (get_categories() as $category) {
@@ -1037,6 +1322,7 @@ function product_payload_to_record(array $payload, ?string $existingId = null): 
         'category' => $category['name'],
         'images' => normalize_list($payload['images'] ?? []),
         'sizes' => normalize_list($payload['sizes'] ?? []),
+        'sizeStock' => array_filter((array) ($payload['sizeStock'] ?? []), static fn ($value): bool => is_numeric($value) && (int) $value >= 0),
         'colors' => normalize_list($payload['colors'] ?? []),
         'tags' => normalize_list($payload['tags'] ?? []),
         'stock' => max((int) ($payload['stock'] ?? 0), 0),
@@ -1061,7 +1347,7 @@ function create_admin_product(array $payload): array
 
         $statement = $pdo->prepare(
             'INSERT INTO products (id, name, slug, description, price, sale_price, category_id, images_json, sizes_json, colors_json, tags_json, stock, is_new, is_featured, is_active, created_at)
-             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at)'
+             VALUES (:id, :name, :slug, :description, :price, :sale_price, :category_id, :images_json, :sizes_json, :size_stock_json, :colors_json, :tags_json, :stock, :is_new, :is_featured, :is_active, :created_at)'
         );
         $statement->execute([
             'id' => $record['id'],
@@ -1073,6 +1359,7 @@ function create_admin_product(array $payload): array
             'category_id' => $record['categoryId'],
             'images_json' => json_encode($record['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'sizes_json' => json_encode($record['sizes'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'size_stock_json' => json_encode($record['sizeStock'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'colors_json' => json_encode($record['colors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'tags_json' => json_encode($record['tags'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'stock' => $record['stock'],
@@ -1102,6 +1389,7 @@ function create_admin_product(array $payload): array
         'category' => $record['category'],
         'images' => $record['images'],
         'sizes' => $record['sizes'],
+        'sizeStock' => $record['sizeStock'],
         'colors' => $record['colors'],
         'tags' => $record['tags'],
         'stock' => $record['stock'],
@@ -1140,6 +1428,7 @@ function update_admin_product(string $id, array $payload): array
             'UPDATE products
              SET name = :name, slug = :slug, description = :description, price = :price, sale_price = :sale_price, category_id = :category_id,
                  images_json = :images_json, sizes_json = :sizes_json, colors_json = :colors_json, tags_json = :tags_json,
+                 size_stock_json = :size_stock_json,
                  stock = :stock, is_new = :is_new, is_featured = :is_featured, is_active = :is_active
              WHERE id = :id'
         );
@@ -1153,6 +1442,7 @@ function update_admin_product(string $id, array $payload): array
             'category_id' => $record['categoryId'],
             'images_json' => json_encode($record['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'sizes_json' => json_encode($record['sizes'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'size_stock_json' => json_encode($record['sizeStock'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'colors_json' => json_encode($record['colors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'tags_json' => json_encode($record['tags'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'stock' => $record['stock'],
@@ -1188,6 +1478,7 @@ function update_admin_product(string $id, array $payload): array
                 'category' => $record['category'],
                 'images' => $record['images'],
                 'sizes' => $record['sizes'],
+                'sizeStock' => $record['sizeStock'],
                 'colors' => $record['colors'],
                 'tags' => $record['tags'],
                 'stock' => $record['stock'],
@@ -1536,6 +1827,7 @@ function update_admin_order(int $id, array $payload): array
     $paymentStatus = trim((string) ($payload['paymentStatus'] ?? ''));
     $cancellationReason = array_key_exists('cancellationReason', $payload) ? trim((string) $payload['cancellationReason']) : null;
     $refundAmount = array_key_exists('refundAmount', $payload) && $payload['refundAmount'] !== null && $payload['refundAmount'] !== '' ? (float) $payload['refundAmount'] : null;
+    $trackingUrl = array_key_exists('trackingUrl', $payload) ? trim((string) $payload['trackingUrl']) : null;
     $cancelledAt = $status === 'cancelled' ? (string) ($payload['cancelledAt'] ?? (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM)) : null;
 
     if ($status === '' || $paymentStatus === '') {
@@ -1579,6 +1871,9 @@ function update_admin_order(int $id, array $payload): array
             $store['orders'][$index]['cancellation_reason'] = $status === 'cancelled' ? ($cancellationReason ?: 'Cancelada desde administración') : null;
             $store['orders'][$index]['refund_amount'] = $status === 'cancelled' ? $refundAmount : null;
             $store['orders'][$index]['cancelled_at'] = $cancelledAt;
+            if ($trackingUrl !== null) {
+                $store['orders'][$index]['tracking_url'] = $trackingUrl !== '' ? $trackingUrl : null;
+            }
             write_json_store($store);
             log_activity('order_update', 'order', (string) $id, (string) ($order['order_number'] ?? $id), 'Orden actualizada a estado ' . $status . ' y pago ' . $paymentStatus . '.');
             foreach (get_admin_orders() as $updatedOrder) {
@@ -1594,6 +1889,24 @@ function update_admin_order(int $id, array $payload): array
 
 function delete_admin_order(int $id): void
 {
+    $orders = get_admin_orders();
+    $targetOrder = null;
+    foreach ($orders as $candidate) {
+        if ((int) ($candidate['id'] ?? 0) === $id) {
+            $targetOrder = $candidate;
+            break;
+        }
+    }
+    if ($targetOrder === null) {
+        throw new RuntimeException('Orden no encontrada.');
+    }
+
+    $createdAt = new DateTimeImmutable((string) ($targetOrder['createdAt'] ?? 'now'));
+    $deletableAfter = $createdAt->modify('+30 days');
+    if ((new DateTimeImmutable('now')) < $deletableAfter) {
+        throw new RuntimeException('La orden no se puede eliminar hasta 30 días después de su creación.');
+    }
+
     if (database_mode() === 'mysql') {
         $pdo = db();
         $pdo->beginTransaction();
@@ -1655,6 +1968,8 @@ function create_order(array $payload): array
 
             $insertItem = $pdo->prepare('INSERT INTO order_items (order_id, product_id, product_name, price, quantity, selected_size, selected_color) VALUES (:order_id, :product_id, :product_name, :price, :quantity, :selected_size, :selected_color)');
             $updateStock = $pdo->prepare('UPDATE products SET stock = GREATEST(stock - :quantity, 0), updated_at = CURRENT_TIMESTAMP WHERE id = :product_id');
+            $selectSizeStock = $pdo->prepare('SELECT size_stock_json FROM products WHERE id = :product_id LIMIT 1');
+            $updateSizeStock = $pdo->prepare('UPDATE products SET size_stock_json = :size_stock_json, is_active = :is_active WHERE id = :product_id');
 
             foreach ($items as $item) {
                 $insertItem->execute([
@@ -1670,6 +1985,17 @@ function create_order(array $payload): array
                     'quantity' => (int) $item['quantity'],
                     'product_id' => $item['id'],
                 ]);
+                $selectedSize = trim((string) ($item['selectedSize'] ?? ''));
+                if ($selectedSize !== '') {
+                    $selectSizeStock->execute(['product_id' => $item['id']]);
+                    $row = $selectSizeStock->fetch();
+                    $sizeStock = $row ? (json_decode((string) ($row['size_stock_json'] ?? '{}'), true) ?: []) : [];
+                    if (array_key_exists($selectedSize, $sizeStock)) {
+                        $sizeStock[$selectedSize] = max(((int) $sizeStock[$selectedSize]) - (int) $item['quantity'], 0);
+                        $hasAny = array_sum(array_map(static fn ($qty): int => max((int) $qty, 0), $sizeStock)) > 0;
+                        $updateSizeStock->execute(['size_stock_json' => json_encode($sizeStock, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'is_active' => $hasAny ? 1 : 0, 'product_id' => $item['id']]);
+                    }
+                }
             }
 
             $pdo->commit();
@@ -1690,6 +2016,7 @@ function create_order(array $payload): array
         'order_number' => $orderNumber,
         'customer_name' => $customerName,
         'customer_email' => $payload['email'] ?? '',
+        'customer_token' => trim((string) ($payload['customerToken'] ?? '')) ?: ('guest-' . ($payload['email'] ?? '')),
         'address' => $payload['address'] ?? '',
         'city' => $payload['city'] ?? '',
         'zip' => $payload['zip'] ?? '',
@@ -1716,6 +2043,14 @@ function create_order(array $payload): array
         foreach ($store['products'] as &$product) {
             if (($product['id'] ?? '') === ($item['id'] ?? '')) {
                 $product['stock'] = max((int) $product['stock'] - (int) $item['quantity'], 0);
+                $selectedSize = trim((string) ($item['selectedSize'] ?? ''));
+                if ($selectedSize !== '' && isset($product['sizeStock'][$selectedSize])) {
+                    $product['sizeStock'][$selectedSize] = max((int) $product['sizeStock'][$selectedSize] - (int) $item['quantity'], 0);
+                    $sizeTotal = array_sum(array_map(static fn ($qty): int => max((int) $qty, 0), (array) ($product['sizeStock'] ?? [])));
+                    if ($sizeTotal <= 0) {
+                        $product['isActive'] = false;
+                    }
+                }
             }
         }
         unset($product);
@@ -1724,6 +2059,92 @@ function create_order(array $payload): array
     write_json_store($store);
     log_activity('order_create', 'order', (string) $nextId, $orderNumber, 'Orden creada por checkout.');
     return ['orderNumber' => $orderNumber, 'total' => $total];
+}
+
+
+function create_mercado_pago_preference(array $payload): array
+{
+    $accessToken = 'APP_USR-8546446787399685-043023-d1a71ed56990ece1f748f883b6cdc395-3371163028';
+    $items = array_map(static function (array $item): array {
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'title' => (string) ($item['name'] ?? 'Producto Dark Ranch'),
+            'quantity' => max((int) ($item['quantity'] ?? 1), 1),
+            'currency_id' => 'MXN',
+            'unit_price' => round((float) ($item['price'] ?? 0), 2),
+        ];
+    }, is_array($payload['items'] ?? null) ? $payload['items'] : []);
+
+    if (count($items) === 0) {
+        throw new RuntimeException('El carrito está vacío.');
+    }
+
+    $baseUrl = sprintf('%s://%s', (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http', $_SERVER['HTTP_HOST'] ?? 'localhost:5173');
+    $orderRef = sprintf('DR-MP-%s', bin2hex(random_bytes(6)));
+    $payerEmail = trim((string) ($payload['email'] ?? ''));
+    $hasValidEmail = filter_var($payerEmail, FILTER_VALIDATE_EMAIL) !== false;
+
+    $body = [
+        'items' => $items,
+        'external_reference' => $orderRef,
+    ];
+
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $isLocalHost = str_contains($host, 'localhost') || str_contains($host, '127.0.0.1');
+    if (!$isLocalHost) {
+        $body['back_urls'] = [
+            'success' => $baseUrl . '/?checkout=1&payment_status=approved',
+            'failure' => $baseUrl . '/?checkout=1&payment_status=rejected',
+            'pending' => $baseUrl . '/?checkout=1&payment_status=pending',
+        ];
+        $body['auto_return'] = 'approved';
+    }
+
+    if ($hasValidEmail) {
+        $body['payer'] = [
+            'email' => $payerEmail,
+            'name' => trim((string) ($payload['firstName'] ?? '')),
+            'surname' => trim((string) ($payload['lastName'] ?? '')),
+        ];
+    }
+
+    $ch = curl_init('https://api.mercadopago.com/checkout/preferences');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
+
+    $raw = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false || $error !== '') {
+        throw new RuntimeException('No se pudo conectar con Mercado Pago: ' . $error);
+    }
+
+    $response = json_decode($raw, true);
+    if ($status < 200 || $status >= 300 || !is_array($response)) {
+        $cause = '';
+        if (is_array($response)) {
+            $cause = (string) ($response['message'] ?? '');
+            if (isset($response['cause']) && is_array($response['cause']) && isset($response['cause'][0]['description'])) {
+                $cause = (string) $response['cause'][0]['description'];
+            }
+        }
+        throw new RuntimeException('Mercado Pago respondió con error' . ($cause !== '' ? ': ' . $cause : '.'));
+    }
+
+    return [
+        'preferenceId' => (string) ($response['id'] ?? ''),
+        'initPoint' => (string) ($response['init_point'] ?? ''),
+        'sandboxInitPoint' => (string) ($response['sandbox_init_point'] ?? ''),
+    ];
 }
 
 function category_id_by_name(?string $name): ?string
@@ -1750,6 +2171,17 @@ function category_id_by_name(?string $name): ?string
 
 function save_store_settings(array $payload): array
 {
+    $encodeBannerSubtitle = static function (array $banner): string {
+        $meta = [
+            'type' => $banner['type'] ?? 'promo_banner',
+            'galleryImages' => array_values(array_filter(is_array($banner['galleryImages'] ?? null) ? $banner['galleryImages'] : [])),
+            'backgroundColor' => $banner['backgroundColor'] ?? '#1f130b',
+            'backgroundImageUrl' => $banner['backgroundImageUrl'] ?? '',
+        ];
+
+        return (string) ($banner['subtitle'] ?? '') . "\n[[DR_META]]" . json_encode($meta, JSON_UNESCAPED_UNICODE);
+    };
+
     if (database_mode() === 'mysql') {
         $pdo = db();
         $pdo->beginTransaction();
@@ -1774,7 +2206,7 @@ function save_store_settings(array $payload): array
                 $insertBanner->execute([
                     'id' => $banner['id'] ?? ('b' . ($index + 1)),
                     'title' => $banner['title'] ?? '',
-                    'subtitle' => $banner['subtitle'] ?? '',
+                    'subtitle' => $encodeBannerSubtitle($banner),
                     'button_text' => $banner['buttonText'] ?? '',
                     'image_url' => $banner['imageUrl'] ?? '',
                     'category_id' => category_id_by_name($banner['categoryLink'] ?? null),
@@ -1800,10 +2232,14 @@ function save_store_settings(array $payload): array
         ],
         'banners' => array_map(static fn (array $banner, int $index): array => [
             'id' => $banner['id'] ?? ('b' . ($index + 1)),
+            'type' => $banner['type'] ?? 'promo_banner',
             'title' => $banner['title'] ?? '',
             'subtitle' => $banner['subtitle'] ?? '',
             'buttonText' => $banner['buttonText'] ?? '',
             'imageUrl' => $banner['imageUrl'] ?? '',
+            'galleryImages' => array_values(array_filter(is_array($banner['galleryImages'] ?? null) ? $banner['galleryImages'] : [])),
+            'backgroundColor' => $banner['backgroundColor'] ?? '#1f130b',
+            'backgroundImageUrl' => $banner['backgroundImageUrl'] ?? '',
             'categoryLink' => $banner['categoryLink'] ?? '',
         ], $payload['banners'] ?? [], array_keys($payload['banners'] ?? [])),
         'aboutText' => $payload['aboutText'] ?? '',
@@ -1831,6 +2267,7 @@ function swagger_spec(): array
             '/api/bootstrap' => ['get' => ['summary' => 'Carga inicial de tienda y dashboard público', 'responses' => ['200' => ['description' => 'Bootstrap data']]]],
             '/api/login' => ['post' => ['summary' => 'Login de administrador', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Login correcto'], '401' => ['description' => 'Credenciales inválidas']]]],
             '/api/orders' => ['post' => ['summary' => 'Crear orden', 'requestBody' => ['required' => true], 'responses' => ['201' => ['description' => 'Orden creada']]]],
+            '/api/payments/mercadopago/preference' => ['post' => ['summary' => 'Crear preferencia de Mercado Pago Checkout Pro', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Preferencia creada']]]],
             '/api/settings' => ['put' => ['summary' => 'Actualizar settings', 'requestBody' => ['required' => true], 'responses' => ['200' => ['description' => 'Settings actualizados']]]],
             '/api/admin/snapshot' => ['get' => ['summary' => 'Dashboard y recursos completos del admin', 'responses' => ['200' => ['description' => 'Snapshot completo']]]],
             '/api/admin/products' => [
@@ -1901,6 +2338,8 @@ HTML;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+ensure_csrf_cookie();
+enforce_csrf_protection($method);
 
 try {
     if ($method === 'GET' && $path === '/api/docs') {
@@ -1974,16 +2413,77 @@ try {
 
     if ($method === 'POST' && $path === '/api/login') {
         $body = read_json_body();
-        $user = login_admin((string) ($body['email'] ?? ''), (string) ($body['password'] ?? ''));
-        if ($user === null) {
-            json_response(401, ['message' => 'Credenciales inválidas']);
+        $email = (string) ($body['email'] ?? '');
+        $password = (string) ($body['password'] ?? '');
+        $admin = login_admin($email, $password);
+        if ($admin !== null) {
+            $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] = (string) $admin['id'];
+            $_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] = $admin['name'];
+            $_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] = $admin['email'];
+            $_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] = $admin['role'];
+            log_activity('login', 'auth', (string) $admin['id'], $admin['name'], 'Inicio de sesión exitoso.');
+            json_response(200, ['user' => $admin]);
         }
-        $_SERVER['HTTP_X_ADMIN_ACTOR_ID'] = (string) $user['id'];
-        $_SERVER['HTTP_X_ADMIN_ACTOR_NAME'] = $user['name'];
-        $_SERVER['HTTP_X_ADMIN_ACTOR_EMAIL'] = $user['email'];
-        $_SERVER['HTTP_X_ADMIN_ACTOR_ROLE'] = $user['role'];
-        log_activity('login', 'auth', (string) $user['id'], $user['name'], 'Inicio de sesión exitoso.');
-        json_response(200, ['user' => $user]);
+
+        $customer = login_customer_user($email, $password);
+        if ($customer !== null) {
+            json_response(200, ['user' => $customer]);
+        }
+
+        json_response(401, ['message' => 'Credenciales inválidas']);
+    }
+
+    if ($method === 'POST' && $path === '/api/register') {
+        $body = read_json_body();
+        $customer = register_customer_user(
+            (string) ($body['name'] ?? ''),
+            (string) ($body['email'] ?? ''),
+            (string) ($body['password'] ?? '')
+        );
+        json_response(201, ['user' => $customer]);
+    }
+
+    if ($method === 'POST' && $path === '/api/customer/login') {
+        $body = read_json_body();
+        $customer = login_customer((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''));
+        json_response(200, ['customer' => ['id' => $customer['id'], 'name' => $customer['name'], 'email' => $customer['email']]]);
+    }
+
+    if ($method === 'GET' && $path === '/api/orders/my') {
+        $token = (string) ($_GET['token'] ?? '');
+        $email = (string) ($_GET['email'] ?? '');
+        if (trim($token) === '' && trim($email) === '') {
+            json_response(400, ['message' => 'Debes enviar token o email']);
+        }
+        json_response(200, ['orders' => get_customer_orders_by_token_or_email($token, $email)]);
+    }
+
+    if (preg_match('#^/api/products/([^/]+)/comments$#', $path, $matches) === 1) {
+        $productId = urldecode($matches[1]);
+        if ($method === 'GET') {
+            json_response(200, ['comments' => get_product_comments_by_product_id($productId)]);
+        }
+        if ($method === 'POST') {
+            $comment = create_product_comment($productId, read_json_body());
+            json_response(201, ['comment' => $comment]);
+        }
+    }
+
+    if (preg_match('#^/api/products/([^/]+)/comments/([^/]+)$#', $path, $matches) === 1 && $method === 'DELETE') {
+        $actor = current_actor_from_request();
+        if (($actor['role'] ?? '') !== 'admin') {
+            json_response(403, ['message' => 'Solo admin puede borrar comentarios']);
+        }
+        $ok = delete_product_comment(urldecode($matches[1]), urldecode($matches[2]));
+        if (!$ok) {
+            json_response(404, ['message' => 'Comentario no encontrado']);
+        }
+        json_response(200, ['ok' => true]);
+    }
+
+    if ($method === 'POST' && $path === '/api/payments/mercadopago/preference') {
+        $body = read_json_body();
+        json_response(200, create_mercado_pago_preference($body));
     }
 
     if ($method === 'POST' && $path === '/api/orders') {
@@ -2071,5 +2571,9 @@ try {
 } catch (Throwable $exception) {
     $status = expected_runtime_status($exception) ?? 500;
     $message = $status === 500 ? 'Error interno del servidor' : $exception->getMessage();
-    json_response($status, ['message' => $message, 'detail' => $exception->getMessage()]);
+    $payload = ['message' => $message];
+    if ($status !== 500) {
+        $payload['detail'] = $exception->getMessage();
+    }
+    json_response($status, $payload);
 }

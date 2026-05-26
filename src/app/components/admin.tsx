@@ -3,6 +3,7 @@ import {
   AlertCircle,
   ArrowLeft,
   BadgePercent,
+  BookOpen,
   Boxes,
   DollarSign,
   Eye,
@@ -12,7 +13,6 @@ import {
   Plus,
   Printer,
   ShieldAlert,
-  Save,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button, PaperCard, cn } from './ui';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   AdminActivityLog,
@@ -57,10 +58,18 @@ import {
   updateAdminUser,
 } from '../lib/api';
 import { toast } from 'sonner';
+import { formatCurrencyMXN } from '../lib/currency';
 
-const currency = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'USD' });
 
-type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'storefront';
+const MAX_PRODUCT_IMAGES = 4;
+
+type TabKey = 'overview' | 'products' | 'categories' | 'orders' | 'team' | 'activity' | 'documentation' | 'storefront';
+type AttributeFieldKey = 'sizes' | 'colors' | 'tags';
+type StructuralSuggestionBucket = {
+  id: string;
+  label: string;
+  items: string[];
+};
 type DeleteTarget =
   | { entityType: 'product'; entityId: string; entityName: string }
   | { entityType: 'category'; entityId: string; entityName: string }
@@ -77,6 +86,7 @@ const EMPTY_PRODUCT: AdminProductPayload = {
   categoryId: '',
   images: [],
   sizes: ['CH', 'M', 'G'],
+  sizeStock: {},
   colors: ['Negro', 'Café'],
   tags: ['western', 'cuero'],
   stock: 0,
@@ -99,28 +109,47 @@ const EMPTY_USER: AdminUserPayload = {
   password: '',
 };
 
+const ATTRIBUTE_DEFAULTS: Record<AttributeFieldKey, readonly string[]> = {
+  sizes: ['CH', 'M', 'G'],
+  colors: ['Negro', 'Café'],
+  tags: ['western', 'cuero'],
+};
+
 const ORDER_STATUS_OPTIONS: AdminOrder['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'];
-const PAYMENT_STATUS_OPTIONS: AdminOrder['paymentStatus'][] = ['pending', 'paid', 'failed', 'refunded'];
-
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: ['Productos y categorías', 'Órdenes y tienda', 'Usuarios y permisos', 'Bitácora completa'],
-  editor: ['Productos y categorías', 'Storefront'],
+  admin: [
+    'Gestión completa de productos',
+    'Administración de usuarios',
+    'Edición de órdenes y configuración',
+  ],
+  editor: [
+    'Gestión de catálogo',
+    'Actualización de inventario',
+    'Seguimiento de órdenes',
+  ],
+};
+type DocumentationSection = {
+  id: string;
+  title: string;
+  content: string[];
+  keywords: string[];
 };
 
-const parseTags = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
-const serializeList = (list: string[]) => list.join(', ');
-const normalizeAttribute = (value: string) => value.replace(/\s+/g, ' ').trim();
-const ATTRIBUTE_DEFAULTS = {
-  sizes: ['CH', 'M', 'G', 'EG', '28', '30', '32', '34'],
-  colors: ['Negro', 'Café', 'Miel', 'Azul mezclilla', 'Arena', 'Vino'],
-  tags: ['western', 'cuero', 'artesanal', 'edición limitada', 'nuevo ingreso', 'bestseller'],
-} as const;
-type AttributeFieldKey = keyof typeof ATTRIBUTE_DEFAULTS;
-type StructuralSuggestionBucket = {
-  id: string;
-  label: string;
-  items: string[];
+const normalizeAttribute = (value: string) => value.trim().replace(/\s+/g, ' ');
+const parseTags = (value: string) => {
+  const seen = new Set<string>();
+  return value
+    .split(',')
+    .map(normalizeAttribute)
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 };
+const serializeList = (items: string[]) => items.join(', ');
 
 const getStructuralSuggestionBuckets = (items: string[], selectedItems: string[]): StructuralSuggestionBucket[] => {
   const selected = new Set(selectedItems.map((item) => item.toLowerCase()));
@@ -169,6 +198,94 @@ const generateSlug = (value: string) => value
   .replace(/^_+|_+$/g, '');
 const generateProductSlug = generateSlug;
 const generateCategorySlug = generateSlug;
+const DOCUMENTATION_SECTIONS: DocumentationSection[] = [
+  {
+    id: 'primeros-pasos',
+    title: 'Primeros pasos en administración',
+    keywords: ['inicio', 'acceso', 'admin', 'dashboard', 'panel', 'refrescar'],
+    content: [
+      'Inicia sesión con una cuenta de administrador y confirma que en el encabezado aparezca tu nombre en “Sesión activa”.',
+      'Antes de editar cualquier dato, pulsa “Refrescar datos” para sincronizar productos, categorías, órdenes, usuarios y bitácora.',
+      'Recorre el menú lateral en este orden recomendado: Dashboard → Productos → Categorías → Órdenes → Storefront → Admin → Documentación.',
+      'Si trabajas en equipo, avisa en tu canal interno qué módulo vas a tocar para evitar que dos personas editen lo mismo al mismo tiempo.',
+      'Al terminar cambios críticos (precios, inventario, estado de pedido), refresca de nuevo para validar que la información persistió correctamente.',
+    ],
+  },
+  {
+    id: 'gestion-catalogo',
+    title: 'Guía completa de catálogo (productos y categorías)',
+    keywords: ['productos', 'categorias', 'stock', 'precio', 'filtros', 'slug', 'imagenes'],
+    content: [
+      'En “Productos” puedes crear, editar y eliminar artículos; completa nombre, descripción, precio, stock, categoría, imágenes y atributos antes de guardar.',
+      'Usa slugs claros y estables para evitar romper enlaces internos de la tienda; evita caracteres especiales y cambios innecesarios una vez publicado.',
+      'Cuando ajustes precios, verifica también “salePrice” y asegúrate de que el precio de oferta sea menor al precio regular.',
+      'Gestiona inventario con disciplina: si un producto se queda sin stock, decide si lo desactivas temporalmente o lo mantienes visible como agotado.',
+      'En “Categorías”, mantén imagen, nombre y slug consistentes para que la navegación del storefront sea limpia y fácil de entender.',
+      'Después de cambios grandes de catálogo, revisa 2–3 productos en la tienda pública para comprobar texto, imágenes y formato de precio.',
+    ],
+  },
+  {
+    id: 'operacion-ordenes',
+    title: 'Operación de órdenes, seguimiento y postventa',
+    keywords: ['ordenes', 'pedidos', 'postventa', 'estado', 'pago', 'envio', 'reembolso'],
+    content: [
+      'Trabaja las órdenes de arriba hacia abajo usando un criterio fijo (fecha o prioridad) para que no se dupliquen acciones.',
+      'Actualiza el estado con trazabilidad: pendiente → pagada → enviada → entregada. Usa cancelada o reembolsada solo cuando realmente aplique.',
+      'Completa link de seguimiento, notas y motivo de cancelación cuando exista incidencia; estos campos ayudan a soporte y auditoría.',
+      'Antes de marcar como reembolsada, valida monto y método con finanzas/soporte para evitar diferencias contables.',
+      'Utiliza “Imprimir formato” cuando prepares envíos; verifica dirección, cliente y número de orden antes de despachar.',
+      'Si una orden tiene datos dudosos, no avances su estado sin confirmación: primero documenta y escala internamente.',
+    ],
+  },
+  {
+    id: 'storefront-configuracion',
+    title: 'Configuración de storefront y contenido comercial',
+    keywords: ['storefront', 'configuracion', 'banners', 'mensajes', 'branding', 'ajustes'],
+    content: [
+      'En la sección “Storefront” centraliza mensajes comerciales, branding y configuraciones visibles para clientes.',
+      'Realiza cambios en bloques pequeños y guarda por partes para identificar rápido qué ajuste produjo un resultado inesperado.',
+      'Mantén coherencia entre promociones del storefront y precios reales del catálogo para no crear expectativas incorrectas.',
+      'Si cambias textos clave (envíos, devoluciones, contacto), alinea al equipo de atención para mantener un discurso único.',
+      'Tras cada actualización, abre la vista pública y revisa home, listado de productos y checkout para confirmar consistencia visual y funcional.',
+    ],
+  },
+  {
+    id: 'equipo-permisos',
+    title: 'Equipo administrador, roles y seguridad operativa',
+    keywords: ['usuarios', 'permisos', 'roles', 'admin', 'editor', 'seguridad', 'accesos'],
+    content: [
+      'Solo perfiles admin deben crear, editar o desactivar cuentas; evita compartir credenciales entre personas.',
+      'Asigna “editor” cuando alguien solo necesita catálogo/órdenes y reserva “admin” para responsables de configuración y accesos.',
+      'Aplica principio de mínimo privilegio: cada cuenta con el menor nivel de acceso necesario para su trabajo.',
+      'Cuando alguien salga del equipo, revoca su acceso el mismo día y verifica que no queden sesiones activas.',
+      'Audita periódicamente la lista de usuarios y permisos para detectar cuentas obsoletas o privilegios excesivos.',
+    ],
+  },
+  {
+    id: 'bitacora-auditoria',
+    title: 'Bitácora y auditoría: cómo investigar cambios',
+    keywords: ['bitacora', 'auditoria', 'actividad', 'filtros', 'historial', 'movimientos'],
+    content: [
+      'Usa filtros por rango de fechas, tipo de acción y entidad para acotar rápidamente quién cambió qué y cuándo.',
+      'Si detectas un dato incorrecto, empieza por buscar acciones “update” y luego revisa “delete” para reconstruir la secuencia.',
+      'Aumenta temporalmente filas por página cuando investigues incidentes largos para reducir navegación.',
+      'Exporta o captura evidencia interna al cerrar una incidencia para dejar trazabilidad del análisis.',
+      'Ejecuta limpieza de bitácora según política de retención solo cuando estés seguro de que no hay investigaciones abiertas.',
+    ],
+  },
+  {
+    id: 'buenas-practicas',
+    title: 'Buenas prácticas diarias y checklist de cierre',
+    keywords: ['practicas', 'recomendaciones', 'operacion', 'flujo', 'checklist', 'calidad'],
+    content: [
+      'Inicio de jornada: refresca datos, revisa órdenes pendientes y valida productos con stock crítico.',
+      'Durante la jornada: documenta cambios importantes en notas internas y evita ediciones masivas sin revisión previa.',
+      'Cierre de jornada: confirma que no haya órdenes bloqueadas y que cambios sensibles (precio/stock) estén reflejados en tienda.',
+      'Nunca elimines registros por impulso; primero evalúa si conviene editar, desactivar o escalar la decisión.',
+      'Cuando ocurra un error, prioriza registrar contexto (qué pasó, cuándo, en qué módulo) antes de aplicar correcciones rápidas.',
+    ],
+  },
+];
 
 const statusBadgeClassMap: Record<AdminOrder['status'], string> = {
   pending: 'border-[#b7791f] bg-[#fff7e6] text-[#8a5a12]',
@@ -264,6 +381,7 @@ export const AdminDashboard = ({
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
 
   const [productForm, setProductForm] = useState<AdminProductPayload>(EMPTY_PRODUCT);
+  const [ordersDateMode, setOrdersDateMode] = useState<'all' | 'month' | 'day'>('all');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
@@ -280,7 +398,7 @@ export const AdminDashboard = ({
 
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(initialSnapshot.settings);
   const [orderDrafts, setOrderDrafts] = useState<Record<number, AdminOrderUpdatePayload>>({});
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialSnapshot.orders[0]?.id ?? null);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [activityDateFilter, setActivityDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
   const [activityActionFilter, setActivityActionFilter] = useState('all');
   const [activityEntityFilter, setActivityEntityFilter] = useState('all');
@@ -288,6 +406,7 @@ export const AdminDashboard = ({
   const [activityPage, setActivityPage] = useState(1);
   const [isActivityCleanupModalOpen, setIsActivityCleanupModalOpen] = useState(false);
   const [isPurgingLogs, setIsPurgingLogs] = useState(false);
+  const [documentationSearchTerm, setDocumentationSearchTerm] = useState('');
   const currentRole = currentAdminUser?.role || 'guest';
   const canManageTeam = currentRole === 'admin';
   const canViewActivityLog = currentRole === 'admin';
@@ -295,7 +414,7 @@ export const AdminDashboard = ({
   useEffect(() => {
     setSnapshot(initialSnapshot);
     setSettingsForm(initialSnapshot.settings);
-    setSelectedOrderId(initialSnapshot.orders[0]?.id ?? null);
+    setSelectedOrderId(null);
   }, [initialSnapshot]);
 
   useEffect(() => {
@@ -348,7 +467,7 @@ export const AdminDashboard = ({
       setSnapshot(next);
       setSettingsForm(next.settings);
       setOrderDrafts({});
-      setSelectedOrderId((current) => next.orders.some((order) => order.id === current) ? current : next.orders[0]?.id ?? null);
+      setSelectedOrderId((current) => next.orders.some((order) => order.id === current) ? current : null);
       onSnapshotUpdated(next);
       if (successMessage) toast.success(successMessage);
     } catch (error) {
@@ -419,6 +538,16 @@ export const AdminDashboard = ({
     () => snapshot.products.filter((product) => product.isActive !== false).sort((a, b) => a.stock - b.stock).slice(0, 6),
     [snapshot],
   );
+  const filteredDocumentationSections = useMemo(() => {
+    const query = documentationSearchTerm.trim().toLowerCase();
+    if (!query) return DOCUMENTATION_SECTIONS;
+
+    return DOCUMENTATION_SECTIONS.filter((section) => (
+      section.title.toLowerCase().includes(query)
+      || section.keywords.some((keyword) => keyword.includes(query))
+      || section.content.some((paragraph) => paragraph.toLowerCase().includes(query))
+    ));
+  }, [documentationSearchTerm]);
   const existingAttributeOptions = useMemo<Record<AttributeFieldKey, string[]>>(() => {
     const collectUnique = (field: AttributeFieldKey) => {
       const seen = new Set<string>();
@@ -506,9 +635,20 @@ export const AdminDashboard = ({
 
   const recentOrders = useMemo(() => snapshot.orders.slice(0, 6), [snapshot]);
   const selectedOrder = useMemo(
-    () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? snapshot.orders[0] ?? null,
+    () => snapshot.orders.find((order) => order.id === selectedOrderId) ?? null,
     [selectedOrderId, snapshot.orders],
   );
+  const filteredOrders = useMemo(() => {
+    if (ordersDateMode === 'all') return snapshot.orders;
+    const now = new Date();
+    return snapshot.orders.filter((order) => {
+      const date = new Date(order.createdAt);
+      if (ordersDateMode === 'month') {
+        return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+      }
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+    });
+  }, [ordersDateMode, snapshot.orders]);
 
   useEffect(() => {
     setActivityPage(1);
@@ -547,6 +687,7 @@ export const AdminDashboard = ({
       categoryId: product.categoryId || snapshot.categories.find((category) => category.name === product.category)?.id || '',
       images: product.images.length ? product.images : [''],
       sizes: product.sizes,
+      sizeStock: product.sizeStock ?? {},
       colors: product.colors,
       tags: product.tags,
       stock: product.stock,
@@ -617,7 +758,7 @@ export const AdminDashboard = ({
     try {
       const payload: AdminProductPayload = {
         ...productForm,
-        images: productForm.images.filter(Boolean),
+        images: productForm.images.filter(Boolean).slice(0, MAX_PRODUCT_IMAGES),
       };
       if (editingProductId) {
         await updateAdminProduct(editingProductId, payload);
@@ -730,6 +871,14 @@ export const AdminDashboard = ({
     const itemLines = order.items
       .map((item) => `${item.productName} x ${item.quantity}${item.selectedSize ? ` · Talla ${item.selectedSize}` : ''}${item.selectedColor ? ` · Color ${item.selectedColor}` : ''}`)
       .join('<br />');
+    const barcodeBits = order.orderNumber
+      .split('')
+      .map((char) => char.charCodeAt(0).toString(2).padStart(8, '0'))
+      .join('');
+    const barcodeHtml = barcodeBits
+      .split('')
+      .map((bit) => `<span class="${bit === '1' ? 'bar bar-thick' : 'bar bar-thin'}"></span>`)
+      .join('');
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -761,9 +910,24 @@ export const AdminDashboard = ({
               font-weight: 700;
             }
             .order-number {
-              font-size: 22px;
-              font-weight: 700;
-              margin: 4px 0 0;
+              margin: 4px 0;
+              display: flex;
+              flex-wrap: nowrap;
+              gap: 1px;
+              align-items: flex-end;
+              min-height: 54px;
+              overflow: hidden;
+            }
+            .bar {
+              display: inline-block;
+              height: 52px;
+              background: #111;
+            }
+            .bar-thin {
+              width: 1px;
+            }
+            .bar-thick {
+              width: 3px;
             }
             .recipient {
               font-size: 24px;
@@ -804,7 +968,9 @@ export const AdminDashboard = ({
           <main class="sheet">
             <section>
               <div class="brand">Dark Ranch · Etiqueta de envío</div>
-              <p class="order-number">${order.orderNumber}</p>
+              <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; margin-top: 4px;">Order ID</div>
+              <p class="order-number">${barcodeHtml}</p>
+              <p style="margin:0; font-size: 10px; letter-spacing: 0.08em;">${order.orderNumber}</p>
             </section>
 
             <section class="box">
@@ -813,23 +979,9 @@ export const AdminDashboard = ({
               <p class="address">${order.address}<br />${order.city}, ${order.zip}</p>
             </section>
 
-            <section class="grid">
-              <div class="box">
-                <div class="meta-label">Estatus orden</div>
-                <div class="meta-value">${formatOrderStatus(order.status)}</div>
-              </div>
-              <div class="box">
-                <div class="meta-label">Pago</div>
-                <div class="meta-value">${formatPaymentStatus(order.paymentStatus)}</div>
-              </div>
-              <div class="box">
-                <div class="meta-label">Correo</div>
-                <div class="meta-value">${order.customerEmail}</div>
-              </div>
-              <div class="box">
-                <div class="meta-label">Total</div>
-                <div class="meta-value">${currency.format(order.total)}</div>
-              </div>
+            <section class="box">
+              <div class="meta-label">Correo</div>
+              <div class="meta-value">${order.customerEmail}</div>
             </section>
 
             <section class="box">
@@ -858,21 +1010,32 @@ export const AdminDashboard = ({
     ? orderDrafts[selectedOrder.id] || {
       status: selectedOrder.status,
       paymentStatus: selectedOrder.paymentStatus,
+      trackingUrl: selectedOrder.trackingUrl || '',
       cancellationReason: selectedOrder.cancellationReason || '',
       refundAmount: selectedOrder.refundAmount ?? null,
     }
     : null;
 
-  const saveOrder = async (orderId: number) => {
-    const draft = orderDrafts[orderId];
-    if (!draft) return;
+  const saveOrder = async (orderId: number, draft: AdminOrderUpdatePayload) => {
     try {
       await updateAdminOrder(orderId, draft);
-      toast.success('Orden actualizada');
       await refreshSnapshot();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la orden');
     }
+  };
+
+  const updateOrderDraftAndSave = (order: AdminOrder, patch: Partial<AdminOrderUpdatePayload>) => {
+    const baseDraft = orderDrafts[order.id] || {
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      trackingUrl: order.trackingUrl || '',
+      cancellationReason: order.cancellationReason || '',
+      refundAmount: order.refundAmount ?? null,
+    };
+    const nextDraft = { ...baseDraft, ...patch };
+    setOrderDrafts((current) => ({ ...current, [order.id]: nextDraft }));
+    void saveOrder(order.id, nextDraft);
   };
 
   const handleSaveSettings = async () => {
@@ -896,14 +1059,15 @@ export const AdminDashboard = ({
     { key: 'orders', label: 'Órdenes', icon: ShoppingBag },
     { key: 'team', label: 'Admin', icon: Users },
     ...(canViewActivityLog ? [{ key: 'activity' as TabKey, label: 'Bitácora', icon: ShieldCheck }] : []),
+    { key: 'documentation', label: 'Documentación', icon: BookOpen },
     { key: 'storefront', label: 'Storefront', icon: Settings },
   ];
 
   return (
-    <div className="min-h-screen bg-[#f7f2eb] pt-24 pb-20">
-      <div className="container mx-auto px-6 space-y-8">
-        <div className="flex flex-col xl:flex-row xl:items-start gap-6 xl:gap-8">
-          <aside className="xl:w-72 space-y-4">
+    <div className="min-h-screen bg-[#f7f2eb] pt-20 pb-14 lg:pt-24 lg:pb-20">
+      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 space-y-6 lg:space-y-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[clamp(300px,20vw,380px)_minmax(0,1fr)] items-start gap-6 xl:gap-8 2xl:gap-10">
+          <aside className="space-y-4 xl:sticky xl:top-28">
             <div className="bg-[#1f130b] text-white border-2 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <p className="font-header uppercase text-xs tracking-[0.3em] text-[#d4c5b3]">Dark Ranch Admin</p>
               <h1 className="font-western text-4xl uppercase mt-3">Centro de mando</h1>
@@ -943,7 +1107,7 @@ export const AdminDashboard = ({
             </div>
           </aside>
 
-          <main className="flex-1 space-y-8">
+          <main className="min-w-0 space-y-6 lg:space-y-8">
             <section className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <p className="font-header uppercase text-xs tracking-[0.25em] text-[#8c6844]">Sección de administración</p>
@@ -962,9 +1126,9 @@ export const AdminDashboard = ({
               </div>
             </section>
 
-            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            <section className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-5 xl:grid-cols-3 gap-4">
               {[
-                { label: 'Ventas', value: currency.format(Number(snapshot.dashboard.stats.totalSales)), icon: DollarSign },
+                { label: 'Ventas', value: formatCurrencyMXN(Number(snapshot.dashboard.stats.totalSales)), icon: DollarSign },
                 { label: 'Órdenes hoy', value: String(snapshot.dashboard.stats.ordersToday), icon: ShoppingBag },
                 { label: 'Productos activos', value: String(productMetrics.activeProducts), icon: Package },
                 { label: 'Stock bajo', value: String(snapshot.dashboard.stats.lowStock), icon: AlertCircle },
@@ -982,7 +1146,7 @@ export const AdminDashboard = ({
             </section>
 
             {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 2xl:grid-cols-[1.4fr_1fr] gap-8">
+              <div className="grid grid-cols-1 2xl:grid-cols-[1.45fr_1fr] gap-6 2xl:gap-8">
                 <div className="space-y-8">
                   <PaperCard>
                     <div className="flex items-center justify-between gap-4 mb-6">
@@ -1156,7 +1320,7 @@ export const AdminDashboard = ({
                             </div>
                           </td>
                           <td className="px-4 py-3">{product.category}</td>
-                          <td className="px-4 py-3">{currency.format(product.salePrice ?? product.price)}</td>
+                          <td className="px-4 py-3">{formatCurrencyMXN(product.salePrice ?? product.price)}</td>
                           <td className="px-4 py-3">{product.stock}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-2">
@@ -1240,17 +1404,24 @@ export const AdminDashboard = ({
                   </div>
                   <div className="text-right">
                     <p className="font-header uppercase text-xs tracking-[0.2em] text-neutral-500">Órdenes registradas</p>
-                    <p className="font-header font-black text-2xl">{snapshot.orders.length}</p>
+                    <p className="font-header font-black text-2xl">{filteredOrders.length}</p>
                   </div>
                 </div>
                 <div className="space-y-5">
-                  {snapshot.orders.length === 0 ? (
+                  {filteredOrders.length === 0 ? (
                     <div className="border-2 border-dashed border-black bg-white p-8 text-center">
                       <p className="font-header font-black uppercase text-lg">Sin órdenes registradas</p>
                       <p className="mt-2 text-sm text-neutral-600">Cuando se generen compras aparecerán aquí para seguimiento y postventa.</p>
                     </div>
                   ) : (
                     <>
+                      <div className="flex justify-end">
+                        <select value={ordersDateMode} onChange={(e) => setOrdersDateMode(e.target.value as 'all' | 'month' | 'day')} className={INPUT_CLASS}>
+                          <option value="all">Todas</option>
+                          <option value="month">Mes actual</option>
+                          <option value="day">Día actual</option>
+                        </select>
+                      </div>
                       <div className="overflow-hidden border-2 border-black bg-white">
                         <div className="overflow-x-auto">
                           <table className="min-w-full text-sm">
@@ -1266,7 +1437,7 @@ export const AdminDashboard = ({
                               </tr>
                             </thead>
                             <tbody>
-                              {snapshot.orders.map((order) => (
+                              {filteredOrders.map((order) => (
                                 <tr
                                   key={order.id}
                                   className={cn(
@@ -1286,7 +1457,7 @@ export const AdminDashboard = ({
                                   <td className="px-4 py-4">{renderBadge(formatOrderStatus(order.status), statusBadgeClassMap[order.status])}</td>
                                   <td className="px-4 py-4">{renderBadge(formatPaymentStatus(order.paymentStatus), paymentBadgeClassMap[order.paymentStatus])}</td>
                                   <td className="px-4 py-4 text-neutral-700">{new Date(order.createdAt).toLocaleString()}</td>
-                                  <td className="px-4 py-4 text-right font-header font-black">{currency.format(order.total)}</td>
+                                  <td className="px-4 py-4 text-right font-header font-black">{formatCurrencyMXN(order.total)}</td>
                                   <td className="px-4 py-4">
                                     <div className="flex flex-wrap justify-end gap-2">
                                       <Button size="sm" variant="outline" onClick={() => setSelectedOrderId(order.id)}>
@@ -1304,7 +1475,9 @@ export const AdminDashboard = ({
                         </div>
                       </div>
 
-                      {selectedOrder && selectedOrderDraft && (
+                      <Dialog open={Boolean(selectedOrder && selectedOrderDraft)} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
+                        {selectedOrder && selectedOrderDraft && (
+                        <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
                         <div className="border-2 border-black bg-white p-5 space-y-5">
                           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                             <div>
@@ -1335,7 +1508,7 @@ export const AdminDashboard = ({
                                         </p>
                                       )}
                                     </div>
-                                    <span>{currency.format(item.price * item.quantity)}</span>
+                                    <span>{formatCurrencyMXN(item.price * item.quantity)}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1358,20 +1531,21 @@ export const AdminDashboard = ({
 
                           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                             <Field label="Estado orden">
-                              <select value={selectedOrderDraft.status} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, status: e.target.value as AdminOrder['status'] } }))} className={INPUT_CLASS}>
+                              <select value={selectedOrderDraft.status} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { status: e.target.value as AdminOrder['status'] })} className={INPUT_CLASS}>
                                 {ORDER_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{formatOrderStatus(status)}</option>)}
                               </select>
                             </Field>
                             <Field label="Estado pago">
-                              <select value={selectedOrderDraft.paymentStatus} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, paymentStatus: e.target.value as AdminOrder['paymentStatus'] } }))} className={INPUT_CLASS}>
-                                {PAYMENT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{formatPaymentStatus(status)}</option>)}
-                              </select>
+                              <input value={formatPaymentStatus(selectedOrder.paymentStatus)} className={INPUT_CLASS} disabled />
+                            </Field>
+                            <Field label="Link de seguimiento">
+                              <input value={selectedOrderDraft.trackingUrl || ''} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { trackingUrl: e.target.value })} placeholder="https://dhl.com/..." className={INPUT_CLASS} />
                             </Field>
                             <Field label="Motivo cancelación">
-                              <input value={selectedOrderDraft.cancellationReason || ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, cancellationReason: e.target.value } }))} className={INPUT_CLASS} />
+                              <input value={selectedOrderDraft.cancellationReason || ''} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { cancellationReason: e.target.value })} className={INPUT_CLASS} />
                             </Field>
                             <Field label="Reembolso">
-                              <input type="number" step="0.01" min="0" value={selectedOrderDraft.refundAmount ?? ''} onChange={(e) => setOrderDrafts((current) => ({ ...current, [selectedOrder.id]: { ...selectedOrderDraft, refundAmount: e.target.value === '' ? null : Number(e.target.value) } }))} className={INPUT_CLASS} />
+                              <input type="number" step="0.01" min="0" value={selectedOrderDraft.refundAmount ?? ''} onChange={(e) => updateOrderDraftAndSave(selectedOrder, { refundAmount: e.target.value === '' ? null : Number(e.target.value) })} className={INPUT_CLASS} />
                             </Field>
                           </div>
 
@@ -1386,13 +1560,59 @@ export const AdminDashboard = ({
                             <Button size="sm" variant="outline" onClick={() => printShippingLabel(selectedOrder)}>
                               <Printer size={14} className="mr-2" /> Imprimir formato
                             </Button>
-                            <Button size="sm" onClick={() => saveOrder(selectedOrder.id)}><Save size={14} className="mr-2" /> Guardar</Button>
                           </div>
                         </div>
-                      )}
+                        </DialogContent>
+                        )}
+                      </Dialog>
                     </>
                   )}
                 </div>
+              </PaperCard>
+            )}
+
+            {activeTab === 'documentation' && (
+              <PaperCard>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
+                  <div>
+                    <p className="font-header uppercase text-xs tracking-[0.25em] text-[#C4A484]">Guía interna</p>
+                    <h2 className="font-western uppercase text-3xl">Documentación de uso</h2>
+                    <p className="mt-2 text-sm text-neutral-600">Busca temas y expande cada pestaña para ver instrucciones rápidas del programa.</p>
+                  </div>
+                  <div className="w-full lg:w-[360px]">
+                    <input
+                      type="search"
+                      value={documentationSearchTerm}
+                      onChange={(event) => setDocumentationSearchTerm(event.target.value)}
+                      placeholder="Buscar en documentación..."
+                      className={INPUT_CLASS}
+                    />
+                  </div>
+                </div>
+
+                {filteredDocumentationSections.length === 0 ? (
+                  <div className="border-2 border-dashed border-black bg-white p-8 text-center">
+                    <p className="font-header font-black uppercase text-lg">Sin resultados</p>
+                    <p className="mt-2 text-sm text-neutral-600">Prueba con otro término o limpia el buscador para ver todas las secciones.</p>
+                  </div>
+                ) : (
+                  <Accordion type="multiple" className="border-2 border-black bg-white px-5">
+                    {filteredDocumentationSections.map((section) => (
+                      <AccordionItem key={section.id} value={section.id} className="border-black">
+                        <AccordionTrigger className="font-header font-black uppercase tracking-[0.14em] text-sm hover:no-underline">
+                          {section.title}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <ul className="space-y-2 list-disc pl-5 text-sm text-neutral-700">
+                            {section.content.map((paragraph) => (
+                              <li key={paragraph}>{paragraph}</li>
+                            ))}
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
               </PaperCard>
             )}
 
@@ -1568,49 +1788,31 @@ export const AdminDashboard = ({
                   <Button onClick={handleSaveSettings} disabled={isSavingSettings}>{isSavingSettings ? 'Guardando…' : 'Guardar ajustes'}</Button>
                 </div>
 
-                <div className="grid xl:grid-cols-[1fr_0.9fr] gap-8">
-                  <div className="space-y-6">
-                    <Field label="Hero título"><input value={settingsForm.hero.title} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, title: e.target.value } }))} className={INPUT_CLASS} /></Field>
-                    <Field label="Hero subtítulo"><input value={settingsForm.hero.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, subtitle: e.target.value } }))} className={INPUT_CLASS} /></Field>
-                    <ImageDropzone
-                      label="Hero imagen"
-                      value={settingsForm.hero.imageUrl ? [settingsForm.hero.imageUrl] : []}
-                      maxItems={1}
-                      folder="storefront/hero"
-                      onChange={(images) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: images[0] ?? '' } }))}
-                    />
-                    <Field label="About text"><textarea value={settingsForm.aboutText} onChange={(e) => setSettingsForm((current) => ({ ...current, aboutText: e.target.value }))} className={`${INPUT_CLASS} min-h-[160px]`} /></Field>
-                    <Field label="Email de contacto"><input type="email" value={settingsForm.contactEmail} onChange={(e) => setSettingsForm((current) => ({ ...current, contactEmail: e.target.value }))} className={INPUT_CLASS} /></Field>
+                <div className="space-y-6">
+                  <div className="border-2 border-black bg-white p-5">
+                    <p className="font-header uppercase text-xs tracking-[0.2em] text-[#C4A484] mb-4">Hero editable (horizontal)</p>
+                    <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-4 items-start">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Field label="Hero título"><input value={settingsForm.hero.title} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, title: e.target.value } }))} className={INPUT_CLASS} /></Field>
+                        <Field label="Hero subtítulo"><input value={settingsForm.hero.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, subtitle: e.target.value } }))} className={INPUT_CLASS} /></Field>
+                      </div>
+                      <ImageDropzone
+                        label="Hero imagen"
+                        value={settingsForm.hero.imageUrl ? [settingsForm.hero.imageUrl] : []}
+                        maxItems={1}
+                        folder="storefront/hero"
+                        onChange={(images) => setSettingsForm((current) => ({ ...current, hero: { ...current.hero, imageUrl: images[0] ?? '' } }))}
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-6">
-                    {settingsForm.banners.map((banner, index) => (
-                      <div key={banner.id} className="border-2 border-black bg-white p-4 space-y-4">
-                        <p className="font-header uppercase text-xs tracking-[0.2em] text-[#C4A484]">Banner {index + 1}</p>
-                        <Field label="Título"><input value={banner.title} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, title: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
-                        <Field label="Descripción"><textarea value={banner.subtitle} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, subtitle: e.target.value } : item) }))} className={`${INPUT_CLASS} min-h-[100px]`} /></Field>
-                        <Field label="CTA"><input value={banner.buttonText} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, buttonText: e.target.value } : item) }))} className={INPUT_CLASS} /></Field>
-                        <ImageDropzone
-                          label="Imagen de banner"
-                          value={banner.imageUrl ? [banner.imageUrl] : []}
-                          maxItems={1}
-                          folder={`storefront/banners/${banner.id || index + 1}`}
-                          onChange={(images) => setSettingsForm((current) => ({
-                            ...current,
-                            banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: images[0] ?? '' } : item),
-                          }))}
-                        />
-                        <Field label="Categoría"><select value={banner.categoryLink} onChange={(e) => setSettingsForm((current) => ({ ...current, banners: current.banners.map((item, itemIndex) => itemIndex === index ? { ...item, categoryLink: e.target.value } : item) }))} className={INPUT_CLASS}>{snapshot.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></Field>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </PaperCard>
             )}
           </main>
 
           <Dialog open={isActivityCleanupModalOpen} onOpenChange={setIsActivityCleanupModalOpen}>
-            <DialogContent className="max-w-xl border-2 border-black bg-[#fcf9f5]">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <DialogHeader>
                 <DialogTitle className="font-western uppercase text-2xl">Mantenimiento de bitácora</DialogTitle>
                 <DialogDescription className="text-sm text-neutral-700">
@@ -1664,7 +1866,7 @@ export const AdminDashboard = ({
 </Dialog>
 
           <Dialog open={isCategoryModalOpen} onOpenChange={(open) => { if (!open) closeCategoryModal(); }}>
-            <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">{editingCategoryId ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
@@ -1683,7 +1885,7 @@ export const AdminDashboard = ({
           </Dialog>
 
           <Dialog open={isUserModalOpen} onOpenChange={(open) => { if (!open) closeUserModal(); }}>
-            <DialogContent className="max-w-3xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-h-[90vh] overflow-hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">{editingUserId ? 'Editar acceso' : 'Nuevo acceso'}</DialogTitle>
@@ -1718,7 +1920,7 @@ export const AdminDashboard = ({
           </Dialog>
 
           <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
-            <DialogContent className="max-w-2xl border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+            <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
               <div className="border-b-2 border-black bg-white px-8 py-6">
                 <DialogHeader className="text-left">
                   <DialogTitle className="font-western uppercase text-3xl text-black">Confirmar eliminación</DialogTitle>
@@ -1770,7 +1972,9 @@ const ImageDropzone = ({
   const handleUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const fileArray = Array.from(fileList);
-    const availableSlots = typeof maxItems === 'number' ? Math.max(maxItems - value.length, 0) : fileArray.length;
+    const availableSlots = typeof maxItems === 'number'
+      ? (multiple ? Math.max(maxItems - value.length, 0) : 1)
+      : fileArray.length;
     const files = fileArray.slice(0, availableSlots);
     if (files.length === 0) {
       toast.error(`Solo puedes cargar ${maxItems} imagen(es) en este campo.`);
@@ -1782,12 +1986,30 @@ const ImageDropzone = ({
       const uploadedUrls = await Promise.all(files.map((file) => uploadImageToStorage(file, folder)));
       const next = multiple ? [...value, ...uploadedUrls] : [uploadedUrls[0]];
       onChange(next);
+
+      if (!multiple && value.length > 0) {
+        await Promise.all(
+          value
+            .filter((previousUrl) => previousUrl !== uploadedUrls[0])
+            .map(async (previousUrl) => {
+              try {
+                await deleteImageFromStorage(previousUrl);
+              } catch (cleanupError) {
+                console.error('Error deleting replaced image:', cleanupError);
+              }
+            }),
+        );
+      }
+
       toast.success(`${uploadedUrls.length} imagen(es) subida(s).`);
     } catch (error) {
       console.error('Error uploading image:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen.');
     } finally {
       setIsUploading(false);
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
     }
   };
 
@@ -1942,11 +2164,11 @@ const ProductFormFields = ({
                   <div className="border-t border-neutral-200 pt-3">
                     {hasDiscount ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-header text-2xl font-black text-red-600">${form.salePrice}</span>
-                        <span className="text-sm text-neutral-400 line-through">${form.price}</span>
+                        <span className="font-header text-2xl font-black text-red-600">{formatCurrencyMXN(form.salePrice ?? 0)}</span>
+                        <span className="text-sm text-neutral-400 line-through">{formatCurrencyMXN(form.price)}</span>
                       </div>
                     ) : (
-                      <span className="font-header text-2xl font-black">${form.price || 0}</span>
+                      <span className="font-header text-2xl font-black">{formatCurrencyMXN(form.price || 0)}</span>
                     )}
                   </div>
                 </div>
@@ -1995,8 +2217,9 @@ const ProductFormFields = ({
               label="Galería de imágenes"
               value={form.images}
               multiple
+              maxItems={MAX_PRODUCT_IMAGES}
               folder={`products/${form.id || form.slug || 'nuevo'}`}
-              onChange={(images) => onChange((current) => ({ ...current, images }))}
+              onChange={(images) => onChange((current) => ({ ...current, images: images.slice(0, MAX_PRODUCT_IMAGES) }))}
             />
           </section>
 
@@ -2027,6 +2250,23 @@ const ProductFormFields = ({
                 existingOptions={existingAttributeOptions.colors}
                 onChange={(colors) => onChange((current) => ({ ...current, colors }))}
               />
+            </div>
+            <div className="mt-2 space-y-2">
+              <p className="font-header uppercase text-xs tracking-[0.18em] text-neutral-500">Límite por talla</p>
+              <p className="text-xs text-neutral-600">Si una talla llega a 0 se desactiva automáticamente en checkout.</p>
+              <div className="grid gap-2 md:grid-cols-3">
+                {form.sizes.map((size) => (
+                  <Field key={size} label={`Talla ${size}`}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.sizeStock?.[size] ?? 0}
+                      onChange={(e) => onChange((current) => ({ ...current, sizeStock: { ...(current.sizeStock || {}), [size]: Math.max(0, Number(e.target.value)) } }))}
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -2216,7 +2456,8 @@ const AttributeTagPicker = ({
         </div>
         <input
           value={serializeList(normalizedItems)}
-          onChange={(e) => onChange(parseTags(e.target.value))}
+          readOnly
+          aria-readonly="true"
           className={INPUT_CLASS}
         />
         <div className="flex flex-wrap gap-2">
@@ -2296,7 +2537,7 @@ const AttributeTagPicker = ({
         </details>
       </div>
       <Dialog open={isManagerOpen} onOpenChange={setIsManagerOpen}>
-        <DialogContent className="max-w-2xl border-2 border-black p-0">
+        <DialogContent className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] flex h-[min(94vh,980px)] w-[90vw] max-w-[1400px] flex-col border-2 border-black bg-[#fcf9f5] p-0 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden sm:w-[85vw] md:w-[80vw] lg:w-[90vw] xl:max-w-[1600px]">
           <DialogHeader className="border-b border-black/20 p-5">
             <DialogTitle className="font-western uppercase text-2xl text-black">Administrar atributos</DialogTitle>
             <DialogDescription className="text-neutral-600">

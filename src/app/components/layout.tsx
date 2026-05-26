@@ -5,7 +5,7 @@ import { useCart } from '../cart-context';
 import { Button, LOGO_HORIZONTAL, cn } from './ui';
 import { ImageWithFallback } from './common/ImageWithFallback';
 
-export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: any) => void, currentView: string }) => {
+export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { onOpenCart: () => void, onOpenAuth: () => void, onNavigate: (view: string) => void, currentView: string }) => {
   const { cartCount } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -19,8 +19,6 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
   const navLinks = [
     { name: 'Inicio', view: 'home' },
     { name: 'Tienda', view: 'shop' },
-    { name: 'Sobre Nosotros', view: 'about' },
-    { name: 'Contacto', view: 'contact' },
   ];
 
   const isHomeView = currentView === 'home';
@@ -45,7 +43,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
           <ImageWithFallback 
             src={LOGO_HORIZONTAL} 
             alt="Dark Ranch Logo" 
-            className="h-10 md:h-12 w-auto object-contain brightness-0 invert"
+            className="h-10 md:h-12 w-auto object-contain"
           />
         </button>
 
@@ -97,7 +95,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
             className="lg:hidden fixed inset-0 top-0 h-screen bg-black text-white p-8 z-[100] flex flex-col"
           >
             <div className="flex justify-between items-center mb-16">
-              <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 invert" />
+              <ImageWithFallback src={LOGO_HORIZONTAL} alt="Logo" className="h-10 w-auto object-contain" />
               <button onClick={() => setIsMobileMenuOpen(false)}><X size={32} /></button>
             </div>
             <div className="space-y-8">
@@ -105,7 +103,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
                 <button 
                   key={link.name} 
                   onClick={() => { onNavigate(link.view); setIsMobileMenuOpen(false); }}
-                  className="block text-4xl font-western uppercase tracking-tighter hover:text-[#C4A484] text-left w-full"
+                  className="block text-2xl sm:text-4xl font-western uppercase tracking-tight sm:tracking-tighter hover:text-[#C4A484] text-left w-full break-words"
                 >
                   {link.name}
                 </button>
@@ -113,7 +111,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
             </div>
             <div className="mt-auto pb-10 space-y-6">
               <p className="font-header uppercase text-[10px] tracking-widest text-neutral-500">Contacta con la Ranchería</p>
-              <p className="text-xl font-header">contacto@darkranch.com</p>
+              <p className="text-xl font-header">correo.example</p>
               <div className="flex gap-4">
                 <div className="w-10 h-10 border border-neutral-700 flex items-center justify-center text-xs">IG</div>
                 <div className="w-10 h-10 border border-neutral-700 flex items-center justify-center text-xs">FB</div>
@@ -129,7 +127,7 @@ export const Navbar = ({ onOpenCart, onOpenAuth, onNavigate, currentView }: { on
 export const Footer = () => (
   <footer className="bg-black text-white pt-20 pb-10">
     <div className="container mx-auto px-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+      <div className="grid grid-cols-1 gap-12 mb-16">
         <div className="space-y-6">
           <ImageWithFallback src={LOGO_HORIZONTAL} alt="Dark Ranch" className="h-12 w-auto invert" />
           <p className="text-neutral-400 text-sm leading-relaxed">
@@ -155,47 +153,14 @@ export const Footer = () => (
             </a>
           </div>
         </div>
-        
-        <div>
-          <h4 className="font-header uppercase tracking-widest text-lg mb-6">Navegación</h4>
-          <ul className="space-y-4 text-neutral-400 text-sm">
-            <li><a href="#" className="hover:text-white transition-colors">Tienda</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Categorías</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Nuevas Llegadas</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Ofertas</a></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="font-header uppercase tracking-widest text-lg mb-6">Soporte</h4>
-          <ul className="space-y-4 text-neutral-400 text-sm">
-            <li><a href="#" className="hover:text-white transition-colors">Envíos y Devoluciones</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Guía de Tallas</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Preguntas Frecuentes</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Contacto</a></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="font-header uppercase tracking-widest text-lg mb-6">Boletín</h4>
-          <p className="text-neutral-400 text-sm mb-4">Únete a la ranchería y recibe ofertas exclusivas.</p>
-          <div className="flex">
-            <input 
-              type="email" 
-              placeholder="Tu email" 
-              className="bg-neutral-900 border-none px-4 py-2 w-full focus:ring-1 focus:ring-neutral-700 outline-none"
-            />
-            <button className="bg-white text-black px-4 py-2 font-header uppercase text-sm font-bold">Unirse</button>
-          </div>
-        </div>
+      </div>
+      <div className="mb-16">
+        <h4 className="font-header uppercase tracking-widest text-lg mb-3">Correo de contacto</h4>
+        <p className="text-neutral-400 text-sm">correo de ejemplo</p>
       </div>
       
-      <div className="border-t border-neutral-800 pt-8 flex flex-col md:row items-center justify-between space-y-4 md:space-y-0 text-xs text-neutral-500 uppercase tracking-widest font-typewriter">
+      <div className="border-t border-neutral-800 pt-8 flex flex-col md:flex-row items-center md:items-start justify-between gap-4 text-[10px] sm:text-xs text-neutral-500 uppercase tracking-[0.12em] sm:tracking-widest font-typewriter text-center md:text-left">
         <p>&copy; 2026 DARK RANCH CO. FORJADO EN EL DESIERTO. TODOS LOS DERECHOS RESERVADOS.</p>
-        <div className="flex space-x-6">
-          <a href="#" className="hover:text-white transition-colors underline underline-offset-4">Privacidad</a>
-          <a href="#" className="hover:text-white transition-colors underline underline-offset-4">Términos del Servicio</a>
-        </div>
       </div>
     </div>
   </footer>

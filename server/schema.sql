@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS products (
   category_id VARCHAR(50) NOT NULL,
   images_json JSON NOT NULL,
   sizes_json JSON NOT NULL,
+  size_stock_json JSON NULL,
   colors_json JSON NOT NULL,
   tags_json JSON NOT NULL,
   stock INT NOT NULL DEFAULT 0,
@@ -107,4 +108,3 @@ CREATE TABLE IF NOT EXISTS admin_activity_logs (
   INDEX idx_admin_activity_created_at (created_at),
   INDEX idx_admin_activity_actor (actor_email)
 ) ENGINE=InnoDB;
-

@@ -6,16 +6,20 @@ import { ProductCard, CategoryCard } from './components/product';
 import { CartDrawer } from './components/cart-drawer';
 import { AdminDashboard } from './components/admin';
 import { CheckoutPage } from './components/checkout';
-import { LoginPage } from './components/auth';
-import { AboutPage, ContactPage } from './components/pages';
+import { AuthUser, CustomerLoginDialog, LoginPage } from './components/auth';
+import { AboutPage, LegalAgreementPage, PoliciesPage, PrivacyPage, TermsPage } from './components/pages';
 import { Button, SectionTitle, Divider, LOGO_CIRCULAR, OrnateBorder, cn } from './components/ui';
-import { AdminSnapshot, AdminUser, BootstrapData, StoreSettings } from './types';
+import { AdminSnapshot, AdminUser, BootstrapData, CustomerSession, Product, StoreSettings } from './types';
 import { ImageWithFallback } from './components/common/ImageWithFallback';
 import { ArrowRight, RefreshCw, Filter, Search, ShieldCheck, Truck } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'motion/react';
 import { getBootstrapData } from './lib/api';
+import { ProductDetailPage } from './components/product-detail';
+import { OrdersPage } from './components/orders';
 
-type View = 'home' | 'shop' | 'about' | 'contact' | 'checkout' | 'login' | 'admin';
+type View = 'home' | 'shop' | 'about' | 'checkout' | 'login' | 'admin' | 'product' | 'orders' | 'policies' | 'privacy' | 'terms';
+const HARDCODED_ABOUT_TEXT = 'Dark Ranch nació en el corazón del desierto de Sonora, donde la necesidad de ropa resistente se encontró con la elegancia del viejo oeste.';
+const LEGAL_ACCEPTANCE_KEY = 'dark-ranch-legal-accepted-v2';
 
 const App = () => {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -26,9 +30,11 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [adminSnapshot, setAdminSnapshot] = useState<AdminSnapshot | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [checkoutIntent, setCheckoutIntent] = useState(false);
+  const [hasAcceptedLegal, setHasAcceptedLegal] = useState(true);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -53,6 +59,11 @@ const App = () => {
   };
 
   useEffect(() => {
+    const acceptedLegal = localStorage.getItem(LEGAL_ACCEPTANCE_KEY) === 'true';
+    setHasAcceptedLegal(acceptedLegal);
+  }, []);
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -70,6 +81,28 @@ const App = () => {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      const rawCustomer = localStorage.getItem('dark-ranch-customer-session');
+      if (!rawCustomer) return;
+      const parsed = JSON.parse(rawCustomer) as CustomerSession;
+      if (parsed?.id && parsed?.email) {
+        setCustomerSession(parsed);
+      }
+    } catch {
+      localStorage.removeItem('dark-ranch-customer-session');
+    }
+  }, []);
+
+
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hasMpReturn = params.has('payment_status') || params.has('status') || params.get('checkout') === '1';
+    if (hasMpReturn) {
+      setCurrentView('checkout');
+    }
+  }, []);
 
   const filteredProducts = useMemo(() => {
     if (!bootstrap) return [];
@@ -87,15 +120,23 @@ const App = () => {
 
   const storeSettings: StoreSettings | null = bootstrap?.settings ?? null;
 
-  const handleLogin = (user: AdminUser | null) => {
-    if (checkoutIntent && !user) {
-      setCheckoutIntent(false);
-      setCurrentView('checkout');
+  const handleLogin = (user: AuthUser) => {
+    if (user.role === 'admin') {
+      const nextAdminUser: AdminUser = { id: Number(user.id), email: user.email, name: user.name, role: user.role };
+      localStorage.setItem('dark-ranch-admin-user', JSON.stringify(nextAdminUser));
+      setAdminUser(nextAdminUser);
+      setIsAdmin(true);
+      setCurrentView('admin');
       return;
     }
-    setAdminUser(user);
-    setIsAdmin(Boolean(user));
-    setCurrentView(user ? 'admin' : 'home');
+
+    const nextCustomer: CustomerSession = { id: String(user.id), name: user.name, email: user.email };
+    localStorage.removeItem('dark-ranch-admin-user');
+    setAdminUser(null);
+    setIsAdmin(false);
+    localStorage.setItem('dark-ranch-customer-session', JSON.stringify(nextCustomer));
+    setCustomerSession(nextCustomer);
+    setCurrentView('orders');
   };
 
   const handleAdminLogout = () => {
@@ -106,10 +147,35 @@ const App = () => {
     toast.success('Sesión cerrada');
   };
 
+  const handleCustomerLogout = () => {
+    localStorage.removeItem('dark-ranch-customer-session');
+    setCustomerSession(null);
+    setCurrentView('home');
+    toast.success('Sesión de cliente cerrada');
+  };
+
   const navigateToCategory = (categoryName: string) => {
     setSelectedCategory(categoryName);
     setCurrentView('shop');
     window.scrollTo(0, 0);
+  };
+
+  const navigateToProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setCurrentView('product');
+    window.scrollTo(0, 0);
+  };
+
+  const handleOpenUserArea = () => {
+    if (isAdmin) {
+      setCurrentView('admin');
+      return;
+    }
+    if (customerSession) {
+      setCurrentView('orders');
+      return;
+    }
+    setCurrentView('login');
   };
 
   const renderLoadingState = () => (
@@ -156,20 +222,20 @@ const App = () => {
                   transition={{ duration: 1, delay: 0.2 }}
                   className="max-w-4xl"
                 >
-                  <p className="text-[#C4A484] font-header text-xl md:text-2xl uppercase tracking-[0.4em] font-black mb-6 flex items-center gap-4">
+                  <p className="text-[#C4A484] font-header text-sm sm:text-base md:text-2xl uppercase tracking-[0.25em] md:tracking-[0.4em] font-black mb-6 flex items-center gap-3 md:gap-4">
                     <span className="h-px w-12 bg-[#C4A484]"></span> {storeSettings.hero.subtitle}
                   </p>
-                  <h1 className="text-6xl md:text-8xl lg:text-[10rem] font-western text-white uppercase leading-[0.8] tracking-tighter mb-10 drop-shadow-2xl">
+                  <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-[10rem] font-western text-white uppercase leading-[0.9] md:leading-[0.8] tracking-tight md:tracking-tighter mb-8 md:mb-10 drop-shadow-2xl">
                     {storeSettings.hero.title.split('.').map((part, index) => (
                       <span key={`${part}-${index}`} className="block">{part}{index === 0 ? '.' : ''}</span>
                     ))}
                   </h1>
-                  <div className="flex flex-col sm:row items-center gap-6">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6">
                     <Button size="lg" variant="secondary" className="w-full sm:w-auto text-xl px-12" onClick={() => setCurrentView('shop')}>
                       Ir al Taller
                     </Button>
-                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black font-western" onClick={() => setCurrentView('about')}>
-                      Nuestra Herencia
+                    <Button variant="outline" size="lg" className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-black font-western" onClick={() => setCurrentView('shop')}>
+                      Ver Catálogo
                     </Button>
                   </div>
                 </Motion.div>
@@ -194,23 +260,6 @@ const App = () => {
               </div>
             </section>
 
-            {storeSettings.banners[0] && (
-              <section className="py-20 bg-black text-white">
-                <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                  <div className="space-y-6">
-                    <p className="font-header uppercase tracking-[0.3em] text-[#C4A484] text-xs">Banner activo desde la base local</p>
-                    <h2 className="text-5xl font-western uppercase">{storeSettings.banners[0].title}</h2>
-                    <p className="text-neutral-300 leading-relaxed">{storeSettings.banners[0].subtitle}</p>
-                    <Button variant="secondary" onClick={() => navigateToCategory(storeSettings.banners[0].categoryLink)}>
-                      {storeSettings.banners[0].buttonText}
-                    </Button>
-                  </div>
-                  <div className="border-2 border-white/30 overflow-hidden">
-                    <ImageWithFallback src={storeSettings.banners[0].imageUrl} alt={storeSettings.banners[0].title} className="w-full h-[420px] object-cover" />
-                  </div>
-                </div>
-              </section>
-            )}
 
             <section id="shop" className="py-32 bg-[#fcf9f5]">
               <div className="container mx-auto px-6">
@@ -220,9 +269,9 @@ const App = () => {
                     Explorar el Arsenal <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform" />
                   </button>
                 </div>
-                <div className="grid grid-cols-1 sm:row-2 lg:grid-cols-4 gap-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
                   {featuredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <ProductCard key={product.id} product={product} onQuickView={navigateToProduct} />
                   ))}
                 </div>
               </div>
@@ -302,7 +351,7 @@ const App = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                     {filteredProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                      <ProductCard key={product.id} product={product} onQuickView={navigateToProduct} />
                     ))}
                   </div>
                 </div>
@@ -312,11 +361,34 @@ const App = () => {
         );
 
       case 'about':
-        return <AboutPage text={storeSettings.aboutText} />;
-      case 'contact':
-        return <ContactPage email={storeSettings.contactEmail} />;
+        return <AboutPage text={HARDCODED_ABOUT_TEXT} />;
+      case 'policies':
+        return <PoliciesPage />;
+      case 'privacy':
+        return <PrivacyPage />;
+      case 'terms':
+        return <TermsPage />;
       case 'checkout':
-        return <CheckoutPage onBack={() => setCurrentView('home')} onOrderCreated={loadData} />;
+        return <CheckoutPage onBack={() => setCurrentView('home')} onOrderCreated={loadData} customerSession={customerSession} />;
+      case 'product':
+        return selectedProduct ? (
+          <ProductDetailPage
+            product={selectedProduct}
+            customer={customerSession}
+            isAdmin={isAdmin}
+            onBack={() => setCurrentView('shop')}
+            onRequireLogin={() => setCurrentView('login')}
+          />
+        ) : null;
+      case 'orders':
+        return (
+          <OrdersPage
+            customer={customerSession}
+            onBack={() => setCurrentView('home')}
+            onRequireLogin={() => setCurrentView('login')}
+            onLogout={handleCustomerLogout}
+          />
+        );
       case 'login':
         return <LoginPage onLogin={handleLogin} customerOnly={checkoutIntent} />;
       case 'admin':
@@ -357,7 +429,7 @@ const App = () => {
         {currentView !== 'login' && currentView !== 'admin' && (
           <Navbar
             onOpenCart={() => setIsCartOpen(true)}
-            onOpenAuth={() => setCurrentView(isAdmin ? 'admin' : 'login')}
+            onOpenAuth={handleOpenUserArea}
             onNavigate={(view: View) => setCurrentView(view)}
             currentView={currentView}
           />
@@ -366,22 +438,30 @@ const App = () => {
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
 
         {currentView !== 'login' && currentView !== 'admin' && <Footer />}
-        <CartDrawer
-          isOpen={isCartOpen}
-          onClose={() => setIsCartOpen(false)}
-          onCheckout={() => {
-            setIsCartOpen(false);
-            const customerSession = localStorage.getItem('dark-ranch-customer-session');
-            if (!customerSession) {
-              setCheckoutIntent(true);
-              setCurrentView('login');
-              toast.info('Para pagar debes iniciar sesión o crear una cuenta.');
-              return;
-            }
-            setCheckoutIntent(false);
-            setCurrentView('checkout');
-          }}
-        />
+        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
+        <CustomerLoginDialog isOpen={false} />
+
+        {!hasAcceptedLegal && (
+          <div className="fixed inset-0 z-[100] bg-black/70 p-4 md:p-8 overflow-y-auto">
+            <div className="min-h-full flex items-start justify-center py-6">
+              <div className="w-full max-w-5xl bg-[#fcf9f5] border-2 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+                <LegalAgreementPage />
+                <div className="px-6 pb-8 md:px-10 flex flex-col sm:flex-row gap-4 justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      localStorage.setItem(LEGAL_ACCEPTANCE_KEY, 'true');
+                      setHasAcceptedLegal(true);
+                      toast.success('Gracias. Has aceptado el acuerdo de privacidad y términos.');
+                    }}
+                  >
+                    Aceptar términos y continuar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </CartProvider>
   );
