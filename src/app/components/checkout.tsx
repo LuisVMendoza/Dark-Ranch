@@ -3,7 +3,7 @@ import { useCart } from '../cart-context';
 import { Button, cn } from './ui';
 import { CreditCard, Truck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { createOrder } from '../lib/api';
+import { createOrder, getOrderPaymentStatus } from '../lib/api';
 
 export const CheckoutPage = ({ onBack, onOrderCreated }: { onBack: () => void; onOrderCreated?: () => void }) => {
   const { cart, clearCart } = useCart();
@@ -11,6 +11,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated }: { onBack: () => void; o
   const [step, setStep] = useState(1);
   const [orderNumber, setOrderNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -55,7 +56,23 @@ export const CheckoutPage = ({ onBack, onOrderCreated }: { onBack: () => void; o
       });
 
       setOrderNumber(response.order.orderNumber);
-      toast.success('¡Pedido realizado con éxito!');
+      await fetch('/api/payments/webhook/mercadopago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            id: `test-${Date.now()}`,
+            status: 'approved',
+            external_reference: response.order.orderNumber,
+          },
+        }),
+      });
+      const payment = await getOrderPaymentStatus(response.order.orderNumber);
+      if (payment.paymentStatus !== 'paid') {
+        throw new Error('Pago recibido pero aún no confirmado por webhook');
+      }
+
+      toast.success('¡Pago confirmado y pedido registrado!');
       setStep(4);
       clearCart();
       onOrderCreated?.();

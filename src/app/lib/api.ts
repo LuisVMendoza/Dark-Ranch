@@ -145,6 +145,10 @@ export function createOrder(payload: CheckoutPayload) {
   });
 }
 
+export function getOrderPaymentStatus(orderNumber: string) {
+  return request<{ orderNumber: string; status: string; paymentStatus: string; paymentId: string | null }>(`/api/orders/${encodeURIComponent(orderNumber)}/payment-status`);
+}
+
 export function createAdminProduct(payload: AdminProductPayload) {
   return request<{ product: Product }>('/api/admin/products', {
     method: 'POST',
