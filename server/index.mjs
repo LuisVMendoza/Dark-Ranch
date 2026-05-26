@@ -220,8 +220,8 @@ function createOrder(store, payload) {
     address: payload.address,
     city: payload.city,
     zip: payload.zip,
-    status: 'paid',
-    payment_status: 'paid',
+    status: 'pending',
+    payment_status: 'pending',
     total,
     created_at: new Date().toISOString(),
     cancellation_reason: null,
@@ -239,15 +239,40 @@ function createOrder(store, payload) {
       selectedSize: item.selectedSize ?? null,
       selectedColor: item.selectedColor ?? null,
     });
+  }
 
-    const product = store.products.find((entry) => entry.id === item.id);
+  writeStore(store);
+  return { orderNumber, total };
+}
+
+function markOrderAsPaid(store, orderNumber, paymentId) {
+  const order = store.orders.find((entry) => entry.order_number === orderNumber);
+  if (!order) return null;
+  order.status = 'paid';
+  order.payment_status = 'paid';
+  order.payment_id = paymentId || null;
+
+  const orderItems = store.orderItems.filter((item) => item.orderId === order.id);
+  for (const item of orderItems) {
+    const product = store.products.find((entry) => entry.id === item.productId);
     if (product) {
       product.stock = Math.max(Number(product.stock) - Number(item.quantity), 0);
     }
   }
 
   writeStore(store);
-  return { orderNumber, total };
+  return order;
+}
+
+function getOrderPaymentStatus(store, orderNumber) {
+  const order = store.orders.find((entry) => entry.order_number === orderNumber);
+  if (!order) return null;
+  return {
+    orderNumber,
+    status: order.status,
+    paymentStatus: order.payment_status,
+    paymentId: order.payment_id || null,
+  };
 }
 
 function normalizeStore(store) {

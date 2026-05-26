@@ -390,7 +390,7 @@ const App = () => {
           />
         );
       case 'login':
-        return <LoginPage onLogin={handleLogin} />;
+        return <LoginPage onLogin={handleLogin} customerOnly={checkoutIntent} />;
       case 'admin':
         return isAdmin ? (
           <AdminDashboard

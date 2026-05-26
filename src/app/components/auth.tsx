@@ -17,10 +17,24 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) =>
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (customerOnly) {
+      const customerSession = {
+        email,
+        fullName: fullName || email.split('@')[0],
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('dark-ranch-customer-session', JSON.stringify(customerSession));
+      toast.success(isRegisterMode ? 'Cuenta creada correctamente' : 'Sesión iniciada correctamente');
+      onLogin(null);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -119,6 +133,16 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) =>
               {isSubmitting ? 'Procesando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </Button>
+
+            {customerOnly && (
+              <button
+                type="button"
+                onClick={() => setIsRegisterMode((prev) => !prev)}
+                className="w-full text-sm underline underline-offset-4"
+              >
+                {isRegisterMode ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}
+              </button>
+            )}
           </form>
         </div>
       </div>

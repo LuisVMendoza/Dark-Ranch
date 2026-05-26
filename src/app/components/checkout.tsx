@@ -15,6 +15,7 @@ export const CheckoutPage = ({ onBack, onOrderCreated, customerSession }: { onBa
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState({
     email: customerSession?.email ?? '',
     firstName: customerSession?.name?.split(' ')[0] ?? '',
