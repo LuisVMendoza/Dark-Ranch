@@ -35,6 +35,7 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasAcceptedLegal, setHasAcceptedLegal] = useState(true);
+  const [checkoutIntent, setCheckoutIntent] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -75,6 +76,7 @@ const App = () => {
       if (parsedAdminUser?.id) {
         setAdminUser(parsedAdminUser);
         setIsAdmin(true);
+        
       }
     } catch {
       localStorage.removeItem('dark-ranch-admin-user');
@@ -126,6 +128,7 @@ const App = () => {
       localStorage.setItem('dark-ranch-admin-user', JSON.stringify(nextAdminUser));
       setAdminUser(nextAdminUser);
       setIsAdmin(true);
+      setCheckoutIntent(false);
       setCurrentView('admin');
       return;
     }
@@ -136,6 +139,11 @@ const App = () => {
     setIsAdmin(false);
     localStorage.setItem('dark-ranch-customer-session', JSON.stringify(nextCustomer));
     setCustomerSession(nextCustomer);
+    if (checkoutIntent) {
+      setCheckoutIntent(false);
+      setCurrentView('checkout');
+      return;
+    }
     setCurrentView('orders');
   };
 
@@ -175,6 +183,7 @@ const App = () => {
       setCurrentView('orders');
       return;
     }
+    setCheckoutIntent(false);
     setCurrentView('login');
   };
 
@@ -377,7 +386,8 @@ const App = () => {
             customer={customerSession}
             isAdmin={isAdmin}
             onBack={() => setCurrentView('shop')}
-            onRequireLogin={() => setCurrentView('login')}
+     onRequireLogin={() => { setCheckoutIntent(false); setCurrentView('login'); }}
+            
           />
         ) : null;
       case 'orders':
@@ -385,7 +395,7 @@ const App = () => {
           <OrdersPage
             customer={customerSession}
             onBack={() => setCurrentView('home')}
-            onRequireLogin={() => setCurrentView('login')}
+                onRequireLogin={() => { setCheckoutIntent(false); setCurrentView('login'); }}
             onLogout={handleCustomerLogout}
           />
         );
@@ -438,8 +448,21 @@ const App = () => {
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
 
         {currentView !== 'login' && currentView !== 'admin' && <Footer />}
-        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} onCheckout={() => { setIsCartOpen(false); setCurrentView('checkout'); }} />
-        <CustomerLoginDialog isOpen={false} />
+    <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          onCheckout={() => {
+            setIsCartOpen(false);
+            if (!customerSession) {
+              setCheckoutIntent(true);
+              setCurrentView('login');
+              toast.info('Para pagar debes iniciar sesión o crear una cuenta.');
+              return;
+            }
+            setCheckoutIntent(false);
+            setCurrentView('checkout');
+          }}
+        />        <CustomerLoginDialog isOpen={false} />
 
         {!hasAcceptedLegal && (
           <div className="fixed inset-0 z-[100] bg-black/70 p-4 md:p-8 overflow-y-auto">

@@ -12,35 +12,26 @@ export interface AuthUser {
   role: string;
 }
 
-export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+export const LoginPage = ({ onLogin, customerOnly = false }: { onLogin: (user: AuthUser) => void; customerOnly?: boolean }) => {  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (customerOnly) {
-      const customerSession = {
-        email,
-        fullName: fullName || email.split('@')[0],
-        createdAt: new Date().toISOString(),
-      };
-      localStorage.setItem('dark-ranch-customer-session', JSON.stringify(customerSession));
-      toast.success(isRegisterMode ? 'Cuenta creada correctamente' : 'Sesión iniciada correctamente');
-      onLogin(null);
-      return;
-    }
+
 
     setIsSubmitting(true);
     try {
       const response = mode === 'login'
         ? await loginUser(email, password)
         : await registerUser(name, email, password);
+           if (customerOnly && response.user.role === 'admin') {
+        toast.error('Para finalizar la compra debes usar una cuenta de cliente.');
+        return;
+      }
       toast.success(mode === 'login' ? 'Sesión iniciada correctamente' : 'Cuenta creada correctamente');
       onLogin(response.user);
     } catch (error) {
@@ -75,8 +66,7 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) =>
             <h1 className="text-4xl font-header font-black uppercase tracking-tight mb-2">
               {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
             </h1>
-            <p className="text-neutral-500 font-medium">Accede para comentar y revisar tus pedidos.</p>
-          </div>
+         <p className="text-neutral-500 font-medium">{customerOnly ? 'Accede como cliente para finalizar tu compra.' : 'Accede para comentar y revisar tus pedidos.'}</p>          </div>
 
           <div className="grid grid-cols-2 gap-2 bg-white border border-black p-1">
             <button type="button" onClick={() => setMode('login')} className={`py-2 font-header uppercase text-xs ${mode === 'login' ? 'bg-black text-white' : 'text-black'}`}>
@@ -134,15 +124,7 @@ export const LoginPage = ({ onLogin }: { onLogin: (user: AuthUser) => void }) =>
               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </Button>
 
-            {customerOnly && (
-              <button
-                type="button"
-                onClick={() => setIsRegisterMode((prev) => !prev)}
-                className="w-full text-sm underline underline-offset-4"
-              >
-                {isRegisterMode ? 'Ya tengo cuenta' : 'Crear una cuenta nueva'}
-              </button>
-            )}
+         
           </form>
         </div>
       </div>
